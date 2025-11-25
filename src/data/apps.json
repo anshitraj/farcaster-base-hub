@@ -1,0 +1,148 @@
+[
+  {
+    "id": "1",
+    "name": "DeFi Dashboard",
+    "description": "Track your DeFi portfolio across Base and other chains with real-time analytics and insights.",
+    "url": "https://defi-dashboard.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=defi",
+    "category": "Finance",
+    "developer": "1",
+    "stats": {
+      "users": "50K+",
+      "rating": 4.8,
+      "reviews": 1234
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1642790551116-18e150f248e8?w=800&h=600&fit=crop",
+      "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800&h=600&fit=crop"
+    ],
+    "featured": true
+  },
+  {
+    "id": "2",
+    "name": "NFT Marketplace",
+    "description": "Discover, buy, and sell NFTs on Base. Explore trending collections and connect with creators.",
+    "url": "https://nft-market.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=nft",
+    "category": "Social",
+    "developer": "2",
+    "stats": {
+      "users": "100K+",
+      "rating": 4.9,
+      "reviews": 3456
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1620321023374-d1a68fbc720d?w=800&h=600&fit=crop",
+      "https://images.unsplash.com/photo-1634973357973-f2ed2657db3c?w=800&h=600&fit=crop"
+    ],
+    "featured": true
+  },
+  {
+    "id": "3",
+    "name": "Social Hub",
+    "description": "Connect with the Farcaster community. Share casts, discover new friends, and engage with content.",
+    "url": "https://social-hub.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=social",
+    "category": "Social",
+    "developer": "3",
+    "stats": {
+      "users": "200K+",
+      "rating": 4.7,
+      "reviews": 5678
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=600&fit=crop"
+    ],
+    "featured": true
+  },
+  {
+    "id": "4",
+    "name": "Token Swap",
+    "description": "Swap tokens instantly on Base with the best rates and minimal fees.",
+    "url": "https://token-swap.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=swap",
+    "category": "Finance",
+    "developer": "1",
+    "stats": {
+      "users": "75K+",
+      "rating": 4.6,
+      "reviews": 2345
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1640340434855-6084b1f4901c?w=800&h=600&fit=crop"
+    ],
+    "featured": false
+  },
+  {
+    "id": "5",
+    "name": "Airdrop Tracker",
+    "description": "Never miss an airdrop. Track upcoming drops, check eligibility, and claim your rewards.",
+    "url": "https://airdrop-tracker.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=airdrop",
+    "category": "Airdrops",
+    "developer": "4",
+    "stats": {
+      "users": "150K+",
+      "rating": 4.9,
+      "reviews": 4321
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800&h=600&fit=crop"
+    ],
+    "featured": true
+  },
+  {
+    "id": "6",
+    "name": "Game Arena",
+    "description": "Play blockchain games, earn rewards, and compete with players worldwide.",
+    "url": "https://game-arena.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=game",
+    "category": "Games",
+    "developer": "5",
+    "stats": {
+      "users": "80K+",
+      "rating": 4.5,
+      "reviews": 1876
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&h=600&fit=crop"
+    ],
+    "featured": false
+  },
+  {
+    "id": "7",
+    "name": "Meme Generator",
+    "description": "Create and share memes with the community. Mint your favorites as NFTs.",
+    "url": "https://meme-gen.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=meme",
+    "category": "Memecoins",
+    "developer": "2",
+    "stats": {
+      "users": "120K+",
+      "rating": 4.8,
+      "reviews": 3210
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1579762715118-a6f1d4b934f1?w=800&h=600&fit=crop"
+    ],
+    "featured": false
+  },
+  {
+    "id": "8",
+    "name": "Wallet Manager",
+    "description": "Manage multiple wallets, track transactions, and secure your assets in one place.",
+    "url": "https://wallet-manager.example.com",
+    "iconUrl": "https://api.dicebear.com/7.x/shapes/svg?seed=wallet",
+    "category": "Utilities",
+    "developer": "3",
+    "stats": {
+      "users": "60K+",
+      "rating": 4.7,
+      "reviews": 1543
+    },
+    "screenshots": [
+      "https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=800&h=600&fit=crop"
+    ],
+    "featured": false
+  }
+]
