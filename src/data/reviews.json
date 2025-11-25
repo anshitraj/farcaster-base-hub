@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1",
+    "appId": "1",
+    "userId": "user1",
+    "userName": "Sarah Johnson",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
+    "rating": 5,
+    "comment": "Absolutely love this DeFi dashboard! The analytics are comprehensive and the UI is beautiful. Has helped me track my portfolio much better.",
+    "date": "2024-11-20",
+    "helpful": 24
+  },
+  {
+    "id": "2",
+    "appId": "1",
+    "userId": "user2",
+    "userName": "Mike Chen",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=mike",
+    "rating": 4,
+    "comment": "Great app overall. Would love to see more chain integrations in the future.",
+    "date": "2024-11-18",
+    "helpful": 12
+  },
+  {
+    "id": "3",
+    "appId": "2",
+    "userId": "user3",
+    "userName": "Emily Rodriguez",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=emily",
+    "rating": 5,
+    "comment": "Best NFT marketplace on Base! Fast transactions and great community.",
+    "date": "2024-11-22",
+    "helpful": 31
+  },
+  {
+    "id": "4",
+    "appId": "2",
+    "userId": "user4",
+    "userName": "David Kim",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=davidk",
+    "rating": 5,
+    "comment": "The user experience is phenomenal. Found some amazing NFTs here.",
+    "date": "2024-11-19",
+    "helpful": 18
+  },
+  {
+    "id": "5",
+    "appId": "3",
+    "userId": "user5",
+    "userName": "Lisa Wong",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=lisaw",
+    "rating": 4,
+    "comment": "Solid social app. The integration with Farcaster is seamless.",
+    "date": "2024-11-21",
+    "helpful": 15
+  },
+  {
+    "id": "6",
+    "appId": "4",
+    "userId": "user6",
+    "userName": "Alex Turner",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=alext",
+    "rating": 5,
+    "comment": "Lightning fast swaps with minimal fees. Exactly what I needed!",
+    "date": "2024-11-23",
+    "helpful": 27
+  },
+  {
+    "id": "7",
+    "appId": "5",
+    "userId": "user7",
+    "userName": "Rachel Green",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=rachelg",
+    "rating": 5,
+    "comment": "Never miss an airdrop thanks to this app! Notifications are on point.",
+    "date": "2024-11-24",
+    "helpful": 42
+  },
+  {
+    "id": "8",
+    "appId": "5",
+    "userId": "user8",
+    "userName": "Tom Harris",
+    "userAvatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=tomh",
+    "rating": 4,
+    "comment": "Very useful tool. Claimed several airdrops I would have missed otherwise.",
+    "date": "2024-11-22",
+    "helpful": 19
+  }
+]

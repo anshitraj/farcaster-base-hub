@@ -8,6 +8,7 @@ import AppGrid from "@/components/AppGrid";
 import DeveloperCard from "@/components/DeveloperCard";
 import GlowButton from "@/components/GlowButton";
 import { ArrowRight, Sparkles, TrendingUp, Award } from "lucide-react";
+import { motion } from "framer-motion";
 import appsData from "@/data/apps.json";
 import developersData from "@/data/developers.json";
 import heroBackground from "@/assets/hero-bg.jpg";
@@ -37,22 +38,42 @@ const Index = () => {
       >
         <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/50 to-background" />
         <div className="relative container mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-card mb-6"
+          >
             <Sparkles className="w-4 h-4 text-base-cyan" />
             <span className="text-sm">Powered by Base & Farcaster</span>
-          </div>
+          </motion.div>
           
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+          >
             Discover Mini Apps Across
             <br />
             <span className="text-gradient-base">Farcaster & Base</span>
-          </h1>
+          </motion.h1>
           
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto"
+          >
             Explore, submit, and earn developer badges in the ultimate hub for decentralized mini applications.
-          </p>
+          </motion.p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-16"
+          >
             <Link to="/apps">
               <GlowButton size="lg" className="gap-2">
                 Explore Apps
@@ -65,14 +86,26 @@ const Index = () => {
                 <Sparkles className="w-5 h-5" />
               </GlowButton>
             </Link>
-          </div>
+          </motion.div>
 
-          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <SearchBar value={searchQuery} onChange={setSearchQuery} />
+          </motion.div>
         </div>
       </section>
 
       {/* Categories */}
-      <section className="py-12 px-4">
+      <motion.section
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="py-12 px-4"
+      >
         <div className="container mx-auto">
           <CategoryChips
             categories={categories}
@@ -80,10 +113,16 @@ const Index = () => {
             onSelect={setSelectedCategory}
           />
         </div>
-      </section>
+      </motion.section>
 
       {/* Trending Apps */}
-      <section className="py-12 px-4">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="py-12 px-4"
+      >
         <div className="container mx-auto">
           <div className="flex items-center gap-3 mb-8">
             <TrendingUp className="w-6 h-6 text-base-blue" />
@@ -91,10 +130,16 @@ const Index = () => {
           </div>
           <AppGrid apps={featuredApps} />
         </div>
-      </section>
+      </motion.section>
 
       {/* New Apps */}
-      <section className="py-12 px-4">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="py-12 px-4"
+      >
         <div className="container mx-auto">
           <div className="flex items-center gap-3 mb-8">
             <Sparkles className="w-6 h-6 text-base-cyan" />
@@ -102,30 +147,43 @@ const Index = () => {
           </div>
           <AppGrid apps={newApps} />
         </div>
-      </section>
+      </motion.section>
 
       {/* Top Developers */}
-      <section className="py-12 px-4">
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className="py-12 px-4"
+      >
         <div className="container mx-auto">
           <div className="flex items-center gap-3 mb-8">
             <Award className="w-6 h-6 text-base-blue" />
             <h2 className="text-3xl font-bold">Top Developers</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {topDevelopers.map((dev) => (
-              <DeveloperCard
+            {topDevelopers.map((dev, index) => (
+              <motion.div
                 key={dev.id}
-                id={dev.id}
-                name={dev.name}
-                avatar={dev.avatar}
-                wallet={dev.wallet}
-                badges={dev.badges}
-                appCount={dev.apps.length}
-              />
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
+              >
+                <DeveloperCard
+                  id={dev.id}
+                  name={dev.name}
+                  avatar={dev.avatar}
+                  wallet={dev.wallet}
+                  badges={dev.badges}
+                  appCount={dev.apps.length}
+                />
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </motion.section>
 
       <Footer />
     </div>
