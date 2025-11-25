@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { motion } from "framer-motion";
 
 interface DeveloperCardProps {
   id: string;
@@ -14,7 +15,12 @@ interface DeveloperCardProps {
 const DeveloperCard = ({ id, name, avatar, wallet, badges, appCount }: DeveloperCardProps) => {
   return (
     <Link to={`/developers/${id}`}>
-      <Card className="glass-card hover:bg-white/10 transition-all duration-300 hover:scale-105 group">
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className="glass-card hover:bg-white/10 transition-all duration-300 group">
         <CardContent className="p-6 text-center">
           <img
             src={avatar}
@@ -47,6 +53,7 @@ const DeveloperCard = ({ id, name, avatar, wallet, badges, appCount }: Developer
           </p>
         </CardContent>
       </Card>
+      </motion.div>
     </Link>
   );
 };

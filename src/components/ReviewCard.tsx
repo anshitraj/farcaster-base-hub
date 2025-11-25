@@ -1,0 +1,64 @@
+import { Card, CardContent } from "@/components/ui/card";
+import { Star, ThumbsUp } from "lucide-react";
+import { motion } from "framer-motion";
+
+interface ReviewCardProps {
+  userName: string;
+  userAvatar: string;
+  rating: number;
+  comment: string;
+  date: string;
+  helpful: number;
+}
+
+const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: ReviewCardProps) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <Card className="glass-card">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <img
+              src={userAvatar}
+              alt={userName}
+              className="w-12 h-12 rounded-full bg-background-secondary p-1"
+            />
+            
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h4 className="font-semibold">{userName}</h4>
+                  <p className="text-xs text-muted-foreground">{date}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`w-4 h-4 ${
+                        i < rating
+                          ? "fill-base-cyan text-base-cyan"
+                          : "text-muted-foreground"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              <p className="text-sm text-muted-foreground mb-3">{comment}</p>
+              
+              <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-base-blue transition-colors">
+                <ThumbsUp className="w-4 h-4" />
+                <span>Helpful ({helpful})</span>
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
+
+export default ReviewCard;

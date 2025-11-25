@@ -2,16 +2,21 @@ import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import GlowButton from "@/components/GlowButton";
+import ReviewCard from "@/components/ReviewCard";
+import ReviewForm from "@/components/ReviewForm";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Users, ExternalLink, User } from "lucide-react";
+import { motion } from "framer-motion";
 import appsData from "@/data/apps.json";
 import developersData from "@/data/developers.json";
+import reviewsData from "@/data/reviews.json";
 
 const AppDetail = () => {
   const { id } = useParams();
   const app = appsData.find(a => a.id === id);
   const developer = app ? developersData.find(d => d.id === app.developer) : null;
+  const reviews = reviewsData.filter(r => r.appId === id);
 
   if (!app) {
     return (
@@ -40,7 +45,12 @@ const AppDetail = () => {
       <div className="pt-24 pb-12 px-4">
         <div className="container mx-auto max-w-6xl">
           {/* App Header */}
-          <div className="glass-card p-8 mb-8 glow-base-blue/20">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="glass-card p-8 mb-8 glow-base-blue/20"
+          >
             <div className="flex flex-col md:flex-row gap-8">
               <img
                 src={app.iconUrl}
@@ -94,27 +104,59 @@ const AppDetail = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Screenshots */}
-            <div className="lg:col-span-2">
-              <h2 className="text-2xl font-bold mb-4">Screenshots</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {app.screenshots.map((screenshot, index) => (
-                  <Card key={index} className="glass-card overflow-hidden">
-                    <img
-                      src={screenshot}
-                      alt={`Screenshot ${index + 1}`}
-                      className="w-full h-64 object-cover"
-                    />
-                  </Card>
-                ))}
-              </div>
+            <div className="lg:col-span-2 space-y-8">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+              >
+                <h2 className="text-2xl font-bold mb-4">Screenshots</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {app.screenshots.map((screenshot, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3, delay: 0.3 + index * 0.1 }}
+                    >
+                      <Card className="glass-card overflow-hidden hover:scale-105 transition-transform duration-300">
+                        <img
+                          src={screenshot}
+                          alt={`Screenshot ${index + 1}`}
+                          className="w-full h-64 object-cover"
+                        />
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Reviews Section */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.5 }}
+              >
+                <h2 className="text-2xl font-bold mb-4">Reviews ({reviews.length})</h2>
+                <div className="space-y-4 mb-8">
+                  {reviews.map((review) => (
+                    <ReviewCard key={review.id} {...review} />
+                  ))}
+                </div>
+                <ReviewForm />
+              </motion.div>
             </div>
 
             {/* Developer Info */}
-            <div>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
               <h2 className="text-2xl font-bold mb-4">Developer</h2>
               {developer && (
                 <Link to={`/developers/${developer.id}`}>
@@ -144,7 +186,7 @@ const AppDetail = () => {
                   </Card>
                 </Link>
               )}
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>

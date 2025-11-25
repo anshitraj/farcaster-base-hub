@@ -24,6 +24,9 @@ const Navbar = () => {
           <Link to="/submit" className="text-sm font-medium hover:text-base-blue transition-colors">
             Submit App
           </Link>
+          <Link to="/dashboard" className="text-sm font-medium hover:text-base-blue transition-colors">
+            Dashboard
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">

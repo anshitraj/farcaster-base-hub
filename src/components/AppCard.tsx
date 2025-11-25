@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Star, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { motion } from "framer-motion";
 
 interface AppCardProps {
   id: string;
@@ -18,7 +19,12 @@ interface AppCardProps {
 const AppCard = ({ id, name, description, iconUrl, category, stats, featured }: AppCardProps) => {
   return (
     <Link to={`/apps/${id}`}>
-      <Card className="glass-card hover:bg-white/10 transition-all duration-300 hover:scale-105 group">
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className="glass-card hover:bg-white/10 transition-all duration-300 group">
         <CardContent className="p-6">
           <div className="flex items-start gap-4 mb-4">
             <img
@@ -57,6 +63,7 @@ const AppCard = ({ id, name, description, iconUrl, category, stats, featured }: 
           </div>
         </CardContent>
       </Card>
+      </motion.div>
     </Link>
   );
 };
