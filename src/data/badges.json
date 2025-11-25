@@ -1,0 +1,44 @@
+[
+  {
+    "id": "1",
+    "name": "Early Adopter",
+    "description": "Joined the platform in its early days",
+    "icon": "⭐",
+    "rarity": "common"
+  },
+  {
+    "id": "2",
+    "name": "Verified Builder",
+    "description": "Built and published verified mini apps",
+    "icon": "✓",
+    "rarity": "uncommon"
+  },
+  {
+    "id": "3",
+    "name": "Top Developer",
+    "description": "Consistently creates top-rated apps",
+    "icon": "🏆",
+    "rarity": "rare"
+  },
+  {
+    "id": "4",
+    "name": "Community Hero",
+    "description": "Outstanding community contributions",
+    "icon": "❤️",
+    "rarity": "uncommon"
+  },
+  {
+    "id": "5",
+    "name": "Innovation Award",
+    "description": "Pioneered innovative features",
+    "icon": "💡",
+    "rarity": "rare"
+  },
+  {
+    "id": "6",
+    "name": "Gaming Pioneer",
+    "description": "Leading the gaming revolution",
+    "icon": "🎮",
+    "rarity": "rare"
+  }
+]

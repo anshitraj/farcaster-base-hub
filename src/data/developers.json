@@ -1,0 +1,47 @@
+[
+  {
+    "id": "1",
+    "name": "Alice Chen",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=alice",
+    "wallet": "0x1234...5678",
+    "bio": "Full-stack developer passionate about DeFi and Web3. Building tools to make blockchain accessible to everyone.",
+    "badges": ["Early Adopter", "Verified Builder", "Top Developer"],
+    "apps": ["1", "4"]
+  },
+  {
+    "id": "2",
+    "name": "Bob Martinez",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=bob",
+    "wallet": "0x2345...6789",
+    "bio": "NFT enthusiast and community builder. Creating platforms for artists and collectors to connect.",
+    "badges": ["Community Hero", "Verified Builder"],
+    "apps": ["2", "7"]
+  },
+  {
+    "id": "3",
+    "name": "Carol Wong",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=carol",
+    "wallet": "0x3456...7890",
+    "bio": "Social media innovator focused on decentralized communication and user ownership.",
+    "badges": ["Verified Builder", "Innovation Award"],
+    "apps": ["3", "8"]
+  },
+  {
+    "id": "4",
+    "name": "David Kumar",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=david",
+    "wallet": "0x4567...8901",
+    "bio": "Airdrop hunter turned builder. Helping the community discover and claim opportunities.",
+    "badges": ["Early Adopter", "Verified Builder", "Community Hero"],
+    "apps": ["5"]
+  },
+  {
+    "id": "5",
+    "name": "Emma Taylor",
+    "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=emma",
+    "wallet": "0x5678...9012",
+    "bio": "Game developer bringing fun and rewards together. Building the future of play-to-earn.",
+    "badges": ["Verified Builder", "Gaming Pioneer"],
+    "apps": ["6"]
+  }
+]
