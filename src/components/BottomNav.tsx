@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
-  { href: "/apps", icon: Search, label: "Search" },
+  { href: "/search", icon: Search, label: "Search" },
   { href: "/developers", icon: Users, label: "Developers" },
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
 ];

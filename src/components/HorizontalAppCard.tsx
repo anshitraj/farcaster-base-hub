@@ -75,7 +75,7 @@ export default function HorizontalAppCard({ app, showPrice = false, price }: Hor
             href={`/apps/${app.id}`}
             className="block w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold text-center transition-all duration-300"
           >
-            {showPrice && price ? price : "Free"}
+            {showPrice && price ? price : "Open"}
           </Link>
         </div>
       </div>

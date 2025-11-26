@@ -99,7 +99,7 @@ export default function AppHeader() {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               className="md:hidden p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
-              onClick={() => router.push("/apps")}
+              onClick={() => router.push("/search")}
               aria-label="Search"
             >
               <Search className="w-5 h-5 text-gray-300" />

@@ -1,16 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Sidebar from "@/components/Sidebar";
 import { motion } from "framer-motion";
-import { Bell, ChevronRight, Zap, Users, Puzzle, Compass, Flag, Swords, Target, Trophy, Grid3x3, CheckSquare, MessageSquare, Music, Camera, ShoppingBag, GraduationCap } from "lucide-react";
+import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, Camera, ShoppingBag, GraduationCap, Swords, Flag, Puzzle, Compass, Trophy, Target } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 import { trackPageView } from "@/lib/analytics";
-import UserProfile from "@/components/UserProfile";
-import PointsDisplay from "@/components/PointsDisplay";
-import NotificationSidebar from "@/components/NotificationSidebar";
-import TopBanner from "@/components/TopBanner";
-import HorizontalAppCard from "@/components/HorizontalAppCard";
+import Sidebar from "@/components/Sidebar";
+import { useDebounce } from "@/hooks/use-debounce";
 
 // Game categories with icons
 const gameCategories = [
@@ -36,154 +34,159 @@ const appCategories = [
   { name: "Education", icon: GraduationCap, color: "from-indigo-500 to-indigo-600", href: "/apps?category=Tools&tag=education" },
 ];
 
-export default function HomePage() {
-  const [topApps, setTopApps] = useState<any[]>([]);
-  const [trendingApps, setTrendingApps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function SearchPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
-  const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
+
+  // Check if speech recognition is supported
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setIsSpeechSupported(true);
+        const recognitionInstance = new SpeechRecognition();
+        recognitionInstance.continuous = false;
+        recognitionInstance.interimResults = false;
+        recognitionInstance.lang = "en-US";
+
+        recognitionInstance.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setSearchQuery(transcript);
+          setIsListening(false);
+          // Auto-search after voice input
+          if (transcript.trim()) {
+            router.push(`/apps?search=${encodeURIComponent(transcript.trim())}`);
+          }
+        };
+
+        recognitionInstance.onerror = (event: any) => {
+          console.error("Speech recognition error:", event.error);
+          setIsListening(false);
+        };
+
+        recognitionInstance.onend = () => {
+          setIsListening(false);
+        };
+
+        setRecognition(recognitionInstance);
+      }
+    }
+  }, [router]);
+
+  useEffect(() => {
+    trackPageView("/search");
+    // Initialize from URL if coming from another page with search query
+    const urlSearch = searchParams.get("search") || "";
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+  }, [searchParams]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/apps?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchQuery.trim()) {
+        router.push(`/apps?search=${encodeURIComponent(searchQuery.trim())}`);
+      }
+    }
+  };
+
+  const handleVoiceSearch = () => {
+    if (!isSpeechSupported || !recognition) {
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognition.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+        setIsListening(false);
+      }
+    }
+  };
 
   const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
     setSidebarHidden(hidden);
   };
 
-  useEffect(() => {
-    trackPageView("/");
-  }, []);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const fetchWithErrorHandling = async (url: string, fallback: any = []) => {
-          try {
-            const res = await fetch(url, { credentials: "include" });
-            if (res.ok) {
-              return await res.json();
-            }
-            return { apps: fallback };
-          } catch (error) {
-            console.error(`Error fetching ${url}:`, error);
-            return { apps: fallback };
-          }
-        };
-
-        // Fetch trending apps - top 10 for banner carousel and trending section
-        const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10");
-        const allTrendingApps = trendingData.apps || [];
-        
-        if (allTrendingApps.length > 0) {
-          // Top 10 apps for the banner carousel (or all if less than 10)
-          setTopApps(allTrendingApps.slice(0, 10));
-          // Top 10 apps for trending section
-          setTrendingApps(allTrendingApps.slice(0, 10));
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, []);
-
   return (
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
       <Sidebar onCollapseChange={handleSidebarChange} />
 
-      {/* Notification Sidebar */}
-      <NotificationSidebar 
-        isOpen={notificationSidebarOpen} 
-        onClose={() => setNotificationSidebarOpen(false)} 
-      />
-
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
         sidebarHidden ? "ml-0" : sidebarCollapsed ? "ml-16" : "ml-64"
       }`}>
-        {/* Header */}
-        <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-          <div className="px-6 py-5 flex items-center justify-between">
-            <Link 
-              href="/" 
-              className="text-2xl font-extrabold text-white hover:text-blue-400 transition-colors"
-            >
-              Mini App Store
-            </Link>
+        <AppHeader />
 
-            <div className="flex items-center gap-3">
-              <motion.button 
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="relative p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
-                onClick={() => setNotificationSidebarOpen(true)}
-                aria-label="Notifications"
-              >
-                <Bell className="w-5 h-5 text-gray-300" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              </motion.button>
-              <PointsDisplay />
-              <UserProfile />
-            </div>
-          </div>
-        </header>
-
-        {/* Content Area */}
-        <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8">
-          {/* Top Banner - Top 10 Trending Apps Carousel */}
-          {loading ? (
-            <div className="h-64 bg-gray-900 rounded-3xl animate-pulse mb-8" />
-          ) : topApps.length > 0 ? (
-            <TopBanner apps={topApps} />
-          ) : null}
-
-          {/* Trending Section */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
+        {/* Search Section */}
+        <div className="px-4 md:px-6 lg:px-8 py-6">
+          {/* Search Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="mb-10"
+            transition={{ duration: 0.3 }}
+            className="mb-8"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Trending</h2>
-              <Link
-                href="/apps?sort=trending"
-                className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold transition-colors"
-              >
-                See All
-                <ChevronRight className="w-5 h-5" />
-              </Link>
-            </div>
-            
-            {loading ? (
-              <div className="flex gap-4 overflow-x-auto pb-4">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-[280px] h-48 bg-gray-900 rounded-2xl animate-pulse flex-shrink-0" />
-                ))}
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <div className="relative flex items-center">
+                <Search className="absolute left-4 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Search apps & games..."
+                  className="w-full pl-12 pr-12 py-4 bg-gray-900 border border-gray-800 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base md:text-lg"
+                  autoFocus
+                />
+                {isSpeechSupported ? (
+                  <button
+                    type="button"
+                    onClick={handleVoiceSearch}
+                    className={`absolute right-4 p-2 rounded-full transition-all ${
+                      isListening
+                        ? "bg-red-500 hover:bg-red-600 animate-pulse"
+                        : "hover:bg-gray-800"
+                    }`}
+                    aria-label="Voice search"
+                  >
+                    <Mic className={`w-5 h-5 ${isListening ? "text-white" : "text-gray-400"}`} />
+                  </button>
+                ) : null}
               </div>
-            ) : (
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
-                {trendingApps.length > 0 ? (
-                  trendingApps.map((app) => (
-                    <HorizontalAppCard key={app.id} app={app} />
-                  ))
-                ) : (
-                  <div className="text-gray-400 text-center py-12 w-full">
-                    No trending apps available
-                  </div>
-                )}
-              </div>
-            )}
-          </motion.section>
+            </form>
+          </motion.div>
 
           {/* Explore Games Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
             className="mb-10"
           >
             <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore games</h2>
@@ -199,7 +202,7 @@ export default function HomePage() {
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
+                      transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
                       className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
                     >
                       <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -217,7 +220,7 @@ export default function HomePage() {
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
             className="mb-10"
           >
             <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore apps</h2>
@@ -233,7 +236,7 @@ export default function HomePage() {
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
+                      transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
                       className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
                     >
                       <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -246,8 +249,22 @@ export default function HomePage() {
               })}
             </div>
           </motion.section>
+
+          {/* Discover Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="mb-10"
+          >
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Discover</h2>
+            <div className="text-gray-400 text-sm md:text-base px-1">
+              {/* Can add trending apps or featured content here later */}
+            </div>
+          </motion.section>
         </div>
       </main>
     </div>
   );
 }
+
