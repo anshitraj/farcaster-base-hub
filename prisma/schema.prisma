@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Developer {
+  id                 String    @id @default(uuid())
+  wallet             String    @unique
+  name               String?
+  avatar             String?
+  bio                String?
+  verified           Boolean   @default(false)
+  verificationStatus String    @default("unverified") // "unverified" | "wallet_verified" | "domain_verified" | "verified"
+  verificationNonce  String?
+  verificationDomain String?
+  isAdmin            Boolean   @default(false)
+  isOfficial         Boolean   @default(false) // Official Developer badge
+  developerTags      String[]  @default([]) // Developer tags
+  // XP & Streak System
+  streakCount        Int       @default(0)
+  lastClaimDate      DateTime?
+  totalXP            Int       @default(0)
+  developerLevel     Int       @default(1)
+  uniqueAppsLaunched Int       @default(0) // Unique apps launched by this developer
+  // Developer Tier System
+  tier               String    @default("starter") // "starter" | "verified" | "pro" | "elite" | "master"
+  tierScore          Int       @default(0) // Calculated score for tier
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  apps               MiniApp[]
+  badges             Badge[]
+  reviews            Review[]
+  xpLogs             XPLog[]
+  boostRequests      BoostRequest[]
+  collections        Collection[]
+  userProfile        UserProfile?
+
+  @@index([wallet])
+  @@index([verified])
+  @@index([isAdmin])
+  @@index([totalXP])
+  @@index([isOfficial])
+  @@index([tier])
+}
+
+model MiniApp {
+  id               String           @id @default(uuid())
+  name             String
+  description      String
+  url              String           @unique // Main website URL (required for Base)
+  baseMiniAppUrl   String? // Base mini app deep link URL (optional)
+  farcasterUrl     String? // Farcaster mini app URL (optional)
+  iconUrl          String
+  category         String
+  verified         Boolean          @default(false)
+  status           String           @default("pending") // "pending" | "approved" | "rejected" | "pending_review" | "pending_contract" | "auto_updated"
+  reviewMessage    String? // Message/reason for manual review
+  notesToAdmin     String? // Notes from developer to admin
+  developerId      String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  lastUpdatedAt    DateTime? // Last time auto-updated from farcaster.json
+  // Developer Tags
+  developerTags    String[]         @default([]) // ["Team of 1", "Indie Developer", etc.]
+  // Contract
+  contractAddress  String? // Contract address for verification
+  contractVerified Boolean          @default(false)
+  // Stats
+  clicks           Int              @default(0)
+  installs         Int              @default(0)
+  launchCount      Int              @default(0)
+  uniqueUsers      Int              @default(0)
+  popularityScore  Int              @default(0)
+  ratingAverage    Float            @default(0)
+  ratingCount      Int              @default(0)
+  // Farcaster Metadata
+  farcasterJson    String? // JSON string of fetched farcaster.json
+  screenshots      String[]         @default([]) // Array of screenshot URLs
+  autoUpdated      Boolean          @default(false) // Whether app was auto-updated from farcaster.json
+  topBaseRank      Int? // Rank in Top 30 Base Mini Apps (1-30)
+  featuredInBanner Boolean          @default(false) // Featured in homepage top banner carousel
+  // Tags for search and categorization
+  tags             String[]         @default([]) // ["airdrops", "games", "utilities", etc.]
+  developer        Developer        @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  reviews          Review[]
+  events           AppEvent[]
+  launchEvents     AppLaunchEvent[]
+  premiumApp       PremiumApp?
+  accessCodes      AccessCode[]
+  boostRequests    BoostRequest[]
+  collectionItems  CollectionItem[]
+  analyticsEvents  AnalyticsEvent[]
+
+  @@index([category])
+  @@index([developerId])
+  @@index([createdAt])
+  @@index([verified])
+  @@index([status])
+  @@index([contractAddress])
+  @@index([contractVerified])
+  @@index([topBaseRank])
+  @@index([autoUpdated])
+  @@index([featuredInBanner])
+}
+
+model TopBaseApps {
+  id         String   @id @default(uuid())
+  url        String   @unique
+  name       String
+  icon       String?
+  category   String?
+  score      Int      @default(0)
+  rank       Int      @unique
+  lastSynced DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([rank])
+  @@index([score])
+  @@index([lastSynced])
+}
+
+model Badge {
+  id          String    @id @default(uuid())
+  name        String
+  imageUrl    String
+  appName     String
+  developerId String
+  txHash      String?
+  createdAt   DateTime  @default(now())
+  developer   Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([developerId])
+}
+
+model Review {
+  id          String     @id @default(uuid())
+  rating      Int // 1–5 stars
+  comment     String?
+  miniAppId   String
+  developerId String? // optional: reviewer can be a developer or anon
+  createdAt   DateTime   @default(now())
+  miniApp     MiniApp    @relation(fields: [miniAppId], references: [id], onDelete: Cascade)
+  developer   Developer? @relation(fields: [developerId], references: [id], onDelete: SetNull)
+
+  @@index([miniAppId])
+  @@index([developerId])
+}
+
+model AppEvent {
+  id        String   @id @default(uuid())
+  miniAppId String
+  type      String // "click" | "open" | "install" etc.
+  createdAt DateTime @default(now())
+  miniApp   MiniApp  @relation(fields: [miniAppId], references: [id], onDelete: Cascade)
+
+  @@index([miniAppId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+model UserSession {
+  id           String   @id @default(uuid())
+  wallet       String
+  sessionToken String   @unique
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([wallet])
+  @@index([sessionToken])
+  @@index([expiresAt])
+}
+
+model UserPoints {
+  id           String              @id @default(uuid())
+  wallet       String              @unique
+  totalPoints  Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  transactions PointsTransaction[]
+
+  @@index([wallet])
+  @@index([totalPoints])
+}
+
+model PointsTransaction {
+  id          String     @id @default(uuid())
+  wallet      String
+  points      Int // Can be positive (earned) or negative (spent)
+  type        String // "review", "referral", "purchase", "launch", "submit", "approve", "contract", "trending", etc.
+  description String?
+  referenceId String? // ID of the review, app, etc. that triggered this
+  createdAt   DateTime   @default(now())
+  userPoints  UserPoints @relation(fields: [wallet], references: [wallet], onDelete: Cascade)
+
+  @@index([wallet])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model XPLog {
+  id          String    @id @default(uuid())
+  developerId String
+  amount      Int
+  reason      String // "submit_app", "app_approved", "contract_verified", "app_launch", "trending", etc.
+  referenceId String? // App ID or other reference
+  createdAt   DateTime  @default(now())
+  developer   Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([developerId])
+  @@index([createdAt])
+  @@index([reason])
+}
+
+model AppLaunchEvent {
+  id          String   @id @default(uuid())
+  miniAppId   String
+  wallet      String? // User wallet (optional for anonymous)
+  farcasterId String? // Farcaster FID (optional)
+  createdAt   DateTime @default(now())
+  miniApp     MiniApp  @relation(fields: [miniAppId], references: [id], onDelete: Cascade)
+
+  @@index([miniAppId])
+  @@index([wallet])
+  @@index([farcasterId])
+  @@index([createdAt])
+}
+
+model PremiumSubscription {
+  id           String   @id @default(uuid())
+  userId       String   // Developer ID or wallet
+  wallet       String
+  status       String   @default("active") // "active" | "canceled" | "expired"
+  startedAt    DateTime @default(now())
+  expiresAt    DateTime
+  renewalCount Int      @default(0)
+  txHash       String?  // Transaction hash for subscription payment
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([wallet])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model AccessCode {
+  id         String   @id @default(uuid())
+  code       String   @unique
+  appId      String
+  ownerId    String   // Developer wallet
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime?
+  used       Boolean  @default(false)
+  usedBy     String?  // Wallet that used the code
+  usedAt     DateTime?
+  miniApp    MiniApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([appId])
+  @@index([ownerId])
+  @@index([used])
+}
+
+model PremiumApp {
+  id          String   @id @default(uuid())
+  miniAppId   String   @unique
+  featured    Boolean  @default(false)
+  onSale      Boolean  @default(false)
+  salePrice   Float?   // Sale price in USDC
+  featuredIn  String[] @default([]) // ["games_playing", "get_started", "on_sale"]
+  addedAt     DateTime @default(now())
+  addedBy     String   // Admin wallet
+  miniApp     MiniApp  @relation(fields: [miniAppId], references: [id], onDelete: Cascade)
+
+  @@index([miniAppId])
+  @@index([featured])
+  @@index([onSale])
+}
+
+model BoostRequest {
+  id          String   @id @default(uuid())
+  appId       String
+  developerId String
+  status      String   @default("pending") // "pending" | "approved" | "rejected"
+  requestedAt DateTime @default(now())
+  approvedAt  DateTime?
+  approvedBy  String?  // Admin wallet
+  expiresAt   DateTime? // When boost expires
+  duration    Int      @default(24) // Duration in hours (24, 72, 168 for 7 days)
+  boostType   String   @default("paid") // "paid" | "xp" | "premium"
+  xpCost      Int?     // XP cost if boostType is "xp"
+  txHash      String?  // Transaction hash if paid
+  miniApp     MiniApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  developer   Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([developerId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// Collection System (Playlists)
+model Collection {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  type        String   @default("custom") // "favorites" | "custom" | "airdrops" | "games" | "utilities" | "beta"
+  isPublic    Boolean  @default(true)
+  developerId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  developer   Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+  items       CollectionItem[]
+
+  @@index([developerId])
+  @@index([type])
+  @@index([isPublic])
+}
+
+model CollectionItem {
+  id           String     @id @default(uuid())
+  collectionId String
+  appId        String
+  addedAt      DateTime   @default(now())
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  miniApp      MiniApp    @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, appId])
+  @@index([collectionId])
+  @@index([appId])
+}
+
+// User Profile Social Layer
+model UserProfile {
+  id              String   @id @default(uuid())
+  wallet          String   @unique
+  developerId     String   @unique
+  bio             String?
+  farcasterHandle String?  // Farcaster username/handle
+  farcasterFid    String?  // Farcaster FID
+  publicXP        Boolean  @default(true) // Show XP publicly
+  favoriteApps    String[] @default([]) // App IDs
+  recentlyLaunched String[] @default([]) // App IDs (last 10)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  developer       Developer @relation(fields: [developerId], references: [id], onDelete: Cascade)
+
+  @@index([wallet])
+  @@index([farcasterFid])
+}
+
+// Analytics Events (Detailed tracking)
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  appId       String
+  wallet      String?  // User wallet
+  farcasterId String?  // Farcaster FID
+  eventType   String   // "launch" | "click" | "install" | "session_start" | "session_end"
+  sessionId   String?  // Session identifier
+  sessionTime Int?     // Session duration in seconds
+  metadata    String?  // JSON string for additional data
+  createdAt   DateTime @default(now())
+  miniApp     MiniApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([wallet])
+  @@index([farcasterId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([sessionId])
+}
+
+// Notifications System
+model Notification {
+  id          String   @id @default(uuid())
+  wallet      String   // Target user wallet
+  type        String   // "new_app" | "trending" | "app_updated" | "xp_streak" | "premium_offer" | "boost" | "badge"
+  title       String
+  message     String
+  link        String?  // Optional link to navigate
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  @@index([wallet])
+  @@index([read])
+  @@index([createdAt])
+  @@index([type])
+}

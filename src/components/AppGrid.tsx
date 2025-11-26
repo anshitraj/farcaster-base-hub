@@ -1,4 +1,8 @@
+"use client";
+
+import React from "react";
 import AppCard from "./AppCard";
+import HorizontalScroller from "./HorizontalScroller";
 
 interface App {
   id: string;
@@ -6,25 +10,96 @@ interface App {
   description: string;
   iconUrl: string;
   category: string;
-  stats: {
-    users: string;
-    rating: number;
-  };
+  ratingAverage?: number;
+  ratingCount?: number;
+  installs?: number;
+  clicks?: number;
   featured?: boolean;
+  developer?: {
+    id?: string;
+    wallet?: string;
+    name?: string;
+    avatar?: string;
+  };
 }
 
 interface AppGridProps {
   apps: App[];
-  title?: string;
+  title?: string | React.ReactNode;
+  viewAllHref?: string;
+  variant?: "horizontal" | "grid" | "featured";
+  showHorizontal?: boolean;
 }
 
-const AppGrid = ({ apps, title }: AppGridProps) => {
+const AppGrid = ({
+  apps,
+  title,
+  viewAllHref,
+  variant = "horizontal",
+  showHorizontal = true,
+}: AppGridProps) => {
+  // Filter out apps without IDs
+  const validApps = apps.filter((app) => app.id);
+
+  if (validApps.length === 0) {
+    return (
+      <div className="px-4">
+        {title && (
+          <h2 className="text-lg font-semibold mb-4">
+            {typeof title === "string" ? title : title}
+          </h2>
+        )}
+        <p className="text-center text-muted-foreground py-8 text-sm">
+          No apps available
+        </p>
+      </div>
+    );
+  }
+
+  // Mobile: horizontal scroll
+  if (showHorizontal && variant === "horizontal") {
+    return (
+      <HorizontalScroller title={title} viewAllHref={viewAllHref}>
+        {validApps.map((app: any) => (
+          <AppCard 
+            key={app.id} 
+            {...app} 
+            variant="horizontal"
+            topBaseRank={app.topBaseRank}
+            autoUpdated={app.autoUpdated}
+          />
+        ))}
+      </HorizontalScroller>
+    );
+  }
+
+  // Desktop: grid layout
   return (
-    <div>
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {apps.map((app) => (
-          <AppCard key={app.id} {...app} />
+    <div className="px-4">
+      {title && (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">
+            {typeof title === "string" ? title : title}
+          </h2>
+          {viewAllHref && (
+            <a
+              href={viewAllHref}
+              className="text-base-blue text-sm font-medium hover:text-base-cyan transition-colors"
+            >
+              View All →
+            </a>
+          )}
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {validApps.map((app: any) => (
+          <AppCard 
+            key={app.id} 
+            {...app} 
+            variant={variant}
+            topBaseRank={app.topBaseRank}
+            autoUpdated={app.autoUpdated}
+          />
         ))}
       </div>
     </div>

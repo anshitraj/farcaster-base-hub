@@ -3,17 +3,44 @@ import { cn } from "@/lib/utils";
 import { ButtonProps } from "@/components/ui/button";
 
 interface GlowButtonProps extends ButtonProps {
-  glowColor?: "blue" | "cyan";
+  glowColor?: "blue" | "purple" | "gradient";
+  variant?: "gradient" | "solid";
 }
 
-const GlowButton = ({ className, glowColor = "blue", ...props }: GlowButtonProps) => {
-  const glowClass = glowColor === "blue" ? "glow-base-blue" : "glow-base-cyan";
+const GlowButton = ({ 
+  className, 
+  glowColor = "gradient", 
+  variant = "gradient",
+  ...props 
+}: GlowButtonProps) => {
+  const baseClasses = "transition-all duration-300 font-medium";
+  
+  let buttonClasses = "";
+  let glowClass = "";
+  
+  if (variant === "gradient") {
+    buttonClasses = "btn-gradient";
+    glowClass = "glow-gradient";
+  } else {
+    if (glowColor === "blue") {
+      buttonClasses = "bg-base-blue hover:bg-base-blue-soft text-white";
+      glowClass = "glow-base-blue";
+    } else if (glowColor === "purple") {
+      buttonClasses = "bg-purple hover:bg-purple/90 text-white";
+      glowClass = "glow-purple";
+    } else {
+      buttonClasses = "btn-gradient";
+      glowClass = "glow-gradient";
+    }
+  }
   
   return (
     <Button
       className={cn(
-        "bg-base-blue hover:bg-base-blue/90 transition-all duration-300",
+        baseClasses,
+        buttonClasses,
         glowClass,
+        "hover:scale-[1.02] active:scale-[0.98]",
         className
       )}
       {...props}

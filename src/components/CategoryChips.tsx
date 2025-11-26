@@ -1,4 +1,7 @@
+"use client";
+
 import { cn } from "@/lib/utils";
+import HorizontalScroller from "./HorizontalScroller";
 
 interface CategoryChipsProps {
   categories: string[];
@@ -8,13 +11,15 @@ interface CategoryChipsProps {
 
 const CategoryChips = ({ categories, selected, onSelect }: CategoryChipsProps) => {
   return (
-    <div className="flex flex-wrap gap-2 justify-center">
+    <HorizontalScroller>
       <button
         onClick={() => onSelect(null)}
         className={cn(
-          "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300",
-          "glass-card hover:bg-white/10",
-          selected === null && "bg-base-blue text-white glow-base-blue"
+          "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 whitespace-nowrap flex-shrink-0",
+          "card-surface hover-glow border-[hsl(var(--border))]",
+          selected === null
+            ? "bg-base-blue text-white border-base-blue glow-base-blue"
+            : "text-muted-foreground hover:text-base-blue"
         )}
       >
         All
@@ -24,15 +29,17 @@ const CategoryChips = ({ categories, selected, onSelect }: CategoryChipsProps) =
           key={category}
           onClick={() => onSelect(category)}
           className={cn(
-            "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300",
-            "glass-card hover:bg-white/10",
-            selected === category && "bg-base-blue text-white glow-base-blue"
+            "px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 whitespace-nowrap flex-shrink-0",
+            "card-surface hover-glow border-[hsl(var(--border))]",
+            selected === category
+              ? "bg-base-blue text-white border-base-blue glow-base-blue"
+              : "text-muted-foreground hover:text-base-blue"
           )}
         >
           {category}
         </button>
       ))}
-    </div>
+    </HorizontalScroller>
   );
 };
 

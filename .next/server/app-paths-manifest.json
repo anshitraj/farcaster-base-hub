@@ -1,0 +1,13 @@
+{
+  "/api/auth/wallet/route": "app/api/auth/wallet/route.js",
+  "/api/developers/[wallet]/route": "app/api/developers/[wallet]/route.js",
+  "/api/developer/profile/route": "app/api/developer/profile/route.js",
+  "/apps/[id]/page": "app/apps/[id]/page.js",
+  "/admin/premium/page": "app/admin/premium/page.js",
+  "/page": "app/page.js",
+  "/api/xp/claim/route": "app/api/xp/claim/route.js",
+  "/api/developers/[wallet]/dashboard/route": "app/api/developers/[wallet]/dashboard/route.js",
+  "/admin/apps/page": "app/admin/apps/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/api/wallet/balance/route": "app/api/wallet/balance/route.js"
+}

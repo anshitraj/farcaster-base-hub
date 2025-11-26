@@ -6,13 +6,19 @@ import GlowButton from "./GlowButton";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 
-const ReviewForm = () => {
+interface ReviewFormProps {
+  appId: string;
+  onReviewSubmitted?: () => void;
+}
+
+const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
   const { toast } = useToast();
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (rating === 0) {
@@ -24,22 +30,57 @@ const ReviewForm = () => {
       return;
     }
 
-    if (!comment.trim()) {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          miniAppId: appId,
+          rating,
+          comment: comment.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit review");
+      }
+
+      // Check for specific error about rating own app
+      if (data.error && data.error.includes("cannot rate your own")) {
+        throw new Error("You cannot rate your own app");
+      }
+
+      // Show success message with points if awarded
+      if (data.pointsAwarded && data.pointsAwarded > 0) {
+        toast({
+          title: "Review Submitted! 🎉",
+          description: `You earned ${data.pointsAwarded} points for this review!`,
+        });
+      } else {
+        toast({
+          title: "Success!",
+          description: "Your review has been submitted.",
+        });
+      }
+
+      setRating(0);
+      setComment("");
+
+      if (onReviewSubmitted) {
+        onReviewSubmitted();
+      }
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Please write a review",
+        description: error.message || "Failed to submit review. Please try again.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    toast({
-      title: "Success!",
-      description: "Your review has been submitted.",
-    });
-
-    setRating(0);
-    setComment("");
   };
 
   return (
@@ -50,7 +91,16 @@ const ReviewForm = () => {
     >
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle>Write a Review</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Write a Review</CardTitle>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-cyan/10 border border-base-cyan/30">
+              <Star className="w-4 h-4 text-base-cyan fill-base-cyan" />
+              <span className="text-sm font-semibold text-base-cyan">+100 Points</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Rate this app and earn 100 points! 🎁
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -88,8 +138,8 @@ const ReviewForm = () => {
               />
             </div>
 
-            <GlowButton type="submit" className="w-full">
-              Submit Review
+            <GlowButton type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit Review"}
             </GlowButton>
           </form>
         </CardContent>

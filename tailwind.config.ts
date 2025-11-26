@@ -53,11 +53,19 @@ export default {
         },
         base: {
           blue: "hsl(var(--base-blue))",
+          "blue-soft": "hsl(var(--base-blue-soft))",
           cyan: "hsl(var(--base-cyan))",
+        },
+        purple: {
+          DEFAULT: "hsl(var(--purple))",
+          glow: "hsl(var(--purple-glow))",
         },
         glass: {
           bg: "hsl(var(--glass-bg))",
           border: "hsl(var(--glass-border))",
+        },
+        card: {
+          surface: "hsl(var(--card-surface))",
         },
       },
       borderRadius: {
