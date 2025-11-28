@@ -20,12 +20,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// This function is called by the admin settings API to update the flag
-export function setPremiumEnabled(enabled: boolean) {
+// Internal helper functions (not exported as they're not HTTP methods)
+// These should be moved to a separate utility file if needed elsewhere
+function setPremiumEnabled(enabled: boolean) {
   premiumEnabled = enabled;
 }
 
-export function isPremiumEnabled(): boolean {
+function isPremiumEnabled(): boolean {
   return premiumEnabled;
 }
 

@@ -13,15 +13,15 @@ import { useState } from "react";
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     trackPageView("/admin");
-    checkAdmin();
+    checkAccess();
   }, []);
 
-  async function checkAdmin() {
+  async function checkAccess() {
     try {
       // First check if user is authenticated
       const authRes = await fetch("/api/auth/wallet", {
@@ -30,25 +30,25 @@ export default function AdminPage() {
       });
 
       if (!authRes.ok) {
-        setIsAdmin(false);
+        setHasAccess(false);
         setLoading(false);
         return;
       }
 
-      // Then check admin status
+      // Then check admin/moderator status
       const res = await fetch("/api/admin/check", {
         credentials: "include",
       });
 
       if (res.ok) {
         const data = await res.json();
-        setIsAdmin(data.isAdmin || false);
+        setHasAccess(data.hasAccess || false);
       } else {
-        setIsAdmin(false);
+        setHasAccess(false);
       }
     } catch (error) {
-      console.error("Error checking admin:", error);
-      setIsAdmin(false);
+      console.error("Error checking access:", error);
+      setHasAccess(false);
     } finally {
       setLoading(false);
     }
@@ -58,7 +58,7 @@ export default function AdminPage() {
     return <PageLoader message="Loading admin panel..." />;
   }
 
-  if (!isAdmin) {
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-[#0B0F19] pb-24">
         <AppHeader />
@@ -70,14 +70,14 @@ export default function AdminPage() {
                   <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
                   <h2 className="text-xl font-bold mb-2">Access Denied</h2>
                   <p className="text-muted-foreground text-sm mb-4">
-                    You need admin access to view this page.
+                    You need admin or moderator access to view this page.
                   </p>
                   <p className="text-xs text-muted-foreground mb-4">
                     If you believe this is an error, make sure:
                     <br />
                     1. Your wallet is connected
                     <br />
-                    2. Your wallet has been granted admin access
+                    2. Your wallet has been granted admin or moderator access
                     <br />
                     3. You're using the correct wallet address
                   </p>
@@ -85,7 +85,7 @@ export default function AdminPage() {
                     <GlowButton asChild>
                       <Link href="/">Go Home</Link>
                     </GlowButton>
-                    <GlowButton asChild variant="outline">
+                    <GlowButton asChild variant="solid">
                       <Link href="/dashboard">Dashboard</Link>
                     </GlowButton>
                   </div>

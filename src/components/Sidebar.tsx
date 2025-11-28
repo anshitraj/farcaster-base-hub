@@ -1,48 +1,103 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Grid3x3,
-  Gamepad2,
-  Music,
-  MoreHorizontal,
-  Package,
-  GamepadIcon,
-  Camera,
   Heart,
-  Plus,
   ChevronLeft,
   ChevronRight,
   X,
+  ChevronDown,
+  ChevronUp,
+  Compass,
+  TrendingUp,
+  Trophy,
+  Award,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const menuItems = [
   { href: "/", icon: Home, label: "Home" },
-  { href: "/apps", icon: Grid3x3, label: "Application" },
-  { href: "/apps?category=Games", icon: Gamepad2, label: "Game" },
-  { href: "/apps?category=Social", icon: Music, label: "Music" },
+];
+
+interface CollapsibleSection {
+  label: string;
+  icon: any;
+  items: { href: string; label: string }[];
+}
+
+const collapsibleSections: CollapsibleSection[] = [
+  {
+    label: "Explore Web3",
+    icon: Compass,
+    items: [
+      { href: "/apps", label: "All Apps" },
+      { href: "/apps?category=Games", label: "Games" },
+      { href: "/apps?category=Social", label: "Social" },
+      { href: "/apps?category=Finance", label: "Finance" },
+      { href: "/apps?category=DeFi", label: "DeFi" },
+    ],
+  },
+  {
+    label: "Trending now",
+    icon: TrendingUp,
+    items: [
+      { href: "/apps?sort=trending", label: "Trending Apps" },
+      { href: "/apps?sort=installs", label: "Popular Apps" },
+      { href: "/apps?sort=newest", label: "Newest Apps" },
+    ],
+  },
+  {
+    label: "Rankings",
+    icon: Trophy,
+    items: [
+      { href: "/developers", label: "Top Developers" },
+      { href: "/apps?sort=rating", label: "Top Rated" },
+    ],
+  },
+  {
+    label: "Rewards",
+    icon: Award,
+    items: [
+      { href: "/dashboard", label: "Season" },
+      { href: "/quests", label: "Quests" },
+    ],
+  },
 ];
 
 const dataItems = [
-  { href: "/submit", icon: Plus, label: "Submit App" },
   { href: "/favourites", icon: Heart, label: "My Favourites" },
-  { href: "/games", icon: GamepadIcon, label: "My Game" },
-  { href: "/dashboard", icon: Package, label: "My Applications" },
-  { href: "/dashboard", icon: Camera, label: "My Media" },
 ];
 
 interface SidebarProps {
   onCollapseChange?: (collapsed: boolean, hidden: boolean) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function Sidebar({ onCollapseChange }: SidebarProps) {
+export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    "Explore Web3": true, // Default to expanded
+    "Trending now": true, // Default to expanded
+    "Rewards": true, // Default to expanded
+  });
+
+  // Detect mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const toggleCollapse = () => {
     const newCollapsed = !isCollapsed;
@@ -56,11 +111,21 @@ export default function Sidebar({ onCollapseChange }: SidebarProps) {
     onCollapseChange?.(isCollapsed, newHidden);
   };
 
-  if (isHidden) {
+  // On mobile, show overlay backdrop when sidebar is open
+  const showBackdrop = isMobile && isOpen && !isHidden;
+
+  // Close sidebar when clicking on a link on mobile
+  const handleLinkClick = () => {
+    if (isMobile) {
+      onClose?.();
+    }
+  };
+
+  if (isHidden && !isMobile) {
     return (
       <button
         onClick={toggleHide}
-        className="fixed left-0 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A1A] border-r border-y border-[#2A2A2A] rounded-r-lg p-2 hover:bg-[#252525] transition-colors"
+        className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-50 bg-[#1A1A1A] border-r border-y border-[#2A2A2A] rounded-r-lg p-2 hover:bg-[#252525] transition-colors"
         aria-label="Show sidebar"
       >
         <ChevronRight className="w-5 h-5 text-[#AAA]" />
@@ -69,27 +134,68 @@ export default function Sidebar({ onCollapseChange }: SidebarProps) {
   }
 
   return (
-    <motion.aside
-        initial={{ x: -300 }}
-        animate={{ x: 0 }}
-        transition={{ duration: 0.3 }}
-        className={`flex fixed left-0 top-0 h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] z-40 transition-all duration-300 ${
-          isCollapsed ? "w-16" : "w-64"
-        }`}
+    <>
+      {/* Mobile Backdrop */}
+      {showBackdrop && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+        />
+      )}
+
+      <motion.aside
+        initial={false}
+        animate={{
+          x: isMobile
+            ? isOpen && !isHidden ? 0 : -320
+            : isHidden ? -320 : 0,
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className={`flex fixed left-0 top-0 h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] z-50 lg:z-40 transition-all duration-300 ${
+          isCollapsed && !isMobile ? "w-16" : "w-64"
+        } ${isMobile ? "shadow-2xl" : ""} ${!isMobile ? "lg:translate-x-0" : ""}`}
       >
       <div className="flex flex-col h-full w-full">
         {/* Enhanced Header with Gradient */}
         <div className={`p-5 border-b border-[#2A2A2A]/50 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} bg-gradient-to-r from-[#1A1A1A] to-[#141414]`}>
           {!isCollapsed && (
-            <motion.h2 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-lg font-extrabold bg-gradient-to-r from-white to-[#A0A4AA] bg-clip-text text-transparent"
+              className="flex-shrink-0"
             >
-              Mini App Store
-            </motion.h2>
+              <Image
+                src="/logo.png"
+                alt="Mini App Store"
+                width={300}
+                height={100}
+                className="h-20 w-auto max-w-[200px]"
+                priority
+                unoptimized
+              />
+            </motion.div>
           )}
-          <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+          {isCollapsed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex-shrink-0"
+            >
+              <Image
+                src="/logo.png"
+                alt="Mini App Store"
+                width={64}
+                height={64}
+                className="h-12 w-12 object-contain"
+                priority
+                unoptimized
+              />
+            </motion.div>
+          )}
+          <div className={`flex items-center gap-2 flex-shrink-0 ${isCollapsed ? 'flex-col' : ''}`}>
             <motion.button
               whileHover={{ scale: 1.1, rotate: 5 }}
               whileTap={{ scale: 0.9 }}
@@ -104,15 +210,32 @@ export default function Sidebar({ onCollapseChange }: SidebarProps) {
               )}
             </motion.button>
             {!isCollapsed && (
-              <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={toggleHide}
-                className="p-2 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:border border-red-500/30"
-                aria-label="Hide sidebar"
-              >
-                <X className="w-4 h-4 text-[#AAA] hover:text-red-400 transition-colors" />
-              </motion.button>
+              <>
+                {/* Mobile Close Button */}
+                {isMobile && (
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={onClose}
+                    className="p-2 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:border border-red-500/30"
+                    aria-label="Close sidebar"
+                  >
+                    <X className="w-4 h-4 text-[#AAA] hover:text-red-400 transition-colors" />
+                  </motion.button>
+                )}
+                {/* Desktop Hide Button */}
+                {!isMobile && (
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={toggleHide}
+                    className="p-2 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:border border-red-500/30"
+                    aria-label="Hide sidebar"
+                  >
+                    <X className="w-4 h-4 text-[#AAA] hover:text-red-400 transition-colors" />
+                  </motion.button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -140,28 +263,89 @@ export default function Sidebar({ onCollapseChange }: SidebarProps) {
                 >
                   <Link
                     href={item.href}
+                    onClick={handleLinkClick}
                     className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
                       isActive
-                        ? "bg-gradient-to-r from-base-blue/20 to-purple-500/10 text-white border-l-2 border-base-blue"
-                        : "text-[#AAA] hover:bg-[#252525]/80 hover:text-white hover:border-l-2 hover:border-[#2A2A2A]"
+                        ? "bg-[#1E3A5F] text-white border border-[#2A5F8F]"
+                        : "text-[#AAA] hover:bg-[#252525]/80 hover:text-white"
                     }`}
                   >
-                    {/* Active indicator glow */}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicator"
-                        className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-base-blue to-purple-500 rounded-r-full"
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      />
-                    )}
-                    <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? "text-base-blue" : "group-hover:text-base-blue"}`} />
+                    <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? "text-white" : "group-hover:text-white"}`} />
                     {!isCollapsed && (
                       <span className="text-sm font-semibold">{item.label}</span>
                     )}
-                    {/* Hover shine effect */}
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" />
                   </Link>
                 </motion.div>
+              );
+            })}
+
+            {/* Collapsible Sections */}
+            {!isCollapsed && collapsibleSections.map((section) => {
+              const Icon = section.icon;
+              const isExpanded = expandedSections[section.label] || false;
+              const hasActiveItem = section.items.some(item => {
+                const itemPath = item.href.split("?")[0];
+                return pathname === itemPath || pathname?.startsWith(itemPath);
+              });
+
+              return (
+                <div key={section.label} className="mt-1">
+                  <motion.button
+                    onClick={() => setExpandedSections(prev => ({
+                      ...prev,
+                      [section.label]: !isExpanded
+                    }))}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 group ${
+                      hasActiveItem
+                        ? "bg-[#1E3A5F] text-white border border-[#2A5F8F]"
+                        : "text-[#AAA] hover:bg-[#252525]/80 hover:text-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${hasActiveItem ? "text-white" : "group-hover:text-white"}`} />
+                      <span className="text-sm font-semibold">{section.label}</span>
+                    </div>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4 text-[#AAA]" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-[#AAA]" />
+                    )}
+                  </motion.button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pl-8 pt-1 space-y-1">
+                          {section.items.map((item) => {
+                            const itemPath = item.href.split("?")[0];
+                            const isActive = pathname === itemPath || pathname?.startsWith(itemPath);
+                            
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                onClick={handleLinkClick}
+                                className={`block px-4 py-2 rounded-lg text-sm transition-all duration-300 ${
+                                  isActive
+                                    ? "text-white bg-[#1E3A5F]/50 border-l-2 border-[#2A5F8F]"
+                                    : "text-[#AAA] hover:text-white hover:bg-[#252525]/50"
+                                }`}
+                              >
+                                {item.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               );
             })}
           </nav>
@@ -180,66 +364,47 @@ export default function Sidebar({ onCollapseChange }: SidebarProps) {
           )}
 
           {/* Data Section */}
-          <div className="px-4 mt-6 mb-4">
-            {!isCollapsed && (
-              <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-3">
-                DATA
-              </h3>
-            )}
-          </div>
-          <nav className="space-y-1 px-2">
-            {dataItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              
-              return (
-                <motion.div
-                  key={item.href}
-                  whileHover={{ x: 4 }}
-                  transition={{ type: "spring", stiffness: 400 }}
-                >
-                  <Link
-                    href={item.href}
-                    className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
-                      isActive
-                        ? "bg-gradient-to-r from-base-blue/20 to-purple-500/10 text-white border-l-2 border-base-blue"
-                        : "text-[#AAA] hover:bg-[#252525]/80 hover:text-white hover:border-l-2 hover:border-[#2A2A2A]"
-                    }`}
-                  >
-                    {/* Active indicator glow */}
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeIndicatorData"
-                        className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-base-blue to-purple-500 rounded-r-full"
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      />
-                    )}
-                    <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? "text-base-blue" : "group-hover:text-base-blue"}`} />
-                    {!isCollapsed && (
-                      <>
-                        <span className="text-sm font-semibold flex-1">{item.label}</span>
-                        {item.badge !== null && item.badge !== undefined && (
-                          <motion.span 
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="px-2.5 py-0.5 bg-gradient-to-r from-base-blue/30 to-purple-500/30 text-base-blue text-xs font-bold rounded-full border border-base-blue/30"
-                          >
-                            {item.badge}
-                          </motion.span>
-                        )}
-                      </>
-                    )}
-                    {/* Hover shine effect */}
-                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" />
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </nav>
+          {!isCollapsed && dataItems.length > 0 && (
+            <>
+              <div className="px-4 mt-6 mb-4">
+                <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-3">
+                  MY DATA
+                </h3>
+              </div>
+              <nav className="space-y-1 px-2">
+                {dataItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname === item.href || pathname?.startsWith(item.href);
+                  
+                  return (
+                    <motion.div
+                      key={item.href}
+                      whileHover={{ x: 4 }}
+                      transition={{ type: "spring", stiffness: 400 }}
+                    >
+                      <Link
+                        href={item.href}
+                        onClick={handleLinkClick}
+                        className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                          isActive
+                            ? "bg-[#1E3A5F] text-white border border-[#2A5F8F]"
+                            : "text-[#AAA] hover:bg-[#252525]/80 hover:text-white"
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 flex-shrink-0 transition-colors ${isActive ? "text-white" : "group-hover:text-white"}`} />
+                        <span className="text-sm font-semibold">{item.label}</span>
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </nav>
+            </>
+          )}
 
         </div>
       </div>
     </motion.aside>
+    </>
   );
 }
 

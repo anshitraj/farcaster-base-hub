@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdminOnly } from "@/lib/admin";
 import { z } from "zod";
 
 const importJsonSchema = z.object({
@@ -10,7 +10,7 @@ const importJsonSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminOnly(); // JSON import is admin-only
 
     const body = await request.json();
     const validated = importJsonSchema.parse(body);
@@ -47,6 +47,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Ensure owner address is included
+    const DEFAULT_OWNER_ADDRESS = "0x0CF70E448ac98689e326bd79075a96CcBcec1665";
+    const metadataWithOwner = {
+      ...metadata,
+      owner: metadata.owner || metadata.owners || DEFAULT_OWNER_ADDRESS,
+      owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
+    };
 
     // Extract app URL from metadata or use the base URL from jsonUrl
     let appUrl = metadata.url;
@@ -128,7 +136,7 @@ export async function POST(request: NextRequest) {
         category: metadata.category || "Utilities",
         developerTags: [],
         screenshots: Array.isArray(metadata.screenshots) ? metadata.screenshots : [],
-        farcasterJson: JSON.stringify(metadata),
+        farcasterJson: JSON.stringify(metadataWithOwner),
         autoUpdated: true,
         status: "approved", // Admin-imported apps are auto-approved
         verified: true,

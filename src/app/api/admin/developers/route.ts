@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireModerator } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireModerator();
 
     const developers = await prisma.developer.findMany({
       include: {
@@ -46,10 +46,11 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    await requireAdmin();
+    const { requireAdminOnly } = await import("@/lib/admin");
+    await requireAdminOnly(); // Only admins can manage other admins/moderators
 
     const body = await request.json();
-    const { developerId, wallet, verified, isAdmin } = body;
+    const { developerId, wallet, verified, adminRole } = body;
 
     // Support both developerId and wallet for finding developers
     let whereClause: any;
@@ -79,7 +80,7 @@ export async function PATCH(request: NextRequest) {
       developer = await prisma.developer.create({
         data: {
           wallet: wallet.toLowerCase(),
-          isAdmin: isAdmin || false,
+          adminRole: adminRole || null,
           verified: verified || false,
           verificationStatus: verified ? "verified" : "unverified",
         },
@@ -98,8 +99,11 @@ export async function PATCH(request: NextRequest) {
         updateData.verificationStatus = "verified";
       }
     }
-    if (typeof isAdmin === "boolean") {
-      updateData.isAdmin = isAdmin;
+    // Only admins can change admin roles
+    if (adminRole !== undefined) {
+      if (adminRole === null || adminRole === "ADMIN" || adminRole === "MODERATOR") {
+        updateData.adminRole = adminRole;
+      }
     }
 
     developer = await prisma.developer.update({

@@ -33,11 +33,11 @@ export async function GET(
       return NextResponse.json({ error: "App not found" }, { status: 404 });
     }
 
-    // Check if user owns the app or is admin
+    // Check if user owns the app or is admin/moderator
     const isOwner = app.developer.wallet.toLowerCase() === wallet.toLowerCase();
-    const isAdmin = app.developer.isAdmin;
+    const hasAdminAccess = app.developer.adminRole === "ADMIN" || app.developer.adminRole === "MODERATOR";
 
-    if (!isOwner && !isAdmin) {
+    if (!isOwner && !hasAdminAccess) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -73,7 +73,7 @@ export async function GET(
     // Average session time
     const sessionEvents = await prisma.analyticsEvent.findMany({
       where: {
-        miniAppId: appId,
+        appId: appId,
         eventType: { in: ["session_start", "session_end"] },
         createdAt: { gte: startDate },
       },
@@ -175,14 +175,14 @@ export async function GET(
         },
         xpInfluence: {
           totalXP: xpFromApp._sum.amount || 0,
-          usersEarnedXP: await prisma.xPLog.count({
+          usersEarnedXP: (await prisma.xPLog.groupBy({
+            by: ["developerId"],
             where: {
               referenceId: appId,
               reason: "app_launch",
               createdAt: { gte: startDate },
             },
-            distinct: ["developerId"],
-          }),
+          })).length,
         },
       },
     });

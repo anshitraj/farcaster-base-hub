@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireModerator } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireModerator(); // Moderators can review pending apps
 
     const apps = await prisma.miniApp.findMany({
       where: {
-        status: "pending",
+        status: {
+          in: ["pending", "pending_review", "pending_contract"], // Include all pending statuses
+        },
       },
       include: {
         developer: {

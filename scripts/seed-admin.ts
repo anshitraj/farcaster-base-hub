@@ -25,7 +25,7 @@ async function seedAdmin() {
       developer = await prisma.developer.update({
         where: { wallet: adminWallet.toLowerCase() },
         data: {
-          isAdmin: true,
+          adminRole: "ADMIN",
           verified: true,
           verificationStatus: "verified",
         },
@@ -36,7 +36,7 @@ async function seedAdmin() {
       developer = await prisma.developer.create({
         data: {
           wallet: adminWallet.toLowerCase(),
-          isAdmin: true,
+          adminRole: "ADMIN",
           verified: true,
           verificationStatus: "verified",
         },
@@ -46,7 +46,7 @@ async function seedAdmin() {
 
     console.log("\n🎉 Admin account created/updated:");
     console.log(`   Wallet: ${developer.wallet}`);
-    console.log(`   Admin: ${developer.isAdmin}`);
+    console.log(`   Admin Role: ${developer.adminRole || "None"}`);
     console.log(`   Verified: ${developer.verified}`);
     console.log("\n✨ You can now access /admin pages");
   } catch (error) {

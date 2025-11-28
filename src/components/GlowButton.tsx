@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ButtonProps } from "@/components/ui/button";
 
-interface GlowButtonProps extends ButtonProps {
+interface GlowButtonProps extends Omit<ButtonProps, "variant"> {
   glowColor?: "blue" | "purple" | "gradient";
   variant?: "gradient" | "solid";
 }

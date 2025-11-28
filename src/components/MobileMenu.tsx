@@ -24,7 +24,14 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const menuItems = [
+type MenuItem = {
+  href: string;
+  icon: any;
+  label: string;
+  badge?: string | number | null;
+};
+
+const menuItems: MenuItem[] = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/apps", icon: Grid3x3, label: "Application" },
   { href: "/apps?category=Games", icon: Gamepad2, label: "Game" },
@@ -37,7 +44,7 @@ const menuItems = [
   { href: "/apps", icon: MoreHorizontal, label: "Other" },
 ];
 
-const dataItems = [
+const dataItems: MenuItem[] = [
   { href: "/dashboard", icon: Download, label: "My backup" },
   { href: "/dashboard", icon: Package, label: "My Applications" },
   { href: "/dashboard", icon: GamepadIcon, label: "My Game" },

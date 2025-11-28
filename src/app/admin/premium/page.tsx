@@ -12,6 +12,7 @@ import PageLoader from "@/components/PageLoader";
 export default function AdminPremiumPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<"ADMIN" | "MODERATOR" | null>(null);
   const [premiumApps, setPremiumApps] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [boostRequests, setBoostRequests] = useState<any[]>([]);
@@ -26,8 +27,9 @@ export default function AdminPremiumPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          setIsAdmin(data.isAdmin);
-          if (data.isAdmin) {
+          setUserRole(data.role || null);
+          setIsAdmin(data.isAdmin || false);
+          if (data.role === "ADMIN") {
             fetchData();
           } else {
             setLoading(false);

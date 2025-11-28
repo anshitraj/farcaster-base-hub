@@ -3,23 +3,26 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Bell, CheckCircle, AlertCircle, Info, Sparkles } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 interface Notification {
   id: string;
-  type: "success" | "error" | "info" | "warning";
+  type: string; // "new_app" | "trending" | "app_updated" | "xp_streak" | "premium_offer" | "boost" | "badge" | "info" | "success" | "error" | "warning"
   title: string;
   message: string;
-  timestamp: Date;
+  createdAt: string | Date;
   read: boolean;
-  actionUrl?: string;
+  link?: string | null;
 }
 
 interface NotificationSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onNotificationRead?: () => void;
 }
 
-export default function NotificationSidebar({ isOpen, onClose }: NotificationSidebarProps) {
+export default function NotificationSidebar({ isOpen, onClose, onNotificationRead }: NotificationSidebarProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,36 +36,12 @@ export default function NotificationSidebar({ isOpen, onClose }: NotificationSid
         if (res.ok) {
           const data = await res.json();
           setNotifications(data.notifications || []);
+        } else {
+          setNotifications([]);
         }
       } catch (error) {
         console.error("Error fetching notifications:", error);
-        // Use mock data for demo
-        setNotifications([
-          {
-            id: "1",
-            type: "success",
-            title: "Welcome to Mini App Store!",
-            message: "You've earned 100 points for joining. Start exploring apps!",
-            timestamp: new Date(Date.now() - 1000 * 60 * 30),
-            read: false,
-          },
-          {
-            id: "2",
-            type: "info",
-            title: "New App Available",
-            message: "Riddle Pay has been added to the store. Check it out!",
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-            read: false,
-          },
-          {
-            id: "3",
-            type: "warning",
-            title: "Profile Update",
-            message: "Complete your profile to unlock more features.",
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-            read: true,
-          },
-        ]);
+        setNotifications([]);
       } finally {
         setLoading(false);
       }
@@ -83,6 +62,10 @@ export default function NotificationSidebar({ isOpen, onClose }: NotificationSid
         return <AlertCircle className="w-5 h-5 text-red-500" />;
       case "warning":
         return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+      case "badge":
+      case "new_app":
+      case "trending":
+        return <Sparkles className="w-5 h-5 text-purple-500" />;
       default:
         return <Info className="w-5 h-5 text-base-blue" />;
     }
@@ -96,21 +79,52 @@ export default function NotificationSidebar({ isOpen, onClose }: NotificationSid
         return "bg-red-500/10 border-red-500/20";
       case "warning":
         return "bg-yellow-500/10 border-yellow-500/20";
+      case "badge":
+      case "new_app":
+      case "trending":
+      case "premium_offer":
+        return "bg-purple-500/10 border-purple-500/20";
       default:
         return "bg-base-blue/10 border-base-blue/20";
     }
   };
 
   const markAsRead = async (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
-    // TODO: Call API to mark as read
+    try {
+      const res = await fetch(`/api/notifications/${id}/read`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      
+      if (res.ok) {
+        setNotifications(prev =>
+          prev.map(n => n.id === id ? { ...n, read: true } : n)
+        );
+        if (onNotificationRead) {
+          onNotificationRead();
+        }
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
   };
 
   const markAllAsRead = async () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    // TODO: Call API to mark all as read
+    try {
+      const res = await fetch("/api/notifications/read-all", {
+        method: "PATCH",
+        credentials: "include",
+      });
+      
+      if (res.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        if (onNotificationRead) {
+          onNotificationRead();
+        }
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
   };
 
   return (
@@ -204,7 +218,14 @@ export default function NotificationSidebar({ isOpen, onClose }: NotificationSid
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    onClick={() => markAsRead(notification.id)}
+                    onClick={() => {
+                      if (!notification.read) {
+                        markAsRead(notification.id);
+                      }
+                      if (notification.link) {
+                        window.location.href = notification.link;
+                      }
+                    }}
                     className={`group relative p-4 rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
                       notification.read
                         ? "bg-[#141A24] border-[#1F2733] opacity-60"
@@ -229,12 +250,12 @@ export default function NotificationSidebar({ isOpen, onClose }: NotificationSid
                         </p>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-[#888]">
-                            {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                           </span>
-                          {notification.actionUrl && (
-                            <span className="text-xs text-base-blue font-semibold">
+                          {notification.link && (
+                            <Link href={notification.link} className="text-xs text-base-blue font-semibold hover:underline">
                               View →
-                            </span>
+                            </Link>
                           )}
                         </div>
                       </div>

@@ -61,8 +61,10 @@ export default function VerifyPage() {
               if (verified || status === "verified") {
                 setStep(5);
               } else if (status === "wallet_verified") {
+                // Wallet verified but domain not - show domain verification
                 setStep(3);
               } else if (status === "domain_verified") {
+                // Domain verified but wallet not - show wallet verification
                 setStep(2);
               }
             }
@@ -274,7 +276,7 @@ export default function VerifyPage() {
                     <GlowButton asChild>
                       <a href="/submit">Submit an App</a>
                     </GlowButton>
-                    <GlowButton asChild variant="outline">
+                    <GlowButton asChild variant="solid">
                       <a href="/dashboard">Go to Dashboard</a>
                     </GlowButton>
                   </div>
@@ -294,7 +296,7 @@ export default function VerifyPage() {
           <div className="mb-6">
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Developer Verification</h1>
             <p className="text-muted-foreground text-sm">
-              Verify your developer account to submit mini apps
+              Verify your wallet to submit mini apps. Domain ownership is checked via farcaster.json per app.
             </p>
           </div>
 
@@ -329,7 +331,7 @@ export default function VerifyPage() {
                   ) : (
                     <XCircle className="w-4 h-4 text-muted-foreground" />
                   )}
-                  <span>Wallet Verification</span>
+                  <span>Wallet Verification {walletVerified ? "(Required ✓)" : "(Required)"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {domainVerified ? (
@@ -337,14 +339,19 @@ export default function VerifyPage() {
                   ) : (
                     <XCircle className="w-4 h-4 text-muted-foreground" />
                   )}
-                  <span>Domain Verification</span>
+                  <span>Domain Verification (Optional)</span>
                 </div>
+                {walletVerified && !domainVerified && (
+                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-white/10">
+                    💡 <strong>Note:</strong> Domain ownership is checked per-app via farcaster.json. Add your wallet to the "owner" or "owners" field in your app's farcaster.json for auto-approval.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Step 1: Wallet Verification */}
-          {step <= 2 && (
+          {/* Step 1: Wallet Verification - Show if not verified yet */}
+          {!walletVerified && step <= 2 && (
             <Card className="glass-card mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -378,18 +385,43 @@ export default function VerifyPage() {
               </CardContent>
             </Card>
           )}
+          
+          {/* Show wallet verified status if verified but domain not */}
+          {walletVerified && !domainVerified && (
+            <Card className="glass-card mb-6 border-green-500/30">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  <span className="font-semibold text-green-500">Wallet Verified ✓</span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Your wallet is verified! You can now submit apps.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  💡 <strong>Tip:</strong> Domain ownership is checked per-app via farcaster.json. Add your wallet to the "owner" or "owners" field in your app's farcaster.json file for auto-approval. Domain verification below is optional.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Step 2: Domain Verification */}
-          {step <= 3 && !walletVerified && (
-            <Card className="glass-card mb-6">
+          {/* Step 2: Domain Verification - Optional, shown if wallet is verified but domain is not, OR if wallet is not verified */}
+          {((walletVerified && !domainVerified) || (!walletVerified && step <= 3)) && (
+            <Card className="glass-card mb-6 border-base-cyan/20">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Globe className="w-5 h-5 text-base-cyan" />
-                  Step 2: Verify Domain
+                  {walletVerified ? "Optional: Verify Domain" : "Step 2: Verify Domain (Optional)"}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {walletVerified && !domainVerified && (
+                    <div className="bg-base-cyan/10 border border-base-cyan/30 rounded-lg p-3 mb-4">
+                      <p className="text-xs text-muted-foreground">
+                        <strong>Note:</strong> Domain verification is optional. Domain ownership is checked per-app via farcaster.json when you submit. This step is only needed if you want to verify a domain separately.
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <Label htmlFor="domain">Your Domain</Label>
                     <Input
@@ -507,7 +539,7 @@ export default function VerifyPage() {
                     <GlowButton asChild>
                       <a href="/submit">Submit Your First App</a>
                     </GlowButton>
-                    <GlowButton asChild variant="outline">
+                    <GlowButton asChild variant="solid">
                       <a href="/dashboard">Go to Dashboard</a>
                     </GlowButton>
                   </div>

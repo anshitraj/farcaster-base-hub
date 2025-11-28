@@ -4,21 +4,13 @@ import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 
 export async function GET() {
   try {
-    // Fetch all apps with events (if no apps in last 7 days, return all)
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    
+    // SIMPLIFIED: Just get ALL approved apps, prioritizing featured
     const apps = await prisma.miniApp.findMany({
       where: {
         status: "approved", // Only show approved apps
       },
       include: {
-        events: {
-          where: {
-            createdAt: {
-              gte: sevenDaysAgo,
-            },
-          },
-        },
+        events: true, // Include all events for scoring
         developer: {
           select: {
             id: true,
@@ -29,16 +21,20 @@ export async function GET() {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 50, // Limit to recent 50 apps for trending calculation
+      orderBy: [
+        { featuredInBanner: "desc" }, // Featured apps FIRST
+        { createdAt: "desc" }, // Then by creation date
+      ],
+      take: 20, // Get enough apps to work with
     });
 
-    // If no apps, return empty array
     if (apps.length === 0) {
       return NextResponse.json({ apps: [] });
     }
+
+    // Separate featured and non-featured apps
+    const featuredApps = apps.filter((app) => app.featuredInBanner);
+    const nonFeaturedApps = apps.filter((app) => !app.featuredInBanner);
 
     // Compute trending scores
     const appsWithScores = apps.map((app) => ({
@@ -46,19 +42,40 @@ export async function GET() {
       score: computeTrendingScore(app as MiniAppWithEvents),
     }));
 
-    // Sort by score and return top 10
-    const trending = appsWithScores
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10)
-      .map(({ app }) => ({
-        ...app,
-        topBaseRank: app.topBaseRank,
-        autoUpdated: app.autoUpdated,
-        contractVerified: app.contractVerified,
-        developerTags: app.developerTags || [],
-      }));
+    // Sort by score
+    const sorted = appsWithScores.sort((a, b) => {
+      // Featured apps always come first
+      if (a.app.featuredInBanner && !b.app.featuredInBanner) return -1;
+      if (!a.app.featuredInBanner && b.app.featuredInBanner) return 1;
+      // Then by score
+      return b.score - a.score;
+    });
+    
+    // Always prioritize featured apps, then by score
+    // If we have fewer than 10 apps, return all of them
+    let trending;
+    if (sorted.length <= 10) {
+      trending = sorted;
+    } else {
+      // Get all featured apps first (they should already be first due to sorting)
+      const featured = sorted.filter(({ app }) => app.featuredInBanner);
+      const nonFeatured = sorted.filter(({ app }) => !app.featuredInBanner);
+      
+      // Take up to 10 apps: all featured + top non-featured
+      trending = [...featured, ...nonFeatured].slice(0, 10);
+    }
+    
+    const result = trending.map(({ app }) => ({
+      ...app,
+      topBaseRank: app.topBaseRank,
+      autoUpdated: app.autoUpdated,
+      contractVerified: app.contractVerified,
+      developerTags: app.developerTags || [],
+      tags: app.tags || [],
+      headerImageUrl: app.headerImageUrl,
+    }));
 
-    return NextResponse.json({ apps: trending });
+    return NextResponse.json({ apps: result });
   } catch (error: any) {
     console.error("Get trending apps error:", error);
     // Return empty array instead of error to prevent UI breakage

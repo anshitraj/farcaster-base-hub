@@ -9,10 +9,13 @@ export interface FarcasterMetadata {
   category?: string;
   description?: string;
   url?: string;
+  ogImage?: string; // OG image / header image
   developer?: {
     name?: string;
     url?: string;
   };
+  owner?: string | string[]; // Owner address(es)
+  owners?: string | string[]; // Alternative field name for owner(s)
 }
 
 export async function fetchFarcasterMetadata(domain: string): Promise<FarcasterMetadata | null> {
@@ -68,7 +71,10 @@ export async function fetchFarcasterMetadata(domain: string): Promise<FarcasterM
       category: data.category || undefined,
       description: data.description || undefined,
       url: data.url || normalizedDomain,
+      ogImage: data.ogImage || data["og-image"] || data["og_image"] || undefined, // Support multiple naming conventions
       developer: data.developer || undefined,
+      owner: data.owner || data.owners || undefined,
+      owners: data.owners || data.owner || undefined,
     };
   } catch (error) {
     console.error("Error fetching farcaster.json:", error);

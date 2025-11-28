@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import PageLoader from "@/components/PageLoader";
 import AppHeader from "@/components/AppHeader";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, XCircle, Clock, ExternalLink, Shield, Edit, Trash2, Download, Zap, Upload, Star } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ExternalLink, Shield, Edit, Trash2, Download, Zap, Upload, Star, Image as ImageIcon, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { trackPageView } from "@/lib/analytics";
@@ -26,6 +26,7 @@ export default function AdminAppsPage() {
   const [editingApp, setEditingApp] = useState<any | null>(null);
   const [editFormData, setEditFormData] = useState<any>({});
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<"ADMIN" | "MODERATOR" | null>(null);
   const [showAutoImportDialog, setShowAutoImportDialog] = useState(false);
   const [autoImportUrl, setAutoImportUrl] = useState("");
   const [autoImportWallet, setAutoImportWallet] = useState("");
@@ -34,12 +35,32 @@ export default function AdminAppsPage() {
   const [jsonUrl, setJsonUrl] = useState("");
   const [jsonWallet, setJsonWallet] = useState("");
   const [importingJson, setImportingJson] = useState(false);
+  const [uploadingIcon, setUploadingIcon] = useState(false);
+  const [uploadingHeader, setUploadingHeader] = useState(false);
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const [screenshotInput, setScreenshotInput] = useState("");
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
+  const headerFileInputRef = useRef<HTMLInputElement>(null);
+  const screenshotFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     trackPageView("/admin/apps");
+    fetchUserRole();
     fetchApps();
   }, []);
+
+  async function fetchUserRole() {
+    try {
+      const res = await fetch("/api/admin/check", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setUserRole(data.role || null);
+      }
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+    }
+  }
 
   async function fetchApps() {
     try {
@@ -106,10 +127,13 @@ export default function AdminAppsPage() {
 
       toast({
         title: "Success",
-        description: `App ${action}d successfully`,
+        description: action === "approve" 
+          ? "App approved! It will now appear on the homepage."
+          : `App ${action}d successfully`,
       });
 
-      fetchApps();
+      // Refresh the apps list
+      await fetchApps();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -130,9 +154,80 @@ export default function AdminAppsPage() {
       baseMiniAppUrl: app.baseMiniAppUrl || "",
       farcasterUrl: app.farcasterUrl || "",
       iconUrl: app.iconUrl || "",
+      headerImageUrl: app.headerImageUrl || "",
       category: app.category,
+      screenshots: app.screenshots || [],
     });
+    setScreenshotInput("");
   }
+
+  async function handleFileUpload(file: File, type: "icon" | "header" | "screenshot") {
+    if (!file) return;
+
+    const setUploading = type === "icon" ? setUploadingIcon : type === "header" ? setUploadingHeader : setUploadingScreenshot;
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
+
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to upload file");
+      }
+
+      const data = await res.json();
+      
+      // Update the form data with the new URL
+      if (type === "icon") {
+        setEditFormData({ ...editFormData, iconUrl: data.url });
+      } else if (type === "header") {
+        setEditFormData({ ...editFormData, headerImageUrl: data.url });
+      } else if (type === "screenshot") {
+        setEditFormData({ 
+          ...editFormData, 
+          screenshots: [...(editFormData.screenshots || []), data.url] 
+        });
+      }
+
+      toast({
+        title: "Success",
+        description: `${type === "icon" ? "Icon" : type === "header" ? "Header image" : "Screenshot"} uploaded successfully`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload Error",
+        description: error.message || "Failed to upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const handleAddScreenshotUrl = () => {
+    if (screenshotInput.trim() && !editFormData.screenshots?.includes(screenshotInput.trim())) {
+      setEditFormData({
+        ...editFormData,
+        screenshots: [...(editFormData.screenshots || []), screenshotInput.trim()],
+      });
+      setScreenshotInput("");
+    }
+  };
+
+  const handleRemoveScreenshot = (index: number) => {
+    setEditFormData({
+      ...editFormData,
+      screenshots: editFormData.screenshots?.filter((_, i) => i !== index) || [],
+    });
+  };
 
   async function handleSaveEdit() {
     if (!editingApp) return;
@@ -227,24 +322,28 @@ export default function AdminAppsPage() {
                   Export CSV
                 </Button>
               </a>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2 border-base-blue/50 text-base-blue hover:bg-base-blue/10"
-                onClick={() => setShowAutoImportDialog(true)}
-              >
-                <Upload className="w-4 h-4" />
-                Auto Import
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-2 border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
-                onClick={() => setShowJsonImportDialog(true)}
-              >
-                <Upload className="w-4 h-4" />
-                Import from .json URL
-              </Button>
+              {userRole === "ADMIN" && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 border-base-blue/50 text-base-blue hover:bg-base-blue/10"
+                    onClick={() => setShowAutoImportDialog(true)}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Auto Import
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                    onClick={() => setShowJsonImportDialog(true)}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import from .json URL
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -369,6 +468,18 @@ export default function AdminAppsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Show Approve button for pending_review apps */}
+                      {(app.status === "pending_review" || app.status === "pending") && (
+                        <Button
+                          onClick={() => handleAppAction(app.id, "approve")}
+                          disabled={processing === app.id}
+                          className="bg-green-600 hover:bg-green-700"
+                          size="sm"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-1" />
+                          Approve
+                        </Button>
+                      )}
                       {app.contractAddress && !app.contractVerified && (
                         <>
                           <Button
@@ -440,16 +551,18 @@ export default function AdminAppsPage() {
                         <Edit className="w-4 h-4 mr-1" />
                         Edit
                       </Button>
-                      <Button
-                        onClick={() => setShowDeleteDialog(app.id)}
-                        disabled={processing === app.id}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-600/50 text-red-400 hover:bg-red-600/10"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Delete
-                      </Button>
+                      {userRole === "ADMIN" && (
+                        <Button
+                          onClick={() => setShowDeleteDialog(app.id)}
+                          disabled={processing === app.id}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-600/50 text-red-400 hover:bg-red-600/10"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      )}
                       <Link href={`/apps/${app.id}`}>
                         <Button variant="outline" size="sm">
                           <ExternalLink className="w-4 h-4 mr-1" />
@@ -529,13 +642,100 @@ export default function AdminAppsPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="edit-icon-url">Icon URL</Label>
-                    <Input
-                      id="edit-icon-url"
-                      type="url"
-                      value={editFormData.iconUrl || ""}
-                      onChange={(e) => setEditFormData({ ...editFormData, iconUrl: e.target.value })}
-                      className="glass-card"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="edit-icon-url"
+                        type="url"
+                        value={editFormData.iconUrl || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, iconUrl: e.target.value })}
+                        className="glass-card flex-1"
+                        placeholder="https://example.com/icon.png"
+                      />
+                      <input
+                        ref={iconFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, "icon");
+                        }}
+                        disabled={uploadingIcon}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingIcon}
+                        className="whitespace-nowrap"
+                        onClick={() => iconFileInputRef.current?.click()}
+                      >
+                        {uploadingIcon ? "Uploading..." : "Upload"}
+                      </Button>
+                    </div>
+                    {editFormData.iconUrl && (
+                      <div className="mt-2">
+                        <Image
+                          src={editFormData.iconUrl}
+                          alt="Icon preview"
+                          width={64}
+                          height={64}
+                          className="w-16 h-16 rounded-lg border border-gray-700"
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Enter a URL or upload a new icon image (max 5MB)
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-header-image-url">Header Image URL (Optional)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="edit-header-image-url"
+                        type="url"
+                        placeholder="https://myapp.example.com/header.png or og-image from farcaster.json"
+                        value={editFormData.headerImageUrl || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, headerImageUrl: e.target.value })}
+                        className="glass-card flex-1"
+                      />
+                      <input
+                        ref={headerFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file, "header");
+                        }}
+                        disabled={uploadingHeader}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingHeader}
+                        className="whitespace-nowrap"
+                        onClick={() => headerFileInputRef.current?.click()}
+                      >
+                        {uploadingHeader ? "Uploading..." : "Upload"}
+                      </Button>
+                    </div>
+                    {editFormData.headerImageUrl && (
+                      <div className="mt-2">
+                        <Image
+                          src={editFormData.headerImageUrl}
+                          alt="Header preview"
+                          width={400}
+                          height={200}
+                          className="w-full max-w-md h-32 object-cover rounded-lg border border-gray-700"
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Header image for app banner and detail page (like Twitter header). Enter a URL or upload a new image (max 5MB)
+                    </p>
                   </div>
 
                   <div className="space-y-2">
@@ -555,6 +755,83 @@ export default function AdminAppsPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="screenshots">Screenshots (Optional)</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Add screenshots to showcase the app, similar to Play Store. You can upload images or add URLs.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          id="screenshots"
+                          type="url"
+                          placeholder="https://example.com/screenshot.png"
+                          value={screenshotInput}
+                          onChange={(e) => setScreenshotInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && screenshotInput.trim()) {
+                              e.preventDefault();
+                              handleAddScreenshotUrl();
+                            }
+                          }}
+                          className="glass-card flex-1"
+                        />
+                        <input
+                          ref={screenshotFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileUpload(file, "screenshot");
+                          }}
+                          disabled={uploadingScreenshot}
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleAddScreenshotUrl}
+                          disabled={!screenshotInput.trim()}
+                          className="bg-base-blue hover:bg-base-blue/90"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => screenshotFileInputRef.current?.click()}
+                          disabled={uploadingScreenshot}
+                          className="whitespace-nowrap"
+                        >
+                          <Upload className="w-4 h-4 mr-1" />
+                          {uploadingScreenshot ? "Uploading..." : "Upload"}
+                        </Button>
+                      </div>
+                      {editFormData.screenshots && editFormData.screenshots.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                          {editFormData.screenshots.map((screenshot: string, index: number) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={screenshot}
+                                alt={`Screenshot ${index + 1}`}
+                                className="w-full h-32 object-cover rounded-lg border border-white/10"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x300?text=Invalid+Image";
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveScreenshot(index)}
+                                className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

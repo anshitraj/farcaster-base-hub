@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import GlowButton from "./GlowButton";
-import { Shield, CheckCircle2, XCircle, Wallet, Globe, ExternalLink, X, Tag } from "lucide-react";
+import { Shield, CheckCircle2, XCircle, Wallet, Globe, ExternalLink, X, Tag, Image as ImageIcon, Upload } from "lucide-react";
 import VerifiedBadge from "./VerifiedBadge";
 
 const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities"];
@@ -35,15 +35,20 @@ const SubmitForm = () => {
     baseMiniAppUrl: "", // Base mini app URL (optional)
     farcasterUrl: "", // Farcaster mini app URL (optional)
     iconUrl: "",
+    headerImageUrl: "", // Header/OG image URL (optional)
     category: "",
     reviewMessage: "", // Optional message for manual review
     developerTags: [] as string[], // Developer tags
     tags: [] as string[], // App tags for search (e.g., "business", "payment", "airdrops")
     contractAddress: "", // Contract address
     notesToAdmin: "", // Notes to admin
+    screenshots: [] as string[], // Screenshot URLs
   });
   
   const [tagInput, setTagInput] = useState("");
+  const [screenshotInput, setScreenshotInput] = useState("");
+  const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const screenshotFileInputRef = useRef<HTMLInputElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<any>(null);
@@ -96,6 +101,7 @@ const SubmitForm = () => {
               name: prev.name || data.metadata.name || "",
               description: prev.description || data.metadata.description || "",
               iconUrl: prev.iconUrl || data.metadata.icon || "",
+              headerImageUrl: prev.headerImageUrl || data.metadata.ogImage || "",
               category: prev.category || data.metadata.category || "",
               url: data.metadata.url || url,
             }));
@@ -122,6 +128,66 @@ const SubmitForm = () => {
     }));
   };
 
+  const handleScreenshotUpload = async (file: File) => {
+    if (!file) return;
+
+    setUploadingScreenshot(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "screenshot");
+
+      const res = await fetch("/api/admin/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to upload screenshot");
+      }
+
+      const data = await res.json();
+      
+      // Add the screenshot URL to the form data
+      setFormData((prev) => ({
+        ...prev,
+        screenshots: [...prev.screenshots, data.url],
+      }));
+
+      toast({
+        title: "Success",
+        description: "Screenshot uploaded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload Error",
+        description: error.message || "Failed to upload screenshot",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingScreenshot(false);
+    }
+  };
+
+  const handleAddScreenshotUrl = () => {
+    if (screenshotInput.trim() && !formData.screenshots.includes(screenshotInput.trim())) {
+      setFormData((prev) => ({
+        ...prev,
+        screenshots: [...prev.screenshots, screenshotInput.trim()],
+      }));
+      setScreenshotInput("");
+    }
+  };
+
+  const handleRemoveScreenshot = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      screenshots: prev.screenshots.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -144,19 +210,28 @@ const SubmitForm = () => {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonError) {
+        // If response is not JSON, get text
+        const text = await res.text();
+        throw new Error(text || `Server error: ${res.status} ${res.statusText}`);
+      }
 
       if (!res.ok) {
         // Show detailed validation errors if available
-        const errorMessage = data.message || data.error || "Failed to submit app";
+        const errorMessage = data.message || data.error || `Failed to submit app (${res.status})`;
         throw new Error(errorMessage);
       }
 
       toast({
-        title: data.status === "approved" ? "Success!" : "Submitted for Review",
-        description: data.message || (data.status === "approved" 
-          ? "Your mini app has been submitted and approved!" 
-          : "Your app has been submitted for review. An admin will review it shortly."),
+        title: data.updated ? "App Updated!" : (data.status === "approved" ? "Success!" : "Submitted for Review"),
+        description: data.message || (data.updated 
+          ? "Your app has been updated successfully!"
+          : data.status === "approved" 
+            ? "Your mini app has been submitted and approved!" 
+            : "Your app has been submitted for review. An admin will review it shortly."),
       });
 
       // Reset form
@@ -167,12 +242,17 @@ const SubmitForm = () => {
         baseMiniAppUrl: "",
         farcasterUrl: "",
         iconUrl: "",
+        headerImageUrl: "",
         category: "",
         reviewMessage: "",
         developerTags: [],
+        tags: [],
         contractAddress: "",
         notesToAdmin: "",
+        screenshots: [],
       });
+      setTagInput("");
+      setScreenshotInput("");
 
       // Redirect to app page
       if (data.app?.id) {
@@ -217,7 +297,7 @@ const SubmitForm = () => {
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground mb-3">
-                  Verify your developer account to get apps auto-approved, or submit for manual review.
+                  Verify your wallet to submit apps. Apps with your wallet in farcaster.json owners will be auto-approved.
                 </p>
                 
                 <div className="flex flex-col gap-2">
@@ -236,28 +316,19 @@ const SubmitForm = () => {
                     )}
                   </div>
                   
-                  <div className="flex items-center gap-2 text-xs">
-                    {verificationStatus?.verificationStatus === "domain_verified" || verificationStatus?.verificationStatus === "verified" ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <span className="text-muted-foreground">Domain Verification</span>
-                    {verificationStatus?.verificationStatus !== "domain_verified" && verificationStatus?.verificationStatus !== "verified" && (
-                      <Link href="/verify" className="ml-auto text-base-blue hover:underline flex items-center gap-1">
-                        <Globe className="w-3 h-3" />
-                        Verify Domain
-                      </Link>
-                    )}
-                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    💡 <strong>Tip:</strong> Add your wallet to the "owner" or "owners" field in your app's farcaster.json to enable auto-approval for that domain.
+                  </p>
                 </div>
                 
-                <Link href="/verify">
-                  <GlowButton size="sm" className="w-full mt-2">
-                    <Shield className="w-4 h-4 mr-2" />
-                    Complete Verification
-                  </GlowButton>
-                </Link>
+                {verificationStatus?.verificationStatus !== "wallet_verified" && verificationStatus?.verificationStatus !== "verified" && (
+                  <Link href="/verify">
+                    <GlowButton size="sm" className="w-full mt-2">
+                      <Shield className="w-4 h-4 mr-2" />
+                      Verify Wallet
+                    </GlowButton>
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -350,6 +421,21 @@ const SubmitForm = () => {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="headerImageUrl">Header Image URL (Optional)</Label>
+            <Input
+              id="headerImageUrl"
+              type="url"
+              placeholder="https://myapp.example.com/header.png or og-image from farcaster.json"
+              value={formData.headerImageUrl}
+              onChange={(e) => setFormData({ ...formData, headerImageUrl: e.target.value })}
+              className="glass-card focus-visible:ring-base-blue"
+            />
+            <p className="text-xs text-muted-foreground">
+              Header image for app banner and detail page (like Twitter header). Will be auto-filled from farcaster.json og-image if available.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="category">Category *</Label>
             <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
               <SelectTrigger className="glass-card focus:ring-base-blue">
@@ -439,6 +525,83 @@ const SubmitForm = () => {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="screenshots">Screenshots (Optional)</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Add screenshots to showcase your app, similar to Play Store. You can upload images or add URLs.
+            </p>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  id="screenshots"
+                  type="url"
+                  placeholder="https://example.com/screenshot.png"
+                  value={screenshotInput}
+                  onChange={(e) => setScreenshotInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && screenshotInput.trim()) {
+                      e.preventDefault();
+                      handleAddScreenshotUrl();
+                    }
+                  }}
+                  className="glass-card focus-visible:ring-base-blue flex-1"
+                />
+                <input
+                  ref={screenshotFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleScreenshotUpload(file);
+                  }}
+                  disabled={uploadingScreenshot}
+                />
+                <Button
+                  type="button"
+                  onClick={handleAddScreenshotUrl}
+                  disabled={!screenshotInput.trim()}
+                  className="bg-base-blue hover:bg-base-blue/90"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => screenshotFileInputRef.current?.click()}
+                  disabled={uploadingScreenshot}
+                  className="whitespace-nowrap"
+                >
+                  <Upload className="w-4 h-4 mr-1" />
+                  {uploadingScreenshot ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+              {formData.screenshots.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                  {formData.screenshots.map((screenshot, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={screenshot}
+                        alt={`Screenshot ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg border border-white/10"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x300?text=Invalid+Image";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveScreenshot(index)}
+                        className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="reviewMessage">
               Request Manual Review (Optional)
             </Label>
@@ -450,7 +613,7 @@ const SubmitForm = () => {
               className="glass-card focus-visible:ring-base-blue min-h-[100px]"
             />
             <p className="text-xs text-muted-foreground">
-              Leave empty if you can verify domain ownership. Otherwise, provide details for manual review.
+              Leave empty if your wallet is in the farcaster.json "owner" or "owners" field. Otherwise, provide details for manual review.
             </p>
           </div>
 

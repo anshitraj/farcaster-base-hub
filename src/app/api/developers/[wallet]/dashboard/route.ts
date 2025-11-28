@@ -53,6 +53,9 @@ export async function GET(
       installs: app.installs,
       ratingAverage: app.ratingAverage,
       ratingCount: app.ratingCount,
+      status: app.status, // Include status so users can see if app is approved
+      url: app.url,
+      monetizationEnabled: app.monetizationEnabled || false,
     }));
 
     return NextResponse.json({

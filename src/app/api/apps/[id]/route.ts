@@ -17,6 +17,7 @@ export async function GET(
             name: true,
             avatar: true,
             bio: true,
+            verified: true,
           },
         },
         reviews: {
@@ -53,6 +54,7 @@ export async function GET(
         baseMiniAppUrl: app.baseMiniAppUrl,
         farcasterUrl: app.farcasterUrl,
         iconUrl: app.iconUrl,
+        headerImageUrl: app.headerImageUrl,
         category: app.category,
         verified: app.verified,
         contractAddress: app.contractAddress,

@@ -8,8 +8,9 @@ import AppHeader from "@/components/AppHeader";
 import CategoryChips from "@/components/CategoryChips";
 import { motion } from "framer-motion";
 import { trackPageView, trackEvent } from "@/lib/analytics";
-import { Star, X } from "lucide-react";
+import { Star, X, CheckCircle2, Flame, Sparkles } from "lucide-react";
 import FavoriteButton from "@/components/FavoriteButton";
+import VerifiedBadge from "@/components/VerifiedBadge";
 import { shortenDescription } from "@/lib/description-utils";
 
 const ITEMS_PER_PAGE = 20;
@@ -131,10 +132,10 @@ export default function AppsPage() {
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-[#0D0F1A] pb-24">
       <AppHeader />
       <div className="pt-8 pb-8">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -206,73 +207,89 @@ export default function AppsPage() {
           )}
 
           {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-4">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-48 bg-gray-900 rounded-2xl animate-pulse" />
+                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : apps.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {apps.map((app, index) => (
-                  <motion.div
-                    key={app.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all duration-300 group"
-                  >
-                    <div className="flex items-start gap-4 mb-4">
-                      {/* App Icon */}
-                      {app.iconUrl ? (
-                        <div className="w-16 h-16 rounded-xl bg-gray-800 p-2 flex-shrink-0">
-                          <img
-                            src={app.iconUrl}
-                            alt={app.name}
-                            className="w-full h-full object-contain rounded-lg"
-                          />
+              <div className="space-y-4">
+                {apps.map((app, index) => {
+                  const rating = app.ratingAverage || 0;
+                  
+                  return (
+                    <motion.div
+                      key={app.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.03 }}
+                      className="group relative bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-all duration-300"
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* App Icon */}
+                        <div className="flex-shrink-0">
+                          {app.iconUrl ? (
+                            <div className="w-20 h-20 rounded-xl bg-gray-800 p-2 border border-gray-700">
+                              <img
+                                src={app.iconUrl}
+                                alt={app.name}
+                                className="w-full h-full object-contain rounded-lg"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-20 h-20 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
+                              <span className="text-3xl font-bold text-gray-500">
+                                {app.name.charAt(0)}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="w-16 h-16 rounded-xl bg-gray-800 flex items-center justify-center flex-shrink-0">
-                          <span className="text-2xl font-bold text-gray-500">
-                            {app.name.charAt(0)}
-                          </span>
-                        </div>
-                      )}
 
-                      {/* App Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className="text-lg font-bold text-white line-clamp-1 flex-1">
-                            {app.name}
-                          </h3>
-                          <FavoriteButton appId={app.id} size="md" className="flex-shrink-0 mt-0.5" />
-                        </div>
-                        <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
-                          {shortenDescription(app.description) || "No description available"}
-                        </p>
-                      </div>
-                    </div>
+                        {/* App Info */}
+                        <div className="flex-1 min-w-0 relative">
+                          {/* Favorite Button - Top Right on Mobile, Inline on Desktop */}
+                          <div className="absolute top-0 right-0 md:relative md:top-auto md:right-auto z-10">
+                            <FavoriteButton 
+                              appId={app.id} 
+                              size="md" 
+                              className="flex-shrink-0 md:mt-1" 
+                            />
+                          </div>
+                          <div className="pr-10 md:pr-0">
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <div className="flex-1 min-w-0">
+                                <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
+                                  {app.name}
+                                </h3>
+                                <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
+                                  {shortenDescription(app.description) || "No description available"}
+                                </p>
+                              </div>
+                            </div>
 
-                    {/* Action Button and Star Reward */}
-                    <div className="flex items-center justify-between">
-                      <Link
-                        href={`/apps/${app.id}`}
-                        className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-blue-400 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 group-hover:bg-gray-700"
-                      >
-                        {app.category === "Games" ? "Play" : "Open"}
-                      </Link>
-                      
-                      {/* Star Reward */}
-                      <div className="flex items-center gap-2">
-                        <Star className="w-5 h-5 text-yellow-400 fill-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]" />
-                        <span className="text-yellow-400 font-bold text-sm drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]">
-                          {app.pointsReward || app.clicks || Math.floor((app.installs || 0) / 10) || 50}
-                        </span>
+                            {/* Rating and Action Button Row */}
+                            <div className="flex items-center justify-between mt-3">
+                              <div className="flex items-center gap-2">
+                                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                                <span className="text-sm font-semibold text-white">
+                                  {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}
+                                </span>
+                              </div>
+
+                              <Link
+                                href={`/apps/${app.id}`}
+                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-all duration-300"
+                              >
+                                Open
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
               
               {totalPages > 1 && (

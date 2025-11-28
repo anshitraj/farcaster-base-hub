@@ -50,6 +50,7 @@ export default {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
+          surface: "hsl(var(--card-surface))",
         },
         base: {
           blue: "hsl(var(--base-blue))",
@@ -63,9 +64,6 @@ export default {
         glass: {
           bg: "hsl(var(--glass-bg))",
           border: "hsl(var(--glass-border))",
-        },
-        card: {
-          surface: "hsl(var(--card-surface))",
         },
       },
       borderRadius: {

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Get user points
     let userPoints;
-    let transactions = [];
+    let transactions: any[] = [];
     
     try {
       userPoints = await prisma.userPoints.findUnique({

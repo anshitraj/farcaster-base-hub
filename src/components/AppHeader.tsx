@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Bell, Search } from "lucide-react";
+import { Bell, Search, Plus, Menu } from "lucide-react";
 import UserProfile from "@/components/UserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
@@ -11,9 +12,14 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 
-export default function AppHeader() {
+interface AppHeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -23,6 +29,28 @@ export default function AppHeader() {
     const urlSearch = searchParams.get("search") || "";
     setSearchQuery(urlSearch);
   }, [searchParams]);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    async function fetchUnreadCount() {
+      try {
+        const res = await fetch("/api/notifications?unread=true&limit=1", {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+      } catch (error) {
+        console.error("Error fetching unread count:", error);
+      }
+    }
+
+    fetchUnreadCount();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Debounce search query for real-time search (500ms delay)
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -71,11 +99,29 @@ export default function AppHeader() {
     <>
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
         <div className="px-6 py-5 flex items-center justify-between gap-4">
+          {/* Mobile Menu Button */}
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onMenuClick}
+            className="lg:hidden p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+            aria-label="Open menu"
+          >
+            <Menu className="w-6 h-6 text-gray-300" />
+          </motion.button>
+
           <Link 
             href="/" 
-            className="text-2xl font-extrabold text-white hover:text-blue-400 transition-colors flex-shrink-0"
+            className="flex-shrink-0 hover:opacity-80 transition-opacity"
           >
-            Mini App Store
+            <Image
+              src="/logo.png"
+              alt="Mini App Store"
+              width={300}
+              height={100}
+              className="h-20 md:h-24 w-auto"
+              priority
+            />
           </Link>
 
           {/* Search Bar - Center */}
@@ -94,6 +140,18 @@ export default function AppHeader() {
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
+            {/* List a Project Button */}
+            <Link href="/submit">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] transition-all duration-300"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-sm font-semibold">List a project</span>
+              </motion.button>
+            </Link>
+
             {/* Mobile Search Button */}
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -113,7 +171,11 @@ export default function AppHeader() {
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5 text-gray-300" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1 animate-pulse">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
             </motion.button>
             <PointsDisplay />
             <UserProfile />
@@ -123,7 +185,7 @@ export default function AppHeader() {
 
       <NotificationSidebar 
         isOpen={notificationSidebarOpen} 
-        onClose={() => setNotificationSidebarOpen(false)} 
+        onClose={() => setNotificationSidebarOpen(false)}
       />
     </>
   );

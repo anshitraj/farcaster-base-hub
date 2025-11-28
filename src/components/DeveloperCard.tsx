@@ -43,7 +43,7 @@ const DeveloperCard = ({
               {avatar ? (
                 <Image
                   src={avatar}
-                  alt={name}
+                  alt={name || "Developer"}
                   width={80}
                   height={80}
                   className="w-20 h-20 rounded-full bg-background-secondary p-1 ring-2 ring-base-blue/50"

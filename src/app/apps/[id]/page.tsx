@@ -183,6 +183,17 @@ export default function AppDetailPage() {
   return (
     <div className="min-h-screen bg-[#0B0F19] pb-24">
       <AppHeader />
+      {/* Header Image (like Twitter header) */}
+      {app.headerImageUrl && (
+        <div className="w-full h-48 md:h-64 lg:h-80 relative overflow-hidden">
+          <img
+            src={app.headerImageUrl}
+            alt={`${app.name} header`}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-[#0B0F19]/50 to-transparent" />
+        </div>
+      )}
       <div className="pt-8 pb-8">
         <div className="max-w-screen-md mx-auto px-4">
           {/* App Header - Play Store Style */}
@@ -205,11 +216,14 @@ export default function AppDetailPage() {
               )}
 
               {/* App Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <div className="flex-1 min-w-0 relative">
+                {/* Favorite Button - Top Right on Mobile, Inline on Desktop */}
+                <div className="absolute -top-2 right-0 md:relative md:top-auto md:right-auto md:ml-auto z-10">
+                  <FavoriteButton appId={app.id} size="lg" className="md:ml-auto" />
+                </div>
+                <div className="flex items-center gap-2 mb-2 flex-wrap pr-12 md:pr-0">
                   <h1 className="text-2xl md:text-3xl font-bold">{app.name}</h1>
                   {app.verified && <VerifiedBadge type="app" />}
-                  <FavoriteButton appId={app.id} size="lg" className="ml-auto" />
                 </div>
                 {app.developer && (
                   <Link
@@ -314,7 +328,9 @@ export default function AppDetailPage() {
           >
             <Card className="glass-card text-center p-4">
               <div className="text-2xl font-bold mb-1">
-                {(app.ratingAverage || 0).toFixed(1)}
+                {((app.ratingAverage || 0) % 1 === 0) 
+                  ? (app.ratingAverage || 0).toString() 
+                  : (app.ratingAverage || 0).toFixed(1)}
               </div>
               <div className="text-xs text-muted-foreground">Rating</div>
             </Card>
@@ -381,13 +397,14 @@ export default function AppDetailPage() {
               <div className="mb-6">
                 <ReviewForm
                   appId={id}
-                  onReviewSubmitted={() => {
-                    fetch(`/api/apps/${id}`)
-                      .then((res) => res.json())
-                      .then((data) => {
-                        setApp(data.app);
-                        setReviews(data.reviews || []);
-                      });
+                  onReviewSubmitted={async () => {
+                    // Refresh app data to show updated rating and review count
+                    const res = await fetch(`/api/apps/${id}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setApp(data.app);
+                      setReviews(data.reviews || []);
+                    }
                   }}
                 />
               </div>

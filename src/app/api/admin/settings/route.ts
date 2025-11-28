@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { setPremiumEnabled } from "@/app/api/settings/premium/route";
 
 // Feature flags stored in environment or database
 // For now, we'll use a simple in-memory store (in production, use database or env vars)
@@ -33,13 +32,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check if user is admin
+    // Check if user is admin (settings management is admin-only)
     const developer = await prisma.developer.findUnique({
       where: { wallet: wallet.toLowerCase() },
-      select: { isAdmin: true },
+      select: { adminRole: true },
     });
 
-    if (!developer || !developer.isAdmin) {
+    if (!developer || developer.adminRole !== "ADMIN") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
@@ -85,13 +84,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Check if user is admin
+    // Check if user is admin (settings management is admin-only)
     const developer = await prisma.developer.findUnique({
       where: { wallet: wallet.toLowerCase() },
-      select: { isAdmin: true },
+      select: { adminRole: true },
     });
 
-    if (!developer || !developer.isAdmin) {
+    if (!developer || developer.adminRole !== "ADMIN") {
       return NextResponse.json(
         { error: "Admin access required" },
         { status: 403 }
@@ -103,8 +102,7 @@ export async function PATCH(request: NextRequest) {
 
     if (typeof premiumEnabled !== "undefined") {
       featureFlags.premiumEnabled = Boolean(premiumEnabled);
-      // Update the public API as well
-      setPremiumEnabled(Boolean(premiumEnabled));
+      // In production, update database or env vars here
     }
 
     return NextResponse.json({

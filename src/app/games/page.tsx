@@ -46,7 +46,11 @@ export default function GamesPage() {
 
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
-        sidebarHidden ? "ml-0" : sidebarCollapsed ? "ml-16" : "ml-64"
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
       }`}>
         <AppHeader />
         

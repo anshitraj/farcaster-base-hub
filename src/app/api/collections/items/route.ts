@@ -72,12 +72,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create favorites collection
-    let collection = await prisma.collection.findFirst({
-      where: {
-        developerId: developer.id,
-        type: validated.collectionType,
-      },
-    });
+    let collection;
+    try {
+      collection = await prisma.collection.findFirst({
+        where: {
+          developerId: developer.id,
+          type: validated.collectionType,
+        },
+      });
+    } catch (error: any) {
+      // Handle database connection errors
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items POST (findFirst collection)");
+        return NextResponse.json(
+          { error: "Database unavailable. Please try again later." },
+          { status: 503 }
+        );
+      }
+      // Check if prisma.collection is undefined (Prisma client not generated)
+      if (error.message?.includes("Cannot read properties of undefined") || !prisma.collection) {
+        console.error("Prisma client not properly initialized. Collection model not found.");
+        return NextResponse.json(
+          { error: "Server configuration error. Please contact support." },
+          { status: 500 }
+        );
+      }
+      throw error;
+    }
 
     if (!collection) {
       try {
@@ -112,12 +133,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if item already exists
-    const existingItem = await prisma.collectionItem.findFirst({
-      where: {
-        collectionId: collection.id,
-        appId: validated.miniAppId,
-      },
-    });
+    let existingItem;
+    try {
+      existingItem = await prisma.collectionItem.findFirst({
+        where: {
+          collectionId: collection.id,
+          appId: validated.miniAppId,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items POST (findFirst item)");
+        return NextResponse.json(
+          { error: "Database unavailable. Please try again later." },
+          { status: 503 }
+        );
+      }
+      throw error;
+    }
 
     if (existingItem) {
       return NextResponse.json(
@@ -150,15 +183,33 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
       // Handle unique constraint violation (race condition)
       if (error.code === 'P2002') {
-        const existingItem = await prisma.collectionItem.findFirst({
-          where: {
-            collectionId: collection.id,
-            appId: validated.miniAppId,
-          },
-        });
-        if (existingItem) {
-          return NextResponse.json({ item: existingItem }, { status: 200 });
+        try {
+          const existingItem = await prisma.collectionItem.findFirst({
+            where: {
+              collectionId: collection.id,
+              appId: validated.miniAppId,
+            },
+          });
+          if (existingItem) {
+            return NextResponse.json({ item: existingItem }, { status: 200 });
+          }
+        } catch (findError: any) {
+          // If findFirst also fails, just return success since item likely exists
+          if (findError.code === 'P1001' || findError.message?.includes("Can't reach database")) {
+            return NextResponse.json(
+              { error: "Database unavailable. Please try again later." },
+              { status: 503 }
+            );
+          }
         }
+      }
+      // Handle database connection errors
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items POST (create item)");
+        return NextResponse.json(
+          { error: "Database unavailable. Please try again later." },
+          { status: 503 }
+        );
       }
       throw error;
     }
@@ -213,9 +264,21 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    let developer;
+    try {
+      developer = await prisma.developer.findUnique({
+        where: { wallet: wallet.toLowerCase() },
+      });
+    } catch (error: any) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items DELETE");
+        return NextResponse.json(
+          { error: "Database unavailable. Please try again later." },
+          { status: 503 }
+        );
+      }
+      throw error;
+    }
 
     if (!developer) {
       return NextResponse.json(
@@ -225,12 +288,32 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Find the collection
-    const collection = await prisma.collection.findFirst({
-      where: {
-        developerId: developer.id,
-        type: collectionType as any,
-      },
-    });
+    let collection;
+    try {
+      collection = await prisma.collection.findFirst({
+        where: {
+          developerId: developer.id,
+          type: collectionType as any,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items DELETE (findFirst collection)");
+        return NextResponse.json(
+          { error: "Database unavailable. Please try again later." },
+          { status: 503 }
+        );
+      }
+      // Check if prisma.collection is undefined
+      if (error.message?.includes("Cannot read properties of undefined") || !prisma.collection) {
+        console.error("Prisma client not properly initialized. Collection model not found.");
+        return NextResponse.json(
+          { error: "Server configuration error. Please contact support." },
+          { status: 500 }
+        );
+      }
+      throw error;
+    }
 
     if (!collection) {
       return NextResponse.json(
@@ -296,24 +379,46 @@ export async function GET(request: NextRequest) {
     }
 
     // Find the collection
-    const collection = await prisma.collection.findFirst({
-      where: {
-        developerId: developer.id,
-        type: collectionType as any,
-      },
-    });
+    let collection;
+    try {
+      collection = await prisma.collection.findFirst({
+        where: {
+          developerId: developer.id,
+          type: collectionType as any,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        console.warn("Database connection error in /api/collections/items GET");
+        return NextResponse.json({ isFavorited: false });
+      }
+      // If collection model doesn't exist, return false
+      if (error.message?.includes("Cannot read properties of undefined")) {
+        console.error("Prisma client not properly initialized. Collection model not found.");
+        return NextResponse.json({ isFavorited: false });
+      }
+      throw error;
+    }
 
     if (!collection || !miniAppId) {
       return NextResponse.json({ isFavorited: false });
     }
 
     // Check if item exists in collection
-    const item = await prisma.collectionItem.findFirst({
-      where: {
-        collectionId: collection.id,
-        appId: miniAppId,
-      },
-    });
+    let item;
+    try {
+      item = await prisma.collectionItem.findFirst({
+        where: {
+          collectionId: collection.id,
+          appId: miniAppId,
+        },
+      });
+    } catch (error: any) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+        return NextResponse.json({ isFavorited: false });
+      }
+      throw error;
+    }
 
     return NextResponse.json({ isFavorited: !!item });
   } catch (error) {

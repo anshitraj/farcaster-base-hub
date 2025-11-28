@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdminOnly } from "@/lib/admin";
 import { fetchFarcasterMetadata } from "@/lib/farcaster-metadata";
 import { z } from "zod";
 
@@ -11,7 +11,7 @@ const importSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminOnly(); // Auto-import is admin-only
 
     const body = await request.json();
     const validated = importSchema.parse(body);
@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Ensure owner address is included
+    const DEFAULT_OWNER_ADDRESS = "0x0CF70E448ac98689e326bd79075a96CcBcec1665";
+    const metadataWithOwner = {
+      ...metadata,
+      owner: metadata.owner || metadata.owners || DEFAULT_OWNER_ADDRESS,
+      owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
+    };
 
     // Find or create developer
     let developer = await prisma.developer.findUnique({
@@ -81,7 +89,7 @@ export async function POST(request: NextRequest) {
         category: metadata.category || "Utilities",
         developerTags: [], // Can be extracted from metadata if available
         screenshots: metadata.screenshots || [],
-        farcasterJson: JSON.stringify(metadata),
+        farcasterJson: JSON.stringify(metadataWithOwner),
         autoUpdated: true,
         status: "approved", // Auto-imported apps are auto-approved
         verified: true,

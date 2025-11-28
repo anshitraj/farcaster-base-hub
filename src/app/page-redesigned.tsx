@@ -164,13 +164,10 @@ export default function HomePage() {
               {categoryData.map((category) => (
                 <CategoryCard
                   key={category.title}
-                  title={category.title}
-                  count={category.count}
+                  name={category.title}
                   icon={category.icon}
-                  iconColor={category.color}
-                  onClick={() => {
-                    window.location.href = `/apps?category=${category.title}`;
-                  }}
+                  color={category.color}
+                  href={`/apps?category=${category.title}`}
                 />
               ))}
             </div>

@@ -54,31 +54,41 @@ export async function POST(request: NextRequest) {
       developerId = developer?.id;
     }
 
-    // Check if user already reviewed this app (to prevent duplicate points)
-    let existingReview = null;
-    if (session) {
-      const developer = await prisma.developer.findUnique({
-        where: { wallet: session.wallet },
+    // Check if user already reviewed this app
+    let existingReview: any = null;
+    let isNewReview = true;
+    if (session && developerId) {
+      existingReview = await prisma.review.findFirst({
+        where: {
+          miniAppId: validated.miniAppId,
+          developerId: developerId,
+        },
       });
-      if (developer) {
-        existingReview = await prisma.review.findFirst({
-          where: {
-            miniAppId: validated.miniAppId,
-            developerId: developer.id,
-          },
-        });
-      }
     }
 
-    // Create review
-    const review = await prisma.review.create({
-      data: {
-        miniAppId: validated.miniAppId,
-        rating: validated.rating,
-        comment: validated.comment,
-        developerId,
-      },
-    });
+    // Update existing review or create new one
+    let review;
+    if (existingReview) {
+      // Update existing review (user can change their rating)
+      isNewReview = false;
+      review = await prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          rating: validated.rating,
+          comment: validated.comment || null,
+        },
+      });
+    } else {
+      // Create new review
+      review = await prisma.review.create({
+        data: {
+          miniAppId: validated.miniAppId,
+          rating: validated.rating,
+          comment: validated.comment,
+          developerId,
+        },
+      });
+    }
 
     // Recalculate rating
     const reviews = await prisma.review.findMany({
@@ -100,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Award 100 points for rating (Rate 2 Earn)
     let pointsAwarded = 0;
-    if (session && !existingReview) {
+    if (session && isNewReview) {
       // Only award points if this is a new review (not an update)
       const RATING_POINTS = 100;
       

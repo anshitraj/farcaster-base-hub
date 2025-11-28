@@ -6,8 +6,8 @@ import { motion } from "framer-motion";
 import { Star, Heart } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
+import FavoriteButton from "@/components/FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
-import { getSessionFromCookies } from "@/lib/auth";
 
 export default function FavouritesPage() {
   const [favouriteApps, setFavouriteApps] = useState<any[]>([]);
@@ -54,7 +54,11 @@ export default function FavouritesPage() {
 
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
-        sidebarHidden ? "ml-0" : sidebarCollapsed ? "ml-16" : "ml-64"
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
       }`}>
         <AppHeader />
         

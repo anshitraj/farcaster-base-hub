@@ -45,21 +45,9 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days subscription
 
-    // Create or update subscription
-    const subscription = await prisma.premiumSubscription.upsert({
-      where: {
-        wallet: wallet.toLowerCase(),
-      },
-      update: {
-        status: "active",
-        startedAt: new Date(),
-        expiresAt,
-        renewalCount: {
-          increment: 1,
-        },
-        txHash: txHash || null,
-      },
-      create: {
+    // Create new subscription (we already checked there's no active one)
+    const subscription = await prisma.premiumSubscription.create({
+      data: {
         userId: wallet.toLowerCase(),
         wallet: wallet.toLowerCase(),
         status: "active",

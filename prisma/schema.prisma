@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum AdminRole {
+  ADMIN
+  MODERATOR
+}
+
 model Developer {
   id                 String    @id @default(uuid())
   wallet             String    @unique
@@ -17,7 +22,7 @@ model Developer {
   verificationStatus String    @default("unverified") // "unverified" | "wallet_verified" | "domain_verified" | "verified"
   verificationNonce  String?
   verificationDomain String?
-  isAdmin            Boolean   @default(false)
+  adminRole          AdminRole? // "ADMIN" | "MODERATOR" | null - ADMIN has full control, MODERATOR can edit/review/approve but not delete or manage admins
   isOfficial         Boolean   @default(false) // Official Developer badge
   developerTags      String[]  @default([]) // Developer tags
   // XP & Streak System
@@ -41,7 +46,7 @@ model Developer {
 
   @@index([wallet])
   @@index([verified])
-  @@index([isAdmin])
+  @@index([adminRole])
   @@index([totalXP])
   @@index([isOfficial])
   @@index([tier])
@@ -55,6 +60,7 @@ model MiniApp {
   baseMiniAppUrl   String? // Base mini app deep link URL (optional)
   farcasterUrl     String? // Farcaster mini app URL (optional)
   iconUrl          String
+  headerImageUrl   String? // Header/OG image URL for banner and app detail page
   category         String
   verified         Boolean          @default(false)
   status           String           @default("pending") // "pending" | "approved" | "rejected" | "pending_review" | "pending_contract" | "auto_updated"
@@ -83,6 +89,7 @@ model MiniApp {
   autoUpdated      Boolean          @default(false) // Whether app was auto-updated from farcaster.json
   topBaseRank      Int? // Rank in Top 30 Base Mini Apps (1-30)
   featuredInBanner Boolean          @default(false) // Featured in homepage top banner carousel
+  monetizationEnabled Boolean       @default(false) // Enable monetization (coming soon feature)
   // Tags for search and categorization
   tags             String[]         @default([]) // ["airdrops", "games", "utilities", etc.]
   developer        Developer        @relation(fields: [developerId], references: [id], onDelete: Cascade)

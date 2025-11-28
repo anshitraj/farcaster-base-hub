@@ -55,8 +55,11 @@ export default function UserProfile() {
     
     // Listen for wallet changes (but only if user is logged in)
     let handleAccountsChanged: (() => void) | null = null;
+    let handleChainChanged: (() => void) | null = null;
+    let provider: any = null;
+    
     if (typeof window !== "undefined") {
-      const provider = getInjectedProvider();
+      provider = getInjectedProvider();
       if (provider && profile) {
         // Only listen to wallet changes if user is already connected
         handleAccountsChanged = () => {
@@ -65,21 +68,25 @@ export default function UserProfile() {
           }
         };
         
-        provider.on("accountsChanged", handleAccountsChanged);
-        provider.on("chainChanged", () => {
+        handleChainChanged = () => {
           if (mounted && !isLoggingOut) {
             checkAuth();
           }
-        });
+        };
+        
+        provider.on("accountsChanged", handleAccountsChanged);
+        provider.on("chainChanged", handleChainChanged);
       }
     }
     
     return () => {
       mounted = false;
-      if (handleAccountsChanged) {
-        const provider = getInjectedProvider();
-        if (provider) {
+      if (provider) {
+        if (handleAccountsChanged) {
           provider.removeListener("accountsChanged", handleAccountsChanged);
+        }
+        if (handleChainChanged) {
+          provider.removeListener("chainChanged", handleChainChanged);
         }
       }
     };
@@ -198,65 +205,14 @@ export default function UserProfile() {
   }
 
   async function resolveBaseName(wallet: string): Promise<string | null> {
-    try {
-      try {
-        const baseResponse = await fetch(
-          `https://api.base.org/ens/reverse/${wallet}`,
-          { method: "GET" }
-        );
-        if (baseResponse.ok) {
-          const baseData = await baseResponse.json();
-          if (baseData.name && baseData.name.endsWith(".base.eth")) {
-            return baseData.name;
-          }
-        }
-      } catch (e) {
-        // Continue to fallback
-      }
-      
-      try {
-        const response = await fetch(
-          `https://api.ensideas.com/ens/resolve/${wallet}?chainId=8453`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.name && (data.name.endsWith(".base.eth") || data.name.endsWith(".eth"))) {
-            return data.name;
-          }
-        }
-      } catch (e) {
-        // Continue
-      }
-    } catch (error) {
-      console.error("ENS resolution error:", error);
-    }
+    // Skip ENS resolution to avoid CORS errors - not critical for app functionality
+    // If needed, implement server-side proxy for ENS lookups
     return null;
   }
 
   async function fetchBaseAvatar(wallet: string, name: string | null): Promise<string | null> {
-    try {
-      if (name) {
-        try {
-          const baseAvatarResponse = await fetch(
-            `https://api.base.org/ens/avatar/${name}`,
-            { method: "GET" }
-          );
-          if (baseAvatarResponse.ok) {
-            const baseAvatarData = await baseAvatarResponse.json();
-            if (baseAvatarData.avatar) {
-              return baseAvatarData.avatar;
-            }
-          }
-        } catch (e) {
-          // Continue
-        }
-      }
-      
-      return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
-    } catch (error) {
-      console.error("Avatar fetch error:", error);
-      return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}`;
-    }
+    // Skip avatar fetch to avoid CORS errors - use fallback avatar instead
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
   }
 
   const connectWallet = async () => {
@@ -412,6 +368,11 @@ export default function UserProfile() {
           title: "Disconnected",
           description: "Wallet disconnected successfully. You can now connect a different wallet.",
         });
+        
+        // Dispatch wallet disconnected event to notify other components
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("walletDisconnected"));
+        }
         
         // Small delay before reload to ensure cookies are cleared
         setTimeout(() => {

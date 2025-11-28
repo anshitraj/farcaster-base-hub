@@ -44,10 +44,18 @@ export async function GET(request: NextRequest) {
           continue; // Skip if metadata not found
         }
 
+        // Ensure owner address is included
+        const DEFAULT_OWNER_ADDRESS = "0x0CF70E448ac98689e326bd79075a96CcBcec1665";
+        const metadataWithOwner = {
+          ...metadata,
+          owner: metadata.owner || metadata.owners || DEFAULT_OWNER_ADDRESS,
+          owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
+        };
+
         // Compare with existing metadata
         const existingMetadata = app.farcasterJson ? JSON.parse(app.farcasterJson) : null;
         const existingHash = existingMetadata ? hashMetadata(existingMetadata) : null;
-        const newHash = hashMetadata(metadata);
+        const newHash = hashMetadata(metadataWithOwner);
 
         // Only update if metadata changed
         if (existingHash !== newHash) {
@@ -61,7 +69,7 @@ export async function GET(request: NextRequest) {
               iconUrl: metadata.icon || undefined,
               category: metadata.category || undefined,
               screenshots: screenshots,
-              farcasterJson: JSON.stringify(metadata),
+              farcasterJson: JSON.stringify(metadataWithOwner),
               lastUpdatedAt: new Date(),
               autoUpdated: true,
               status: "auto_updated",

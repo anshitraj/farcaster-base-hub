@@ -3,37 +3,31 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
+import AppHeader from "@/components/AppHeader";
 import { motion } from "framer-motion";
-import { Bell, ChevronRight, Zap, Users, Puzzle, Compass, Flag, Swords, Target, Trophy, Grid3x3, CheckSquare, MessageSquare, Music, Camera, ShoppingBag, GraduationCap } from "lucide-react";
+import { ChevronRight, Zap, Users, Puzzle, Grid3x3, CheckSquare, MessageSquare, Music, GraduationCap, Gift, TrendingUp, Coins, Newspaper, DollarSign, Wrench } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
-import UserProfile from "@/components/UserProfile";
-import PointsDisplay from "@/components/PointsDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import TopBanner from "@/components/TopBanner";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
+import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
+import CategoryCard from "@/components/CategoryCard";
 
-// Game categories with icons
-const gameCategories = [
-  { name: "Action", icon: Zap, color: "from-red-500 to-red-600", href: "/apps?category=Games&tag=action" },
-  { name: "Simulation", icon: Users, color: "from-green-500 to-green-600", href: "/apps?category=Games&tag=simulation" },
-  { name: "Puzzle", icon: Puzzle, color: "from-blue-500 to-blue-600", href: "/apps?category=Games&tag=puzzle" },
-  { name: "Adventure", icon: Compass, color: "from-yellow-500 to-yellow-600", href: "/apps?category=Games&tag=adventure" },
-  { name: "Racing", icon: Flag, color: "from-purple-500 to-purple-600", href: "/apps?category=Games&tag=racing" },
-  { name: "Role Playing", icon: Swords, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Games&tag=rpg" },
-  { name: "Strategy", icon: Target, color: "from-emerald-500 to-emerald-600", href: "/apps?category=Games&tag=strategy" },
-  { name: "Sports", icon: Trophy, color: "from-pink-500 to-pink-600", href: "/apps?category=Games&tag=sports" },
-];
-
-// App categories with icons
+// All app categories with icons (including game genres)
 const appCategories = [
-  { name: "Entertainment", icon: Grid3x3, color: "from-purple-500 to-purple-600", href: "/apps?category=Social&tag=entertainment" },
+  // Game genres
+  { name: "Action", icon: Zap, color: "from-red-500 to-red-600", href: "/apps?category=Games&tag=action" },
+  { name: "Puzzle", icon: Puzzle, color: "from-blue-500 to-blue-600", href: "/apps?category=Games&tag=puzzle" },
+  // App categories
+  { name: "News", icon: Newspaper, color: "from-purple-500 to-purple-600", href: "/apps?category=Social&tag=news" },
   { name: "Social", icon: Users, color: "from-red-500 to-red-600", href: "/apps?category=Social" },
   { name: "Productivity", icon: CheckSquare, color: "from-blue-500 to-blue-600", href: "/apps?category=Tools&tag=productivity" },
   { name: "Communication", icon: MessageSquare, color: "from-green-500 to-green-600", href: "/apps?category=Social&tag=communication" },
   { name: "Music & Audio", icon: Music, color: "from-yellow-500 to-yellow-600", href: "/apps?category=Social&tag=music" },
-  { name: "Photography", icon: Camera, color: "from-pink-500 to-pink-600", href: "/apps?category=Tools&tag=photography" },
-  { name: "Shopping", icon: ShoppingBag, color: "from-emerald-500 to-emerald-600", href: "/apps?category=Finance&tag=shopping" },
   { name: "Education", icon: GraduationCap, color: "from-indigo-500 to-indigo-600", href: "/apps?category=Tools&tag=education" },
+  { name: "Airdrop", icon: Gift, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Airdrops" },
+  { name: "Prediction", icon: TrendingUp, color: "from-orange-500 to-orange-600", href: "/apps?category=Finance&tag=prediction" },
+  { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
 ];
 
 export default function HomePage() {
@@ -42,7 +36,23 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
+
+  // On desktop, sidebar should always be visible (isOpen = true)
+  // On mobile, it starts closed
+  useEffect(() => {
+    const checkMobile = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true); // Always open on desktop
+      } else {
+        setSidebarOpen(false); // Closed by default on mobile
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
@@ -71,13 +81,32 @@ export default function HomePage() {
 
         // Fetch trending apps - top 10 for banner carousel and trending section
         const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10");
-        const allTrendingApps = trendingData.apps || [];
+        let allTrendingApps = trendingData.apps || [];
+        
+        console.log("Trending API response:", { 
+          count: allTrendingApps.length, 
+          apps: allTrendingApps.map((a: any) => ({ id: a.id, name: a.name, status: a.status, featured: a.featuredInBanner }))
+        });
+        
+        // If no trending apps, fetch recent approved apps as fallback
+        if (allTrendingApps.length === 0) {
+          console.log("No trending apps, fetching recent approved apps...");
+          const recentData = await fetchWithErrorHandling("/api/apps?limit=10&sort=newest");
+          allTrendingApps = recentData.apps || [];
+          console.log("Recent apps response:", { 
+            count: allTrendingApps.length, 
+            apps: allTrendingApps.map((a: any) => ({ id: a.id, name: a.name, status: a.status }))
+          });
+        }
         
         if (allTrendingApps.length > 0) {
+          console.log(`Setting ${allTrendingApps.length} apps to display`);
           // Top 10 apps for the banner carousel (or all if less than 10)
           setTopApps(allTrendingApps.slice(0, 10));
           // Top 10 apps for trending section
           setTrendingApps(allTrendingApps.slice(0, 10));
+        } else {
+          console.warn("No apps found to display on homepage!");
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -92,7 +121,11 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
-      <Sidebar onCollapseChange={handleSidebarChange} />
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       {/* Notification Sidebar */}
       <NotificationSidebar 
@@ -102,34 +135,14 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
-        sidebarHidden ? "ml-0" : sidebarCollapsed ? "ml-16" : "ml-64"
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
       }`}>
         {/* Header */}
-        <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-          <div className="px-6 py-5 flex items-center justify-between">
-            <Link 
-              href="/" 
-              className="text-2xl font-extrabold text-white hover:text-blue-400 transition-colors"
-            >
-              Mini App Store
-            </Link>
-
-            <div className="flex items-center gap-3">
-              <motion.button 
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="relative p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
-                onClick={() => setNotificationSidebarOpen(true)}
-                aria-label="Notifications"
-              >
-                <Bell className="w-5 h-5 text-gray-300" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              </motion.button>
-              <PointsDisplay />
-              <UserProfile />
-            </div>
-          </div>
-        </header>
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Content Area */}
         <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8">
@@ -165,13 +178,13 @@ export default function HomePage() {
                 ))}
               </div>
             ) : (
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {trendingApps.length > 0 ? (
-                  trendingApps.map((app) => (
+                  trendingApps.map((app, index) => (
                     <HorizontalAppCard key={app.id} app={app} />
                   ))
                 ) : (
-                  <div className="text-gray-400 text-center py-12 w-full">
+                  <div className="text-gray-400 text-center py-12 w-full col-span-2">
                     No trending apps available
                   </div>
                 )}
@@ -179,37 +192,77 @@ export default function HomePage() {
             )}
           </motion.section>
 
-          {/* Explore Games Section */}
+          {/* Popular Categories Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
-            className="mb-10"
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="mb-16 mt-10"
           >
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore games</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 md:gap-4">
-              {gameCategories.map((category, index) => {
-                const Icon = category.icon;
-                return (
-                  <Link
-                    key={category.name}
-                    href={category.href}
-                    className="group"
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
-                    >
-                      <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                      </div>
-                      <p className="text-white text-sm md:text-base font-medium text-center">{category.name}</p>
-                    </motion.div>
-                  </Link>
-                );
-              })}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">Popular</h2>
+              <Link
+                href="/apps"
+                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors text-sm md:text-base"
+              >
+                More →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-4xl mx-auto">
+              <CategoryHighlightCard
+                title="Game"
+                featuredApp="Apple Run"
+                ctaLabel="Open"
+                gradientFrom="from-green-500"
+                gradientTo="to-green-600"
+                href="/apps?category=Games"
+                backgroundImage="/category-bg/game-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Music"
+                featuredApp="Spotify"
+                ctaLabel="Open"
+                gradientFrom="from-blue-500"
+                gradientTo="to-blue-600"
+                href="/apps?category=Social&tag=music"
+                backgroundImage="/category-bg/music-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Social"
+                featuredApp="WeChat"
+                ctaLabel="Open"
+                gradientFrom="from-red-500"
+                gradientTo="to-red-600"
+                href="/apps?category=Social"
+                backgroundImage="/category-bg/social-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Productivity"
+                featuredApp="Notion"
+                ctaLabel="Open"
+                gradientFrom="from-blue-500"
+                gradientTo="to-indigo-600"
+                href="/apps?category=Tools&tag=productivity"
+                backgroundImage="/category-bg/productivity-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Finance"
+                featuredApp="Coinbase"
+                ctaLabel="Open"
+                gradientFrom="from-emerald-500"
+                gradientTo="to-teal-600"
+                href="/apps?category=Finance"
+                backgroundImage="/category-bg/finance-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Utility"
+                featuredApp="Tools"
+                ctaLabel="Open"
+                gradientFrom="from-slate-500"
+                gradientTo="to-gray-600"
+                href="/apps?category=Tools"
+                backgroundImage="/category-bg/utility-bg.jpg"
+              />
             </div>
           </motion.section>
 
@@ -217,31 +270,41 @@ export default function HomePage() {
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-            className="mb-10"
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="mb-16 mt-10"
           >
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore apps</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-8 w-1 bg-gradient-to-b from-[#0052FF] to-[#7C3AED] rounded-full"></div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white">Explore apps</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
               {appCategories.map((category, index) => {
-                const Icon = category.icon;
+                // Map category names to background patterns
+                const patternMap: Record<string, "action" | "puzzle" | "entertainment" | "social" | "productivity" | "communication" | "music" | "education"> = {
+                  "Action": "action",
+                  "Puzzle": "puzzle",
+                  "News": "entertainment",
+                  "Social": "social",
+                  "Productivity": "productivity",
+                  "Communication": "communication",
+                  "Music & Audio": "music",
+                  "Education": "education",
+                  "Airdrop": "action",
+                  "Prediction": "entertainment",
+                  "Crowdfunding": "social",
+                };
+                
                 return (
-                  <Link
+                  <CategoryCard
                     key={category.name}
+                    name={category.name}
+                    icon={category.icon}
+                    color={category.color}
                     href={category.href}
-                    className="group"
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
-                    >
-                      <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                      </div>
-                      <p className="text-white text-sm md:text-base font-medium text-center">{category.name}</p>
-                    </motion.div>
-                  </Link>
+                    backgroundPattern={patternMap[category.name]}
+                  />
                 );
               })}
             </div>

@@ -69,10 +69,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update developer status
-    const domainVerified = developer.verificationStatus === "domain_verified" || developer.verificationStatus === "verified";
-    const newStatus = domainVerified ? "verified" : "wallet_verified";
-    const isFullyVerified = domainVerified || developer.isAdmin;
+    // Update developer status - wallet verification is sufficient
+    // Domain ownership is checked per-app via farcaster.json
+    const newStatus = "verified";
+    const isFullyVerified = true;
 
     await prisma.developer.update({
       where: { id: developer.id },
@@ -86,9 +86,7 @@ export async function POST(request: NextRequest) {
       success: true,
       status: newStatus,
       verified: isFullyVerified,
-      message: isFullyVerified
-        ? "Wallet verified! Your developer account is now fully verified."
-        : "Wallet verified! Please also verify your domain to complete verification.",
+      message: "Wallet verified! Your developer account is now verified. Add your wallet to farcaster.json owners for auto-approval of apps.",
     });
   } catch (error: any) {
     if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 
 export async function GET(request: NextRequest) {
   // Extract params first so they're available in catch block
@@ -31,7 +32,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (category) {
-      where.category = category;
+      // Handle category mapping
+      // "DeFi" should map to "Finance" category or tag
+      if (category === "DeFi") {
+        where.OR = [
+          { category: "Finance" },
+          { tags: { has: "defi" } },
+        ];
+      } else {
+        where.category = category;
+      }
     }
 
     if (tag) {
@@ -41,8 +51,13 @@ export async function GET(request: NextRequest) {
     // Build orderBy
     let orderBy: any = { createdAt: "desc" };
     let shouldRandomize = false;
+    let shouldUseTrending = false;
     
-    if (sort === "installs") {
+    if (sort === "trending") {
+      // For trending, we need to fetch apps with events and compute trending scores
+      shouldUseTrending = true;
+      orderBy = { clicks: "desc" }; // Initial sort, will be overridden
+    } else if (sort === "installs") {
       orderBy = { installs: "desc" };
     } else if (sort === "rating") {
       orderBy = { ratingAverage: "desc" };
@@ -53,22 +68,29 @@ export async function GET(request: NextRequest) {
       orderBy = { createdAt: "desc" };
     }
 
+    // Build include object conditionally
+    const includeObj: any = {
+      developer: {
+        select: {
+          id: true,
+          wallet: true,
+          name: true,
+          avatar: true,
+          verified: true,
+        },
+      },
+    };
+    
+    if (shouldUseTrending) {
+      includeObj.events = true; // Include events for trending calculation
+    }
+
     let apps = await prisma.miniApp.findMany({
       where,
       orderBy,
-      take: shouldRandomize ? Math.min(limit * 3, 100) : limit, // Fetch more if randomizing
+      take: shouldRandomize ? Math.min(limit * 3, 100) : shouldUseTrending ? Math.min(limit * 2, 50) : limit,
       skip: offset,
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
-      },
+      include: includeObj,
     });
 
     // Fair randomization algorithm for newest apps
@@ -155,6 +177,21 @@ export async function GET(request: NextRequest) {
       }
 
       apps = interleaved.slice(0, limit);
+    }
+
+    // Handle trending sort
+    if (shouldUseTrending && sort === "trending") {
+      // Compute trending scores for all apps
+      const appsWithScores = apps.map((app) => ({
+        app: { ...app, events: app.events || [] } as MiniAppWithEvents,
+        score: computeTrendingScore({ ...app, events: app.events || [] } as MiniAppWithEvents),
+      }));
+
+      // Sort by trending score (highest first)
+      appsWithScores.sort((a, b) => b.score - a.score);
+
+      // Take top apps and map back to app objects
+      apps = appsWithScores.slice(0, limit).map(({ app }) => app) as any;
     }
 
     const total = await prisma.miniApp.count({ where });

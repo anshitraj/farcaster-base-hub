@@ -11,12 +11,14 @@ const submitSchema = z.object({
   baseMiniAppUrl: z.union([z.string().url(), z.literal("")]).optional(),
   farcasterUrl: z.union([z.string().url(), z.literal("")]).optional(),
   iconUrl: z.union([z.string().url("Icon URL must be a valid URL"), z.literal("")]).optional(),
+  headerImageUrl: z.union([z.string().url("Header image URL must be a valid URL"), z.literal("")]).optional(),
   category: z.string().min(1, "Category is required"),
   reviewMessage: z.union([z.string().max(1000), z.literal("")]).optional(),
   developerTags: z.array(z.string()).optional().default([]),
   tags: z.array(z.string()).optional().default([]), // App tags for search (e.g., "business", "payment", "airdrops")
   contractAddress: z.union([z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address"), z.literal("")]).optional(),
   notesToAdmin: z.union([z.string().max(1000), z.literal("")]).optional(),
+  screenshots: z.array(z.string().url("Screenshot URL must be a valid URL")).optional().default([]), // Screenshot URLs
 });
 
 export async function POST(request: NextRequest) {
@@ -64,14 +66,41 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Auto-fetch farcaster.json metadata
-    let farcasterMetadata = null;
-    let screenshots: string[] = [];
+    // Check if review message is provided (used later for status determination)
+    const hasReviewMessage = validated.reviewMessage && validated.reviewMessage.trim().length > 0;
+    
+    // Auto-fetch farcaster.json metadata and check ownership
+    let farcasterMetadata: string | null = null;
+    let metadataScreenshots: string[] = [];
+    let isDomainOwner = false; // Track if wallet is in farcaster.json owners
+    const DEFAULT_OWNER_ADDRESS = "0x0CF70E448ac98689e326bd79075a96CcBcec1665"; // Default owner address for Base/Farcaster
     try {
       const metadata = await fetchFarcasterMetadata(validated.url);
       if (metadata) {
-        farcasterMetadata = JSON.stringify(metadata);
-        screenshots = metadata.screenshots || [];
+        // Ensure owner address is included in metadata
+        const metadataWithOwner = {
+          ...metadata,
+          owner: metadata.owner || metadata.owners || DEFAULT_OWNER_ADDRESS,
+          owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
+        };
+        farcasterMetadata = JSON.stringify(metadataWithOwner);
+        metadataScreenshots = metadata.screenshots || [];
+        
+        // Check if wallet is in farcaster.json owners
+        try {
+          const parsedMetadata = metadataWithOwner;
+          const owners = parsedMetadata.owner || parsedMetadata.owners || [];
+          const ownerList = Array.isArray(owners) ? owners : [owners];
+          const normalizedOwners = ownerList.map((owner: string) => 
+            owner.toLowerCase().trim()
+          );
+          
+          if (normalizedOwners.includes(wallet.toLowerCase())) {
+            isDomainOwner = true;
+          }
+        } catch (e) {
+          console.log("Error parsing farcaster.json for ownership:", e);
+        }
         
         // Auto-fill fields if not provided
         if (!validated.name && metadata.name) {
@@ -105,10 +134,23 @@ export async function POST(request: NextRequest) {
         if (!validated.category && metadata.category) {
           validated.category = metadata.category;
         }
+        // Auto-fill header image from ogImage if not provided
+        if (!validated.headerImageUrl && metadata.ogImage) {
+          validated.headerImageUrl = metadata.ogImage;
+        }
       }
     } catch (metadataError) {
       // Silently fail - metadata fetch is optional
       console.log("Metadata fetch failed (optional):", metadataError);
+    }
+    
+    // If metadata was not fetched, create a minimal metadata object with owner address
+    if (!farcasterMetadata) {
+      const minimalMetadata = {
+        owner: DEFAULT_OWNER_ADDRESS,
+        owners: DEFAULT_OWNER_ADDRESS,
+      };
+      farcasterMetadata = JSON.stringify(minimalMetadata);
     }
 
     // Find or create developer
@@ -126,14 +168,18 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Check if developer is verified (unless submitting for manual review)
-      // If reviewMessage is provided, allow submission even if not verified
-      const hasReviewMessage = validated.reviewMessage && validated.reviewMessage.trim().length > 0;
+      // Check if developer is verified OR if they own the domain via farcaster.json
+      // Wallet verification is required (proves identity)
+      // Domain ownership via farcaster.json allows auto-approval (proves domain ownership)
+      const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
       
-      if (!developer.verified && !developer.isAdmin && !hasReviewMessage) {
+      // Require wallet verification (not domain verification)
+      // Admins and moderators can bypass verification
+      const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+      if (!walletVerified && !hasAdminAccess && !hasReviewMessage) {
         return NextResponse.json(
           { 
-            error: "You must verify your developer account before submitting apps, or request manual review.",
+            error: "You must verify your wallet before submitting apps, or request manual review.",
             requiresVerification: true,
             verificationStatus: developer.verificationStatus,
           },
@@ -156,6 +202,14 @@ export async function POST(request: NextRequest) {
     try {
       existingApp = await prisma.miniApp.findUnique({
         where: { url: validated.url },
+        include: {
+          developer: {
+            select: {
+              id: true,
+              wallet: true,
+            },
+          },
+        },
       });
     } catch (dbError: any) {
       if (dbError?.code === 'P1001' || dbError?.message?.includes('Can\'t reach database')) {
@@ -168,29 +222,136 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingApp) {
-      return NextResponse.json(
-        { error: "An app with this URL already exists" },
-        { status: 409 }
-      );
+      // Check if the existing app belongs to the current developer
+      if (existingApp.developerId === developer.id) {
+        // Developer owns this app - update it instead of creating new
+        try {
+          // Re-fetch metadata to update
+          let updatedFarcasterMetadata = farcasterMetadata;
+          let updatedScreenshots: string[] = [];
+          // Use form screenshots if provided, otherwise use metadata screenshots, otherwise keep existing
+          if (validated.screenshots && validated.screenshots.length > 0) {
+            updatedScreenshots = validated.screenshots;
+          } else if (metadataScreenshots.length > 0) {
+            updatedScreenshots = metadataScreenshots;
+          } else if (!updatedFarcasterMetadata) {
+            try {
+              const metadata = await fetchFarcasterMetadata(validated.url);
+              if (metadata) {
+                // Ensure owner address is included
+                const metadataWithOwner = {
+                  ...metadata,
+                  owner: metadata.owner || metadata.owners || DEFAULT_OWNER_ADDRESS,
+                  owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
+                };
+                updatedFarcasterMetadata = JSON.stringify(metadataWithOwner);
+                updatedScreenshots = metadata.screenshots || existingApp.screenshots || [];
+              } else {
+                updatedScreenshots = existingApp.screenshots || [];
+              }
+            } catch (e) {
+              // Use existing metadata if fetch fails
+              updatedFarcasterMetadata = existingApp.farcasterJson;
+              updatedScreenshots = existingApp.screenshots || [];
+            }
+          } else {
+            updatedScreenshots = existingApp.screenshots || [];
+          }
+          
+          // Re-check approval status when updating (in case developer got verified or farcaster.json was updated)
+          let updatedStatus = existingApp.status;
+          const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
+          
+          // If app is not approved, check if it should be approved now
+          if (existingApp.status !== "approved") {
+            const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+            if (developer.verified || hasAdminAccess) {
+              updatedStatus = "approved";
+            } else if (walletVerified && isDomainOwner) {
+              updatedStatus = "approved";
+            }
+          }
+          
+          // Update existing app
+          const updatedApp = await prisma.miniApp.update({
+            where: { id: existingApp.id },
+            data: {
+              name: validated.name,
+              description: validated.description,
+              baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : existingApp.baseMiniAppUrl,
+              farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : existingApp.farcasterUrl,
+              iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : existingApp.iconUrl,
+              headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : existingApp.headerImageUrl,
+              category: validated.category,
+              status: updatedStatus, // Update status if it should be approved now
+              reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : existingApp.reviewMessage,
+              notesToAdmin: (validated.notesToAdmin && validated.notesToAdmin.trim() !== "") ? validated.notesToAdmin : existingApp.notesToAdmin,
+              developerTags: validated.developerTags || existingApp.developerTags || [],
+              tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : existingApp.tags || [],
+              contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : existingApp.contractAddress,
+              farcasterJson: updatedFarcasterMetadata || existingApp.farcasterJson,
+              screenshots: updatedScreenshots,
+              lastUpdatedAt: new Date(),
+            },
+            include: {
+              developer: true,
+            },
+          });
+
+          return NextResponse.json({ 
+            app: updatedApp,
+            status: updatedApp.status,
+            message: "App updated successfully!",
+            updated: true,
+          }, { status: 200 });
+        } catch (updateError: any) {
+          console.error("Error updating app:", updateError);
+          return NextResponse.json(
+            { 
+              error: "Failed to update app",
+              message: updateError.message || "An error occurred while updating the app"
+            },
+            { status: 500 }
+          );
+        }
+      } else {
+        // App exists but belongs to different developer
+        return NextResponse.json(
+          { 
+            error: "An app with this URL already exists",
+            message: `This URL is already registered by another developer. If this is your app, please contact support.`,
+            existingAppId: existingApp.id
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Create mini app
     let app;
+    // Determine app status
+    // Auto-approve if:
+    // - Developer is fully verified/admin, OR
+    // - Wallet is verified AND domain ownership is proven via farcaster.json
+    // If contract address provided, set to pending_contract
+    // If reviewMessage provided, set to pending_review for manual review
+    // Otherwise, set to pending
+    let appStatus = "pending";
+    const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
+    
+    const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+    if (developer.verified || hasAdminAccess) {
+      appStatus = "approved";
+    } else if (walletVerified && isDomainOwner) {
+      // Wallet verified + domain ownership via farcaster.json = auto-approve
+      appStatus = "approved";
+    } else if (validated.contractAddress && validated.contractAddress.trim() !== "") {
+      appStatus = "pending_contract";
+    } else if (hasReviewMessage) {
+      appStatus = "pending_review"; // Manual review requested
+    }
+    
     try {
-      // Determine app status
-      // If developer is verified/admin, auto-approve
-      // If contract address provided, set to pending_contract
-      // If reviewMessage provided, set to pending_review for manual review
-      // Otherwise, set to pending
-      let appStatus = "pending";
-      if (developer.verified || developer.isAdmin) {
-        appStatus = "approved";
-      } else if (validated.contractAddress && validated.contractAddress.trim() !== "") {
-        appStatus = "pending_contract";
-      } else if (hasReviewMessage) {
-        appStatus = "pending_review"; // Manual review requested
-      }
-
       app = await prisma.miniApp.create({
         data: {
           name: validated.name,
@@ -199,6 +360,7 @@ export async function POST(request: NextRequest) {
           baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : null,
           farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : null,
           iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : "https://via.placeholder.com/512?text=App+Icon",
+          headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : null,
           category: validated.category,
           status: appStatus,
           reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : null,
@@ -208,7 +370,7 @@ export async function POST(request: NextRequest) {
           contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : null,
           contractVerified: false,
           farcasterJson: farcasterMetadata,
-          screenshots: screenshots,
+          screenshots: (validated.screenshots && validated.screenshots.length > 0) ? validated.screenshots : metadataScreenshots,
           developerId: developer.id,
           clicks: 0,
           installs: 0,
@@ -227,6 +389,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: "Database temporarily unavailable. Please try again later." },
           { status: 503 }
+        );
+      }
+      // Handle Prisma schema errors (e.g., missing field)
+      if (dbError?.code === 'P2009' || dbError?.message?.includes('Unknown argument') || dbError?.message?.includes('Unknown field')) {
+        console.error("Database schema error - may need migration:", dbError);
+        return NextResponse.json(
+          { 
+            error: "Database schema error. Please run database migrations.",
+            message: "The database schema may be out of date. Please contact support or run migrations."
+          },
+          { status: 500 }
         );
       }
       throw dbError;
@@ -258,8 +431,19 @@ export async function POST(request: NextRequest) {
     }
 
     console.error("Submit app error:", error);
+    
+    // Return more detailed error message
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : typeof error === 'string' 
+        ? error 
+        : "Failed to submit app";
+    
     return NextResponse.json(
-      { error: "Failed to submit app" },
+      { 
+        error: errorMessage,
+        message: errorMessage
+      },
       { status: 500 }
     );
   }

@@ -12,18 +12,84 @@ import XPProgressBar from "@/components/XPProgressBar";
 import DailyClaimCard from "@/components/DailyClaimCard";
 import StatsCard from "@/components/StatsCard";
 import QuickShortcuts from "@/components/QuickShortcuts";
-import { TrendingUp, Users, Star, Award, ExternalLink, Shield, CheckCircle2, XCircle, Settings, Save } from "lucide-react";
+import { TrendingUp, Users, Star, Award, ExternalLink, Shield, CheckCircle2, XCircle, Settings, Save, Smartphone, Trophy, DollarSign, Loader2 } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import { motion } from "framer-motion";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import PremiumToolsPanel from "@/components/PremiumToolsPanel";
 import WalletBalance from "@/components/WalletBalance";
 import AppHeader from "@/components/AppHeader";
+import Sidebar from "@/components/Sidebar";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getInjectedProvider } from "@/lib/wallet";
+import { MiniAppListItem } from "@/components/MiniAppListItem";
+import { Switch } from "@/components/ui/switch";
+
+// Monetization Toggle Component
+function MonetizationToggle({ appId, enabled, onToggle }: { appId: string; enabled: boolean; onToggle: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/apps/${appId}/monetization`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ enabled: !enabled }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update monetization");
+      }
+
+      toast({
+        title: enabled ? "Monetization disabled" : "Monetization enabled",
+        description: enabled 
+          ? "Monetization has been disabled for this app" 
+          : "Monetization has been enabled (Coming Soon)",
+      });
+      
+      onToggle();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update monetization",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex flex-col items-end">
+        <div className="flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-muted-foreground" />
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          ) : (
+            <Switch
+              checked={enabled}
+              onCheckedChange={handleToggle}
+              disabled={loading}
+              className="data-[state=checked]:bg-yellow-500"
+            />
+          )}
+        </div>
+        {enabled && (
+          <span className="text-[10px] text-yellow-400 mt-0.5">Coming Soon</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [wallet, setWallet] = useState<string | null>(null);
@@ -37,10 +103,56 @@ export default function DashboardPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [displayAvatar, setDisplayAvatar] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [trendingApps, setTrendingApps] = useState<any[]>([]);
+  const [loadingTrending, setLoadingTrending] = useState(true);
   const { toast } = useToast();
+
+  // On desktop, sidebar should always be visible (isOpen = true)
+  // On mobile, it starts closed
+  useEffect(() => {
+    const checkMobile = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true); // Always open on desktop
+      } else {
+        setSidebarOpen(false); // Closed by default on mobile
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
+    setSidebarCollapsed(collapsed);
+    setSidebarHidden(hidden);
+  };
 
   useEffect(() => {
     trackPageView("/dashboard");
+  }, []);
+
+  // Fetch trending apps
+  useEffect(() => {
+    async function fetchTrendingApps() {
+      try {
+        setLoadingTrending(true);
+        const res = await fetch("/api/apps/trending/ranked", {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTrendingApps(data.apps || []);
+        }
+      } catch (error) {
+        console.error("Error fetching trending apps:", error);
+      } finally {
+        setLoadingTrending(false);
+      }
+    }
+    fetchTrendingApps();
   }, []);
 
   useEffect(() => {
@@ -104,38 +216,61 @@ export default function DashboardPage() {
               }
 
               // Fetch Base wallet name and avatar if it's a Base wallet
+              // Also check for Farcaster profile
               try {
+                // Check for Farcaster profile first
+                let farcasterData: any = null;
+                try {
+                  const farcasterRes = await fetch("/api/auth/farcaster/me", {
+                    credentials: "include",
+                  });
+                  if (farcasterRes.ok) {
+                    farcasterData = await farcasterRes.json();
+                  }
+                } catch (e) {
+                  // Ignore Farcaster fetch errors
+                }
+
                 const isBaseWallet = await checkIfBaseWallet(data.wallet);
                 if (isBaseWallet) {
                   const baseName = await resolveBaseName(data.wallet);
                   const baseAvatar = await fetchBaseAvatar(data.wallet, baseName);
                   
                   if (mounted) {
-                    // Priority: developer profile name > Base name
-                    if (profileData?.developer?.name) {
+                    // Priority: Farcaster name > developer profile name > Base name
+                    if (farcasterData?.farcaster?.name) {
+                      setDisplayName(farcasterData.farcaster.name);
+                    } else if (profileData?.developer?.name) {
                       setDisplayName(profileData.developer.name);
                     } else if (baseName) {
                       setDisplayName(baseName);
                     }
                     
-                    // Priority: developer avatar > Base avatar
-                    if (profileData?.developer?.avatar) {
+                    // Priority: Farcaster avatar > developer avatar > Base avatar
+                    if (farcasterData?.farcaster?.avatar) {
+                      setDisplayAvatar(farcasterData.farcaster.avatar);
+                    } else if (profileData?.developer?.avatar) {
                       setDisplayAvatar(profileData.developer.avatar);
                     } else if (baseAvatar) {
                       setDisplayAvatar(baseAvatar);
                     }
                   }
                 } else if (mounted) {
-                  // Not a Base wallet, use developer profile data
-                  if (profileData?.developer?.name) {
+                  // Not a Base wallet, check Farcaster first, then developer profile
+                  if (farcasterData?.farcaster?.name) {
+                    setDisplayName(farcasterData.farcaster.name);
+                  } else if (profileData?.developer?.name) {
                     setDisplayName(profileData.developer.name);
                   }
-                  if (profileData?.developer?.avatar) {
+                  
+                  if (farcasterData?.farcaster?.avatar) {
+                    setDisplayAvatar(farcasterData.farcaster.avatar);
+                  } else if (profileData?.developer?.avatar) {
                     setDisplayAvatar(profileData.developer.avatar);
                   }
                 }
               } catch (e) {
-                console.error("Error fetching Base wallet info:", e);
+                console.error("Error fetching wallet info:", e);
                 // Fallback to developer profile data
                 if (mounted && profileData?.developer) {
                   if (profileData.developer.name) {
@@ -255,65 +390,13 @@ export default function DashboardPage() {
   }
 
   async function resolveBaseName(wallet: string): Promise<string | null> {
-    try {
-      try {
-        const baseResponse = await fetch(
-          `https://api.base.org/ens/reverse/${wallet}`,
-          { method: "GET" }
-        );
-        if (baseResponse.ok) {
-          const baseData = await baseResponse.json();
-          if (baseData.name && baseData.name.endsWith(".base.eth")) {
-            return baseData.name;
-          }
-        }
-      } catch (e) {
-        // Continue to fallback
-      }
-      
-      try {
-        const response = await fetch(
-          `https://api.ensideas.com/ens/resolve/${wallet}?chainId=8453`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.name && (data.name.endsWith(".base.eth") || data.name.endsWith(".eth"))) {
-            return data.name;
-          }
-        }
-      } catch (e) {
-        // Continue
-      }
-    } catch (error) {
-      console.error("ENS resolution error:", error);
-    }
+    // Skip ENS resolution to avoid CORS errors - not critical for app functionality
     return null;
   }
 
   async function fetchBaseAvatar(wallet: string, name: string | null): Promise<string | null> {
-    try {
-      if (name) {
-        try {
-          const baseAvatarResponse = await fetch(
-            `https://api.base.org/ens/avatar/${name}`,
-            { method: "GET" }
-          );
-          if (baseAvatarResponse.ok) {
-            const baseAvatarData = await baseAvatarResponse.json();
-            if (baseAvatarData.avatar) {
-              return baseAvatarData.avatar;
-            }
-          }
-        } catch (e) {
-          // Continue
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.error("Avatar fetch error:", error);
-      return null;
-    }
+    // Skip avatar fetch to avoid CORS errors - not critical for app functionality
+    return null;
   }
 
   const handleClaimSuccess = async () => {
@@ -343,20 +426,54 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] pb-24">
-      <AppHeader />
+    <div className="flex min-h-screen bg-[#0B0F19]">
+      {/* Sidebar */}
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main Content */}
+      <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
+      }`}>
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
       <div className="pt-8 pb-8">
         <div className="max-w-screen-md mx-auto px-4 md:px-6">
           {/* User Header */}
-          {wallet && (
-            <DashboardHeader
-              name={displayName || developerStatus?.developer?.name || null}
-              avatar={displayAvatar || developerStatus?.developer?.avatar || null}
-              wallet={wallet}
-              developerLevel={xpData?.developerLevel || dashboard?.developerLevel || 1}
-              totalXP={xpData?.totalXP || dashboard?.totalXP || 0}
-            />
-          )}
+          {wallet && (() => {
+            // Use the same avatar logic as UserProfile component
+            // Priority: displayAvatar > developer avatar > Base/Farcaster avatar > fallback dicebear
+            let finalAvatar = displayAvatar || developerStatus?.developer?.avatar || null;
+            
+            // If no avatar, use dicebear fallback (same as UserProfile)
+            if (!finalAvatar) {
+              // Check if it's a Base wallet (same logic as UserProfile)
+              const isBaseWallet = wallet.toLowerCase().startsWith('0x') && 
+                !wallet.toLowerCase().startsWith('farcaster:');
+              
+              if (isBaseWallet) {
+                finalAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+              } else {
+                finalAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=ffffff&hairColor=77311d`;
+              }
+            }
+            
+            return (
+              <DashboardHeader
+                name={displayName || developerStatus?.developer?.name || null}
+                avatar={finalAvatar}
+                wallet={wallet}
+                developerLevel={xpData?.developerLevel || dashboard?.developerLevel || 1}
+                totalXP={xpData?.totalXP || dashboard?.totalXP || 0}
+              />
+            );
+          })()}
 
           {/* XP Progress Bar */}
           {xpData && (
@@ -407,7 +524,7 @@ export default function DashboardPage() {
                       </p>
                       {developerStatus.developer?.verificationStatus === "unverified" && (
                         <p className="text-xs text-muted-foreground mb-3">
-                          Verify your wallet and domain to submit apps
+                          Verify your wallet to submit apps. Add your wallet to farcaster.json owners for auto-approval.
                         </p>
                       )}
                       <Link href="/verify">
@@ -455,80 +572,205 @@ export default function DashboardPage() {
             }}
           />
 
-          {/* Apps List */}
-          {dashboard?.apps && dashboard.apps.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              id="apps-section"
-            >
-              <Card className="card-surface">
-                <CardHeader>
-                  <CardTitle className="text-lg">Your Apps</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {dashboard.apps && dashboard.apps.length > 0 ? (
-                      dashboard.apps
-                        .filter((app: any) => app && app.id)
-                        .map((app: any) => (
-                          <div
-                            key={app.id}
-                            className="block p-4 rounded-lg bg-[#141A24] border border-[#1F2733] hover:border-[#2A2A2A] transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <Link
-                                href={`/apps/${app.id}`}
-                                className="flex-1 min-w-0"
-                              >
-                                <h3 className="font-semibold mb-1 truncate">{app.name}</h3>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                  <span>{app.clicks || 0} clicks</span>
-                                  <span>{app.installs || 0} installs</span>
-                                  <span>
-                                    {(app.ratingAverage || 0).toFixed(1)} ⭐ (
-                                    {app.ratingCount || 0})
+          {/* Apps List - Always show this section so scroll works */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            id="apps-section"
+            className="mt-6"
+          >
+            <Card className="card-surface">
+              <CardHeader>
+                <CardTitle className="text-lg">Your Apps</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {dashboard?.apps && dashboard.apps.length > 0 ? (
+                    dashboard.apps
+                      .filter((app: any) => app && app.id)
+                      .map((app: any) => (
+                        <div
+                          key={app.id}
+                          className="block p-4 rounded-lg bg-[#141A24] border border-[#1F2733] hover:border-[#2A2A2A] transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <Link
+                              href={`/apps/${app.id}`}
+                              className="flex-1 min-w-0"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold truncate">{app.name}</h3>
+                                {app.status && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                    app.status === "approved" 
+                                      ? "bg-green-500/20 text-green-400" 
+                                      : app.status === "pending_review" || app.status === "pending"
+                                      ? "bg-yellow-500/20 text-yellow-400"
+                                      : "bg-gray-500/20 text-gray-400"
+                                  }`}>
+                                    {app.status === "approved" ? "✓ Approved" : 
+                                     app.status === "pending_review" ? "⏳ Review" :
+                                     app.status === "pending" ? "⏳ Pending" :
+                                     app.status}
                                   </span>
-                                </div>
-                              </Link>
-                              <div className="flex items-center gap-2 ml-4">
-                                <Link href={`/apps/${app.id}`}>
-                                  <ExternalLink className="w-5 h-5 text-muted-foreground flex-shrink-0 hover:text-base-blue transition-colors" />
-                                </Link>
-                                <DeleteAppButton
-                                  appId={app.id}
-                                  appName={app.name}
-                                  onDeleted={() => {
-                                    // Refresh dashboard data
-                                    if (wallet) {
-                                      fetch(`/api/developers/${wallet}/dashboard`, {
-                                        credentials: "include",
-                                      })
-                                        .then((res) => res.json())
-                                        .then((data) => {
-                                          if (data.totalApps !== undefined) {
-                                            setDashboard(data);
-                                          }
-                                        })
-                                        .catch(console.error);
-                                    }
-                                  }}
-                                />
+                                )}
                               </div>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span>{app.clicks || 0} clicks</span>
+                                <span>{app.installs || 0} installs</span>
+                                <span>
+                                  {((app.ratingAverage || 0) % 1 === 0) 
+                                    ? (app.ratingAverage || 0).toString() 
+                                    : (app.ratingAverage || 0).toFixed(1)} ⭐ (
+                                  {app.ratingCount || 0})
+                                </span>
+                              </div>
+                            </Link>
+                            <div className="flex items-center gap-2 ml-4">
+                              {/* Monetization Toggle */}
+                              <MonetizationToggle
+                                appId={app.id}
+                                enabled={app.monetizationEnabled || false}
+                                onToggle={() => {
+                                  // Refresh dashboard data
+                                  if (wallet) {
+                                    fetch(`/api/developers/${wallet}/dashboard`, {
+                                      credentials: "include",
+                                    })
+                                      .then((res) => res.json())
+                                      .then((data) => {
+                                        if (data.totalApps !== undefined) {
+                                          setDashboard(data);
+                                        }
+                                      })
+                                      .catch(console.error);
+                                  }
+                                }}
+                              />
+                              <Link href={`/apps/${app.id}`}>
+                                <ExternalLink className="w-5 h-5 text-muted-foreground flex-shrink-0 hover:text-base-blue transition-colors" />
+                              </Link>
+                              <DeleteAppButton
+                                appId={app.id}
+                                appName={app.name}
+                                onDeleted={() => {
+                                  // Refresh dashboard data
+                                  if (wallet) {
+                                    fetch(`/api/developers/${wallet}/dashboard`, {
+                                      credentials: "include",
+                                    })
+                                      .then((res) => res.json())
+                                      .then((data) => {
+                                        if (data.totalApps !== undefined) {
+                                          setDashboard(data);
+                                        }
+                                      })
+                                      .catch(console.error);
+                                  }
+                                }}
+                              />
                             </div>
                           </div>
-                        ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        </div>
+                      ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground text-sm mb-4">
                         No apps yet. Submit your first app to get started!
-                      </div>
-                    )}
+                      </p>
+                      <Link href="/submit">
+                        <GlowButton size="sm">
+                          <Smartphone className="w-4 h-4 mr-2" />
+                          Submit New App
+                        </GlowButton>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Trending Apps Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.12 }}
+            className="mt-6"
+          >
+            <Card className="card-surface">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-500" />
+                  Trending Apps
+                  <span className="text-sm text-muted-foreground font-normal ml-2">
+                    (Ranked by reviews, clicks & verified builders)
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingTrending ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-20 bg-[#141A24] rounded-2xl animate-pulse"
+                      />
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
+                ) : trendingApps.length > 0 ? (
+                  <div className="space-y-3">
+                    {trendingApps.map((app, index) => (
+                      <div key={app.id} className="relative">
+                        {/* Rank Badge */}
+                        <div className="absolute -left-2 top-1/2 -translate-y-1/2 z-10">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 text-white font-bold text-sm shadow-lg border-2 border-[#0B0F19]">
+                            {app.rank}
+                          </div>
+                        </div>
+                        <div className="ml-6">
+                          <MiniAppListItem
+                            id={app.id}
+                            icon={app.iconUrl}
+                            name={app.name}
+                            category={app.category}
+                            tags={app.tags}
+                            description={app.description}
+                            ratingAverage={app.ratingAverage}
+                            ratingCount={app.ratingCount}
+                          />
+                          {/* Additional info row */}
+                          <div className="flex items-center gap-4 mt-2 ml-16 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-3 h-3" />
+                              <span>{app.ratingCount || 0} reviews</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>{app.clicks || 0} clicks</span>
+                            </div>
+                            {app.developer?.verified && (
+                              <div className="flex items-center gap-1">
+                                <VerifiedBadge type="developer" iconOnly size="sm" />
+                                <span className="text-green-400">Verified Builder</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground text-sm">
+                      No trending apps available
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Badges Section */}
           {developerStatus?.developer?.badges && developerStatus.developer.badges.length > 0 && (
@@ -693,7 +935,8 @@ export default function DashboardPage() {
             </Link>
           </div>
         </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

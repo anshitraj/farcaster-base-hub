@@ -9,13 +9,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Check if admin
+    // Check if admin (premium features are admin-only)
     const developer = await prisma.developer.findUnique({
       where: { wallet: wallet.toLowerCase() },
+      select: { adminRole: true },
     });
 
-    if (!developer || !developer.isAdmin) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    if (!developer || developer.adminRole !== "ADMIN") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
     const requests = await prisma.boostRequest.findMany({

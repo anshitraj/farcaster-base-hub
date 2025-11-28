@@ -69,6 +69,11 @@ const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
       setRating(0);
       setComment("");
 
+      // Dispatch event to refresh points display
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("pointsUpdated"));
+      }
+
       if (onReviewSubmitted) {
         onReviewSubmitted();
       }

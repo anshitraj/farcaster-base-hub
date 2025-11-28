@@ -104,7 +104,8 @@ export async function POST(request: NextRequest) {
     // Update developer status
     const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified";
     const newStatus = walletVerified ? "verified" : "domain_verified";
-    const isFullyVerified = walletVerified || developer.isAdmin;
+    const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+    const isFullyVerified = walletVerified || hasAdminAccess;
 
     await prisma.developer.update({
       where: { id: developer.id },

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireModerator } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireModerator(); // Moderators can export CSV
 
     const apps = await prisma.miniApp.findMany({
       include: {

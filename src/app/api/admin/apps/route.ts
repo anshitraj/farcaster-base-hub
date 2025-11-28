@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireModerator, requireAdminOnly } from "@/lib/admin";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireModerator();
 
     const apps = await prisma.miniApp.findMany({
       include: {
@@ -48,10 +48,10 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireModerator();
 
     const body = await request.json();
-    const { appId, verified, status, name, description, url, baseMiniAppUrl, farcasterUrl, iconUrl, category, contractVerified, featuredInBanner } = body;
+    const { appId, verified, status, name, description, url, baseMiniAppUrl, farcasterUrl, iconUrl, headerImageUrl, category, contractVerified, featuredInBanner, screenshots } = body;
 
     if (!appId) {
       return NextResponse.json(
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest) {
     if (typeof verified === "boolean") {
       updateData.verified = verified;
     }
-    if (status && ["pending", "approved", "rejected"].includes(status)) {
+    if (status && ["pending", "pending_review", "pending_contract", "approved", "rejected"].includes(status)) {
       updateData.status = status;
     }
     // Allow editing app details
@@ -82,6 +82,7 @@ export async function PATCH(request: NextRequest) {
     if (baseMiniAppUrl !== undefined) updateData.baseMiniAppUrl = baseMiniAppUrl || null;
     if (farcasterUrl !== undefined) updateData.farcasterUrl = farcasterUrl || null;
     if (iconUrl !== undefined) updateData.iconUrl = iconUrl || null;
+    if (headerImageUrl !== undefined) updateData.headerImageUrl = headerImageUrl || null;
     if (category) updateData.category = category;
     if (typeof contractVerified === "boolean") {
       updateData.contractVerified = contractVerified;
@@ -95,6 +96,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (typeof featuredInBanner === "boolean") {
       updateData.featuredInBanner = featuredInBanner;
+    }
+    if (Array.isArray(screenshots)) {
+      updateData.screenshots = screenshots;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -135,7 +139,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminOnly(); // Only admins can delete apps
 
     const searchParams = request.nextUrl.searchParams;
     const appId = searchParams.get("appId");

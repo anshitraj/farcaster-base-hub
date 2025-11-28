@@ -106,7 +106,7 @@ export async function GET() {
     const sortedApps = appsWithScores.sort((a, b) => b.rankScore - a.rankScore);
 
     // Assign ranks (handle ties)
-    const rankedApps = [];
+    const rankedApps: any[] = [];
     const ranks: Record<string, number> = {};
     let currentRank = 1;
     let previousScore = -1;

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import PageLoader from "@/components/PageLoader";
 import AppHeader from "@/components/AppHeader";
+import Sidebar from "@/components/Sidebar";
 import { motion } from "framer-motion";
 import { trackPageView } from "@/lib/analytics";
 import { Trophy, Medal, Award, CheckCircle2 } from "lucide-react";
@@ -12,6 +13,29 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 export default function DevelopersPage() {
   const [developers, setDevelopers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // On desktop, sidebar should always be visible (isOpen = true)
+  // On mobile, it starts closed
+  useEffect(() => {
+    const checkMobile = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true); // Always open on desktop
+      } else {
+        setSidebarOpen(false); // Closed by default on mobile
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
+    setSidebarCollapsed(collapsed);
+    setSidebarHidden(hidden);
+  };
 
   useEffect(() => {
     trackPageView("/developers");
@@ -63,9 +87,24 @@ export default function DevelopersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black pb-24">
-      <AppHeader />
-      <div className="pt-8 pb-8">
+    <div className="flex min-h-screen bg-black">
+      {/* Sidebar */}
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main Content */}
+      <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
+      }`}>
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <div className="pt-8 pb-8">
         <div className="max-w-6xl mx-auto px-4 md:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -204,7 +243,8 @@ export default function DevelopersPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

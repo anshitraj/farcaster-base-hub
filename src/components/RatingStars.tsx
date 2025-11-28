@@ -4,6 +4,7 @@ import { Star } from "lucide-react";
 
 interface RatingStarsProps {
   rating: number;
+  ratingCount?: number;
   maxRating?: number;
   size?: number;
   showNumber?: boolean;
@@ -12,11 +13,23 @@ interface RatingStarsProps {
 
 export default function RatingStars({
   rating,
+  ratingCount = 0,
   maxRating = 5,
   size = 16,
   showNumber = false,
   className = "",
 }: RatingStarsProps) {
+  // If no ratings, show "Not rated yet" or "Unrated"
+  if (ratingCount === 0 || rating === 0) {
+    return (
+      <div className={`flex items-center gap-1 ${className}`}>
+        <span className="text-xs text-muted-foreground">
+          Not rated yet
+        </span>
+      </div>
+    );
+  }
+
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating % 1 >= 0.5;
   const emptyStars = maxRating - fullStars - (hasHalfStar ? 1 : 0);
@@ -54,7 +67,7 @@ export default function RatingStars({
       </div>
       {showNumber && (
         <span className="text-sm text-muted-foreground ml-1">
-          {rating.toFixed(1)}
+          {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}
         </span>
       )}
     </div>

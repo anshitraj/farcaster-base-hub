@@ -156,7 +156,7 @@ export default function TopAppsPage() {
                                 {app.name}
                               </h3>
                               {app.verified && (
-                                <VerifiedBadge variant="app" size="sm" />
+                                <VerifiedBadge type="app" size="sm" />
                               )}
                             </div>
                             {app.developer && (
@@ -169,7 +169,7 @@ export default function TopAppsPage() {
                                 <div className="flex items-center gap-1">
                                   <RatingStars
                                     rating={app.ratingAverage}
-                                    size="sm"
+                                    size={14}
                                   />
                                   <span className="text-xs text-muted-foreground">
                                     ({app.ratingCount || 0})
@@ -206,9 +206,9 @@ export default function TopAppsPage() {
                             )}
                             <div className="text-sm font-semibold text-base-blue">
                               {sortBy === "trending"
-                                ? app.score?.toFixed(1) || "0.0"
+                                ? (app.score ? ((app.score % 1 === 0) ? app.score.toString() : app.score.toFixed(1)) : "0")
                                 : sortBy === "rating"
-                                ? app.ratingAverage.toFixed(1)
+                                ? ((app.ratingAverage % 1 === 0) ? app.ratingAverage.toString() : app.ratingAverage.toFixed(1))
                                 : app.installs.toLocaleString()}
                             </div>
                           </div>

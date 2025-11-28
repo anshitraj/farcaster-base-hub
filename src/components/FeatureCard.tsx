@@ -44,8 +44,7 @@ export default function FeatureCard({
         transition={{ 
           type: "spring", 
           stiffness: 300, 
-          damping: 25,
-          hover: { duration: 0.2 }
+          damping: 25
         }}
         className={`relative rounded-3xl overflow-hidden ${sizeClasses[variant]} group cursor-pointer`}
       >

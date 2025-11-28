@@ -16,12 +16,26 @@ export default function AdminDevelopersPage() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [newAdminWallet, setNewAdminWallet] = useState("");
   const [addingAdmin, setAddingAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<"ADMIN" | "MODERATOR" | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     trackPageView("/admin/developers");
+    fetchUserRole();
     fetchDevelopers();
   }, []);
+
+  async function fetchUserRole() {
+    try {
+      const res = await fetch("/api/admin/check", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setUserRole(data.role || null);
+      }
+    } catch (error) {
+      console.error("Error fetching user role:", error);
+    }
+  }
 
   async function fetchDevelopers() {
     try {
@@ -85,7 +99,7 @@ export default function AdminDevelopersPage() {
         body: JSON.stringify({
           developerId: developer.developer?.id || newAdminWallet.toLowerCase(),
           wallet: newAdminWallet.toLowerCase(), // Pass wallet if developer doesn't exist yet
-          isAdmin: true,
+          adminRole: "ADMIN",
           verified: true,
         }),
       });
@@ -115,7 +129,7 @@ export default function AdminDevelopersPage() {
 
   async function handleDeveloperAction(
     developerId: string,
-    action: "verify" | "unverify" | "makeAdmin" | "removeAdmin"
+    action: "verify" | "unverify" | "makeAdmin" | "removeAdmin" | "makeModerator" | "removeModerator"
   ) {
     setProcessing(developerId);
     try {
@@ -125,9 +139,13 @@ export default function AdminDevelopersPage() {
       } else if (action === "unverify") {
         updateData.verified = false;
       } else if (action === "makeAdmin") {
-        updateData.isAdmin = true;
+        updateData.adminRole = "ADMIN";
       } else if (action === "removeAdmin") {
-        updateData.isAdmin = false;
+        updateData.adminRole = null;
+      } else if (action === "makeModerator") {
+        updateData.adminRole = "MODERATOR";
+      } else if (action === "removeModerator") {
+        updateData.adminRole = null;
       }
 
       const res = await fetch("/api/admin/developers", {
@@ -147,6 +165,8 @@ export default function AdminDevelopersPage() {
         unverify: "Developer unverified successfully",
         makeAdmin: "Developer granted admin access successfully",
         removeAdmin: "Admin access removed successfully",
+        makeModerator: "Developer granted moderator access successfully",
+        removeModerator: "Moderator access removed successfully",
       };
 
       toast({
@@ -184,35 +204,37 @@ export default function AdminDevelopersPage() {
             </p>
           </div>
 
-          {/* Add Admin Section */}
-          <Card className="glass-card mb-6 border-purple-500/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-purple-400" />
-                Add New Admin
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="0x..."
-                  value={newAdminWallet}
-                  onChange={(e) => setNewAdminWallet(e.target.value)}
-                  className="glass-card flex-1"
-                />
-                <Button
-                  onClick={handleAddAdmin}
-                  disabled={addingAdmin || !newAdminWallet}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  {addingAdmin ? "Adding..." : "Add Admin"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Enter a wallet address to grant admin access
-              </p>
-            </CardContent>
-          </Card>
+          {/* Add Admin Section - Only visible to admins */}
+          {userRole === "ADMIN" && (
+            <Card className="glass-card mb-6 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-purple-400" />
+                  Add New Admin/Moderator
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="0x..."
+                    value={newAdminWallet}
+                    onChange={(e) => setNewAdminWallet(e.target.value)}
+                    className="glass-card flex-1"
+                  />
+                  <Button
+                    onClick={handleAddAdmin}
+                    disabled={addingAdmin || !newAdminWallet}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {addingAdmin ? "Adding..." : "Add Admin"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Enter a wallet address to grant admin access (admins only)
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="glass-card">
             <CardHeader>
@@ -244,9 +266,14 @@ export default function AdminDevelopersPage() {
                           <h4 className="font-semibold truncate">
                             {dev.name || "Anonymous"}
                           </h4>
-                          {dev.isAdmin && (
+                          {dev.adminRole === "ADMIN" && (
                             <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded-full">
                               Admin
+                            </span>
+                          )}
+                          {dev.adminRole === "MODERATOR" && (
+                            <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full">
+                              Moderator
                             </span>
                           )}
                           {dev.verified && (
@@ -290,27 +317,54 @@ export default function AdminDevelopersPage() {
                           Unverify
                         </Button>
                       )}
-                      {!dev.isAdmin && (
-                        <Button
-                          onClick={() => handleDeveloperAction(dev.id, "makeAdmin")}
-                          disabled={processing === dev.id}
-                          variant="outline"
-                          size="sm"
-                          className="border-purple-600/50 text-purple-400 hover:bg-purple-600/10"
-                        >
-                          Make Admin
-                        </Button>
-                      )}
-                      {dev.isAdmin && (
-                        <Button
-                          onClick={() => handleDeveloperAction(dev.id, "removeAdmin")}
-                          disabled={processing === dev.id}
-                          variant="outline"
-                          size="sm"
-                          className="border-red-600/50 text-red-400 hover:bg-red-600/10"
-                        >
-                          Remove Admin
-                        </Button>
+                      {/* Admin management - Only visible to admins */}
+                      {userRole === "ADMIN" && (
+                        <>
+                          {!dev.adminRole && (
+                            <>
+                              <Button
+                                onClick={() => handleDeveloperAction(dev.id, "makeAdmin")}
+                                disabled={processing === dev.id}
+                                variant="outline"
+                                size="sm"
+                                className="border-purple-600/50 text-purple-400 hover:bg-purple-600/10"
+                              >
+                                Make Admin
+                              </Button>
+                              <Button
+                                onClick={() => handleDeveloperAction(dev.id, "makeModerator")}
+                                disabled={processing === dev.id}
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-600/50 text-blue-400 hover:bg-blue-600/10"
+                              >
+                                Make Moderator
+                              </Button>
+                            </>
+                          )}
+                          {dev.adminRole === "ADMIN" && (
+                            <Button
+                              onClick={() => handleDeveloperAction(dev.id, "removeAdmin")}
+                              disabled={processing === dev.id}
+                              variant="outline"
+                              size="sm"
+                              className="border-red-600/50 text-red-400 hover:bg-red-600/10"
+                            >
+                              Remove Admin
+                            </Button>
+                          )}
+                          {dev.adminRole === "MODERATOR" && (
+                            <Button
+                              onClick={() => handleDeveloperAction(dev.id, "removeModerator")}
+                              disabled={processing === dev.id}
+                              variant="outline"
+                              size="sm"
+                              className="border-red-600/50 text-red-400 hover:bg-red-600/10"
+                            >
+                              Remove Moderator
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

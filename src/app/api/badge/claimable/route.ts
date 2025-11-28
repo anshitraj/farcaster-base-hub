@@ -28,22 +28,28 @@ export async function GET(request: NextRequest) {
             name: true,
           },
         },
-        badges: {
-          where: {
-            developer: {
-              wallet: wallet,
-            },
-          },
-        },
       },
     });
 
+    // Get developer to find badges
+    const developer = await prisma.developer.findUnique({
+      where: { wallet: wallet },
+      include: {
+        badges: true,
+      },
+    });
+
+    // Get list of app names that user already has badges for
+    const appsWithBadges = new Set(
+      (developer?.badges || []).map((badge) => badge.appName)
+    );
+
     // Filter apps where the user's wallet is in the farcaster.json owner field
-    const claimableApps = [];
+    const claimableApps: any[] = [];
 
     for (const app of apps) {
       // Skip if user already has a badge for this app
-      if (app.badges && app.badges.length > 0) {
+      if (appsWithBadges.has(app.name)) {
         continue;
       }
 

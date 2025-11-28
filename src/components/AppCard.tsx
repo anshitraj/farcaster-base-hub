@@ -112,10 +112,17 @@ const AppCard = ({
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-2">
-                    <RatingStars rating={ratingAverage} size={12} showNumber />
-                    <span className="text-xs text-muted-foreground">
-                      {installs > 0 ? `${installs.toLocaleString()}` : "New"}
-                    </span>
+                    <RatingStars rating={ratingAverage} ratingCount={ratingCount} size={12} showNumber />
+                    {ratingCount === 0 && (
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30">
+                        New
+                      </span>
+                    )}
+                    {ratingCount > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {installs > 0 ? `${installs.toLocaleString()}` : ""}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -206,16 +213,23 @@ const AppCard = ({
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 flex-wrap">
                       <div className="flex items-center gap-1">
-                        <RatingStars rating={ratingAverage} size={14} showNumber />
+                        <RatingStars rating={ratingAverage} ratingCount={ratingCount} size={14} showNumber />
                         {ratingCount > 0 && (
                           <span className="text-xs text-muted-foreground ml-1">
                             ({ratingCount})
                           </span>
                         )}
+                        {ratingCount === 0 && (
+                          <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30 ml-2">
+                            New
+                          </span>
+                        )}
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {installs > 0 ? `${installs.toLocaleString()} installs` : "New"}
-                      </span>
+                      {ratingCount > 0 && installs > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {installs.toLocaleString()} installs
+                        </span>
+                      )}
                     </div>
                     <div className="bg-base-blue hover:bg-base-blue/90 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0">
                       <ExternalLink className="w-4 h-4" />
@@ -263,7 +277,12 @@ const AppCard = ({
             </p>
 
             <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-              <RatingStars rating={ratingAverage} size={12} />
+              <RatingStars rating={ratingAverage} ratingCount={ratingCount} size={12} />
+              {ratingCount === 0 && (
+                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30 ml-2">
+                  New
+                </span>
+              )}
               <span>{installs} installs</span>
             </div>
           </CardContent>

@@ -4,34 +4,30 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, Camera, ShoppingBag, GraduationCap, Swords, Flag, Puzzle, Compass, Trophy, Target } from "lucide-react";
+import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, GraduationCap, Puzzle, Gift, TrendingUp, Coins, Newspaper } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { trackPageView } from "@/lib/analytics";
 import Sidebar from "@/components/Sidebar";
 import { useDebounce } from "@/hooks/use-debounce";
+import CategoryCard from "@/components/CategoryCard";
 
 // Game categories with icons
 const gameCategories = [
   { name: "Action", icon: Zap, color: "from-red-500 to-red-600", href: "/apps?category=Games&tag=action" },
-  { name: "Simulation", icon: Users, color: "from-green-500 to-green-600", href: "/apps?category=Games&tag=simulation" },
   { name: "Puzzle", icon: Puzzle, color: "from-blue-500 to-blue-600", href: "/apps?category=Games&tag=puzzle" },
-  { name: "Adventure", icon: Compass, color: "from-yellow-500 to-yellow-600", href: "/apps?category=Games&tag=adventure" },
-  { name: "Racing", icon: Flag, color: "from-purple-500 to-purple-600", href: "/apps?category=Games&tag=racing" },
-  { name: "Role Playing", icon: Swords, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Games&tag=rpg" },
-  { name: "Strategy", icon: Target, color: "from-emerald-500 to-emerald-600", href: "/apps?category=Games&tag=strategy" },
-  { name: "Sports", icon: Trophy, color: "from-pink-500 to-pink-600", href: "/apps?category=Games&tag=sports" },
 ];
 
 // App categories with icons
 const appCategories = [
-  { name: "Entertainment", icon: Grid3x3, color: "from-purple-500 to-purple-600", href: "/apps?category=Social&tag=entertainment" },
+  { name: "News", icon: Newspaper, color: "from-purple-500 to-purple-600", href: "/apps?category=Social&tag=news" },
   { name: "Social", icon: Users, color: "from-red-500 to-red-600", href: "/apps?category=Social" },
   { name: "Productivity", icon: CheckSquare, color: "from-blue-500 to-blue-600", href: "/apps?category=Tools&tag=productivity" },
   { name: "Communication", icon: MessageSquare, color: "from-green-500 to-green-600", href: "/apps?category=Social&tag=communication" },
   { name: "Music & Audio", icon: Music, color: "from-yellow-500 to-yellow-600", href: "/apps?category=Social&tag=music" },
-  { name: "Photography", icon: Camera, color: "from-pink-500 to-pink-600", href: "/apps?category=Tools&tag=photography" },
-  { name: "Shopping", icon: ShoppingBag, color: "from-emerald-500 to-emerald-600", href: "/apps?category=Finance&tag=shopping" },
   { name: "Education", icon: GraduationCap, color: "from-indigo-500 to-indigo-600", href: "/apps?category=Tools&tag=education" },
+  { name: "Airdrop", icon: Gift, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Airdrops" },
+  { name: "Prediction", icon: TrendingUp, color: "from-orange-500 to-orange-600", href: "/apps?category=Finance&tag=prediction" },
+  { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
 ];
 
 export default function SearchPage() {
@@ -40,9 +36,25 @@ export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
+
+  // On desktop, sidebar should always be visible (isOpen = true)
+  // On mobile, it starts closed
+  useEffect(() => {
+    const checkMobile = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true); // Always open on desktop
+      } else {
+        setSidebarOpen(false); // Closed by default on mobile
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Check if speech recognition is supported
   useEffect(() => {
@@ -135,13 +147,21 @@ export default function SearchPage() {
   return (
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
-      <Sidebar onCollapseChange={handleSidebarChange} />
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
-        sidebarHidden ? "ml-0" : sidebarCollapsed ? "ml-16" : "ml-64"
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
       }`}>
-        <AppHeader />
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Search Section */}
         <div className="px-4 md:px-6 lg:px-8 py-6">
@@ -187,64 +207,74 @@ export default function SearchPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
-            className="mb-10"
+            className="mb-16 mt-10"
           >
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore games</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 md:gap-4">
-              {gameCategories.map((category, index) => {
-                const Icon = category.icon;
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-8 w-1 bg-gradient-to-b from-[#0052FF] to-[#7C3AED] rounded-full"></div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white">Explore games</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
+              {gameCategories.map((category) => {
+                const patternMap: Record<string, "action" | "puzzle" | "entertainment" | "social" | "productivity" | "communication" | "music" | "education"> = {
+                  "Action": "action",
+                  "Puzzle": "puzzle",
+                };
+                
                 return (
-                  <Link
+                  <CategoryCard
                     key={category.name}
+                    name={category.name}
+                    icon={category.icon}
+                    color={category.color}
                     href={category.href}
-                    className="group"
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
-                    >
-                      <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                      </div>
-                      <p className="text-white text-sm md:text-base font-medium text-center">{category.name}</p>
-                    </motion.div>
-                  </Link>
+                    backgroundPattern={patternMap[category.name]}
+                  />
                 );
               })}
             </div>
           </motion.section>
+
+          {/* Divider */}
+          <div className="h-px bg-gradient-to-r from-transparent via-[#1a1f2e] to-transparent my-12"></div>
 
           {/* Explore Apps Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.2 }}
-            className="mb-10"
+            className="mb-16 mt-10"
           >
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 px-1">Explore apps</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 md:gap-4">
-              {appCategories.map((category, index) => {
-                const Icon = category.icon;
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-8 w-1 bg-gradient-to-b from-[#0052FF] to-[#7C3AED] rounded-full"></div>
+                <h2 className="text-2xl md:text-3xl font-bold text-white">Explore apps</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
+              {appCategories.map((category) => {
+                const patternMap: Record<string, "action" | "puzzle" | "entertainment" | "social" | "productivity" | "communication" | "music" | "education"> = {
+                  "News": "entertainment",
+                  "Social": "social",
+                  "Productivity": "productivity",
+                  "Communication": "communication",
+                  "Music & Audio": "music",
+                  "Education": "education",
+                  "Airdrop": "action",
+                  "Prediction": "entertainment",
+                  "Crowdfunding": "social",
+                };
+                
                 return (
-                  <Link
+                  <CategoryCard
                     key={category.name}
+                    name={category.name}
+                    icon={category.icon}
+                    color={category.color}
                     href={category.href}
-                    className="group"
-                  >
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 md:p-5 hover:border-gray-700 transition-all duration-300 hover:scale-105 cursor-pointer"
-                    >
-                      <div className={`w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 rounded-xl bg-gradient-to-br ${category.color} flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className="w-6 h-6 md:w-7 md:h-7 text-white" />
-                      </div>
-                      <p className="text-white text-sm md:text-base font-medium text-center">{category.name}</p>
-                    </motion.div>
-                  </Link>
+                    backgroundPattern={patternMap[category.name]}
+                  />
                 );
               })}
             </div>
