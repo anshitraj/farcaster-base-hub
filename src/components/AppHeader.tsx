@@ -181,7 +181,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             >
               <Bell className="w-5 h-5 text-gray-300" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1 animate-pulse">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1.5 border-2 border-black shadow-lg">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}

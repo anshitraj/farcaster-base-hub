@@ -91,13 +91,14 @@ export default function PointsDisplay() {
     };
   }, [isAuthenticated, authLoading]);
 
-  if (loading || points === null) {
-    return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-base-cyan/10 border border-base-cyan/30">
-        <Coins className="w-4 h-4 text-base-cyan animate-pulse" />
-        <span className="text-xs font-semibold text-base-cyan">...</span>
-      </div>
-    );
+  // Don't show points display if user is not authenticated or has 0 points
+  if (loading || points === null || !isAuthenticated) {
+    return null;
+  }
+
+  // Only show if user has points (hide when 0 for cleaner UI)
+  if (points === 0) {
+    return null;
   }
 
   return (

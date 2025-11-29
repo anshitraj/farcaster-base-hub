@@ -116,7 +116,6 @@ export default function UserProfile() {
         if (data.wallet) {
           // Normalize wallet address (lowercase, no extra characters)
           const normalizedWallet = data.wallet.toLowerCase().trim();
-          console.log('[UserProfile] Auth returned wallet:', normalizedWallet);
           await fetchProfile(normalizedWallet);
         } else {
           setProfile(null);
@@ -134,9 +133,8 @@ export default function UserProfile() {
   }
 
   async function fetchProfile(wallet: string) {
-    // Normalize wallet address to ensure consistency (declare outside try-catch)
+      // Normalize wallet address to ensure consistency (declare outside try-catch)
     const normalizedWallet = wallet.toLowerCase().trim();
-    console.log('[UserProfile] Fetching profile for normalized wallet:', normalizedWallet);
     
     try {
       const isBaseWallet = await checkIfBaseWallet(normalizedWallet);
@@ -159,18 +157,9 @@ export default function UserProfile() {
         });
         if (devRes.ok) {
           const devData = await devRes.json();
-          // Debug: log full response to help troubleshoot
-          console.log('[UserProfile] Developer data:', {
-            wallet,
-            adminRole: devData.developer?.adminRole,
-            hasAdminRole: !!devData.developer?.adminRole,
-            fullDeveloper: devData.developer
-          });
-          
           // Check adminRole field - this is the most reliable way to determine admin status
           if (devData.developer?.adminRole) {
             isAdmin = devData.developer.adminRole === "ADMIN" || devData.developer.adminRole === "MODERATOR";
-            console.log('[UserProfile] Admin status set to:', isAdmin, 'from adminRole:', devData.developer.adminRole);
           }
           // Use developer name if available
           if (devData.developer?.name) {
@@ -217,7 +206,6 @@ export default function UserProfile() {
         // Ignore errors
       }
 
-      console.log('[UserProfile] Setting profile with isAdmin:', isAdmin);
       setProfile({
         wallet: normalizedWallet,
         name,
@@ -267,8 +255,25 @@ export default function UserProfile() {
   }
 
   async function fetchBaseAvatar(wallet: string, name: string | null): Promise<string | null> {
-    // Skip avatar fetch to avoid CORS errors - use fallback avatar instead
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    // Try to fetch Base profile photo via our API
+    try {
+      const res = await fetch(`/api/base/profile?wallet=${encodeURIComponent(wallet)}`, {
+        credentials: "include",
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.avatar) {
+          return data.avatar;
+        }
+      }
+    } catch (error) {
+      // Fall through to fallback
+    }
+    
+    // Fallback: Use a consistent generated avatar based on wallet
+    // This ensures the same wallet always gets the same avatar
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
   }
 
   const connectWallet = async () => {
@@ -584,12 +589,6 @@ export default function UserProfile() {
                   </DropdownMenuItem>
                 </>
               )}
-              {/* Debug: Show admin status (always visible for troubleshooting) */}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled className="text-xs text-muted-foreground cursor-default">
-                Debug: Admin = {profile.isAdmin ? 'YES' : 'NO'}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={disconnect}
                 className="text-destructive focus:text-destructive cursor-pointer"
