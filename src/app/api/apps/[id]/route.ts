@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 
+// Don't cache - always get fresh data for accurate review counts
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -45,6 +48,12 @@ export async function GET(
       );
     }
 
+    // Calculate actual review count from reviews array (more accurate than stored value)
+    const actualReviewCount = app.reviews.length;
+    const actualRatingAverage = actualReviewCount > 0
+      ? app.reviews.reduce((sum, r) => sum + r.rating, 0) / actualReviewCount
+      : (app.ratingAverage || 0);
+
     return NextResponse.json({
       app: {
         id: app.id,
@@ -60,6 +69,7 @@ export async function GET(
         contractAddress: app.contractAddress,
         contractVerified: app.contractVerified,
         developerTags: app.developerTags || [],
+        tags: app.tags || [],
         screenshots: app.screenshots || [],
         lastUpdatedAt: app.lastUpdatedAt,
         launchCount: app.launchCount || 0,
@@ -67,8 +77,8 @@ export async function GET(
         popularityScore: app.popularityScore || 0,
         clicks: app.clicks,
         installs: app.installs,
-        ratingAverage: app.ratingAverage,
-        ratingCount: app.ratingCount,
+        ratingAverage: actualRatingAverage,
+        ratingCount: actualReviewCount,
         createdAt: app.createdAt,
         developer: {
           ...app.developer,

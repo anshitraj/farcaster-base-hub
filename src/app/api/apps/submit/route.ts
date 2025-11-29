@@ -15,7 +15,7 @@ const submitSchema = z.object({
   category: z.string().min(1, "Category is required"),
   reviewMessage: z.union([z.string().max(1000), z.literal("")]).optional(),
   developerTags: z.array(z.string()).optional().default([]),
-  tags: z.array(z.string()).optional().default([]), // App tags for search (e.g., "business", "payment", "airdrops")
+  tags: z.array(z.string()).max(5, "Maximum 5 tags allowed").optional().default([]), // App tags for search (e.g., "airdrop", "defi", "tools")
   contractAddress: z.union([z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address"), z.literal("")]).optional(),
   notesToAdmin: z.union([z.string().max(1000), z.literal("")]).optional(),
   screenshots: z.array(z.string().url("Screenshot URL must be a valid URL")).optional().default([]), // Screenshot URLs
@@ -47,6 +47,29 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = submitSchema.parse(body);
+
+    // Validate tags: max 5 and normalize to lowercase
+    if (validated.tags && validated.tags.length > 5) {
+      return NextResponse.json(
+        { error: "Maximum 5 tags allowed" },
+        { status: 400 }
+      );
+    }
+
+    // Normalize tags to lowercase
+    const normalizedTags = validated.tags
+      ? validated.tags.map((tag) => tag.toLowerCase().trim()).filter((tag) => tag.length > 0)
+      : [];
+    
+    if (normalizedTags.length > 5) {
+      return NextResponse.json(
+        { error: "Maximum 5 tags allowed" },
+        { status: 400 }
+      );
+    }
+
+    // Update validated tags with normalized version
+    validated.tags = normalizedTags;
 
     // Validate URL starts with https://
     if (!validated.url.startsWith("https://")) {

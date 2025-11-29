@@ -26,6 +26,38 @@ const developerTags = [
   "Hackathon Project",
 ];
 
+// Valid app tags for search and categorization (max 5 per app)
+const validAppTags = [
+  "airdrop",
+  "airdrops",
+  "analytics",
+  "apy",
+  "articles",
+  "badges",
+  "base",
+  "collectibles",
+  "contracts",
+  "crypto",
+  "debug",
+  "defi",
+  "developer",
+  "dex",
+  "ens",
+  "explorer",
+  "gifts",
+  "giveaway",
+  "identity",
+  "liquidity",
+  "nft",
+  "payment",
+  "social",
+  "swap",
+  "tools",
+  "trading",
+  "wallet",
+  "web3",
+];
+
 const SubmitForm = () => {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -45,7 +77,6 @@ const SubmitForm = () => {
     screenshots: [] as string[], // Screenshot URLs
   });
   
-  const [tagInput, setTagInput] = useState("");
   const [screenshotInput, setScreenshotInput] = useState("");
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const screenshotFileInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +239,27 @@ const SubmitForm = () => {
       return;
     }
 
+    // Validate tags: max 5 and must be from valid list
+    if (formData.tags.length > 5) {
+      toast({
+        title: "Error",
+        description: "Maximum 5 tags allowed. Please remove some tags.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all tags are from valid list
+    const invalidTags = formData.tags.filter((tag) => !validAppTags.includes(tag));
+    if (invalidTags.length > 0) {
+      toast({
+        title: "Error",
+        description: `Invalid tags: ${invalidTags.join(", ")}. Please use only valid tags.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/apps/submit", {
@@ -258,7 +310,6 @@ const SubmitForm = () => {
         notesToAdmin: "",
         screenshots: [],
       });
-      setTagInput("");
       setScreenshotInput("");
 
       // Redirect to app page
@@ -459,53 +510,62 @@ const SubmitForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags (Optional)</Label>
+            <Label htmlFor="tags">
+              Tags (Optional) - Select up to 5 tags
+              {formData.tags.length > 0 && (
+                <span className="text-xs text-muted-foreground ml-2">
+                  ({formData.tags.length}/5)
+                </span>
+              )}
+            </Label>
             <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  id="tags"
-                  placeholder="e.g., business, payment, airdrops, games"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && tagInput.trim()) {
-                      e.preventDefault();
-                      const newTag = tagInput.trim().toLowerCase();
-                      if (!formData.tags.includes(newTag) && newTag.length > 0) {
-                        setFormData({
-                          ...formData,
-                          tags: [...formData.tags, newTag],
-                        });
-                        setTagInput("");
-                      }
-                    }
-                  }}
-                  className="glass-card focus-visible:ring-base-blue"
-                />
-                <Button
-                  type="button"
-                  onClick={() => {
-                    if (tagInput.trim()) {
-                      const newTag = tagInput.trim().toLowerCase();
-                      if (!formData.tags.includes(newTag) && newTag.length > 0) {
-                        setFormData({
-                          ...formData,
-                          tags: [...formData.tags, newTag],
-                        });
-                        setTagInput("");
-                      }
-                    }
-                  }}
-                  className="bg-base-blue hover:bg-base-blue/90"
-                >
-                  <Tag className="w-4 h-4" />
-                </Button>
-              </div>
               <p className="text-xs text-muted-foreground">
-                Add tags to help users find your app when searching (e.g., "business", "payment", "airdrops"). Press Enter or click the tag icon to add.
+                Click tags below to add them. Selected tags help users find your app when searching.
               </p>
+              <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-white/5 border border-white/10 max-h-48 overflow-y-auto">
+                {validAppTags.map((tag) => {
+                  const isSelected = formData.tags.includes(tag);
+                  const isDisabled = !isSelected && formData.tags.length >= 5;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          // Remove tag
+                          setFormData({
+                            ...formData,
+                            tags: formData.tags.filter((t) => t !== tag),
+                          });
+                        } else if (!isDisabled) {
+                          // Add tag (only if under limit)
+                          setFormData({
+                            ...formData,
+                            tags: [...formData.tags, tag],
+                          });
+                        }
+                      }}
+                      disabled={isDisabled}
+                      className={`
+                        inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                        ${
+                          isSelected
+                            ? "bg-base-blue text-white border border-base-blue shadow-lg"
+                            : isDisabled
+                            ? "bg-white/5 text-muted-foreground/50 border border-white/5 cursor-not-allowed"
+                            : "bg-white/5 text-foreground border border-white/10 hover:bg-white/10 hover:border-base-blue/50 cursor-pointer"
+                        }
+                      `}
+                    >
+                      {tag}
+                      {isSelected && <X className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
+              </div>
               {formData.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
+                  <p className="text-xs text-muted-foreground w-full">Selected tags:</p>
                   {formData.tags.map((tag) => (
                     <span
                       key={tag}
@@ -527,6 +587,11 @@ const SubmitForm = () => {
                     </span>
                   ))}
                 </div>
+              )}
+              {formData.tags.length >= 5 && (
+                <p className="text-xs text-yellow-500">
+                  Maximum 5 tags selected. Remove a tag to add another.
+                </p>
               )}
             </div>
           </div>

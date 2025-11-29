@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
@@ -12,9 +12,9 @@ import TopBanner from "@/components/TopBanner";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
-import ComingSoonPremiumSection from "@/components/ComingSoonPremiumSection";
 
-export const dynamic = 'force-dynamic';
+// Lazy load heavy components
+const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremiumSection"));
 
 // All app categories with icons (including game genres)
 const appCategories = [
@@ -163,7 +163,12 @@ export default function HomePage() {
             className="mb-10"
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Trending</h2>
+              <Link
+                href="/apps?sort=trending"
+                className="text-2xl font-bold text-white hover:text-blue-400 transition-colors cursor-pointer"
+              >
+                Trending
+              </Link>
               <Link
                 href="/apps?sort=trending"
                 className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold transition-colors"
@@ -218,7 +223,7 @@ export default function HomePage() {
                 gradientFrom="from-green-500"
                 gradientTo="to-green-600"
                 href="/apps?category=Games"
-                backgroundImage="/category-bg/game-bg.jpg"
+                backgroundImage="/category-bg/game-bg.webp"
               />
               <CategoryHighlightCard
                 title="Music"
@@ -227,7 +232,7 @@ export default function HomePage() {
                 gradientFrom="from-blue-500"
                 gradientTo="to-blue-600"
                 href="/apps?category=Social&tag=music"
-                backgroundImage="/category-bg/music-bg.jpg"
+                backgroundImage="/category-bg/music-bg.webp"
               />
               <CategoryHighlightCard
                 title="Social"
@@ -236,7 +241,7 @@ export default function HomePage() {
                 gradientFrom="from-red-500"
                 gradientTo="to-red-600"
                 href="/apps?category=Social"
-                backgroundImage="/category-bg/social-bg.jpg"
+                backgroundImage="/category-bg/social-bg.webp"
               />
               <CategoryHighlightCard
                 title="Productivity"
@@ -245,7 +250,7 @@ export default function HomePage() {
                 gradientFrom="from-blue-500"
                 gradientTo="to-indigo-600"
                 href="/apps?category=Tools&tag=productivity"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/productivity-bg.webp"
               />
               <CategoryHighlightCard
                 title="Finance"
@@ -254,7 +259,7 @@ export default function HomePage() {
                 gradientFrom="from-emerald-500"
                 gradientTo="to-teal-600"
                 href="/apps?category=Finance"
-                backgroundImage="/category-bg/finance-bg.jpg"
+                backgroundImage="/category-bg/finance-bg.webp"
               />
               <CategoryHighlightCard
                 title="Utility"
@@ -263,7 +268,7 @@ export default function HomePage() {
                 gradientFrom="from-slate-500"
                 gradientTo="to-gray-600"
                 href="/apps?category=Utilities"
-                backgroundImage="/category-bg/utility-bg.jpg"
+                backgroundImage="/category-bg/utility-bg.webp"
               />
               <CategoryHighlightCard
                 title="Tools"
@@ -272,7 +277,7 @@ export default function HomePage() {
                 gradientFrom="from-cyan-500"
                 gradientTo="to-blue-600"
                 href="/apps?category=Tools"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/tools-bg.webp"
               />
               <CategoryHighlightCard
                 title="DeFi"
@@ -281,7 +286,7 @@ export default function HomePage() {
                 gradientFrom="from-yellow-500"
                 gradientTo="to-orange-600"
                 href="/apps?category=Finance&tag=defi"
-                backgroundImage="/category-bg/finance-bg.jpg"
+                backgroundImage="/category-bg/defi-bg.webp"
               />
               <CategoryHighlightCard
                 title="Education"
@@ -290,7 +295,7 @@ export default function HomePage() {
                 gradientFrom="from-indigo-500"
                 gradientTo="to-purple-600"
                 href="/apps?category=Education"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/education-bg.webp"
               />
               <CategoryHighlightCard
                 title="Entertainment"
@@ -299,7 +304,7 @@ export default function HomePage() {
                 gradientFrom="from-pink-500"
                 gradientTo="to-rose-600"
                 href="/apps?category=Entertainment"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/entertainment-bg.webp"
               />
               <CategoryHighlightCard
                 title="News"
@@ -308,7 +313,7 @@ export default function HomePage() {
                 gradientFrom="from-purple-500"
                 gradientTo="to-violet-600"
                 href="/apps?category=News"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/news-bg.webp"
               />
               <CategoryHighlightCard
                 title="Art"
@@ -317,7 +322,7 @@ export default function HomePage() {
                 gradientFrom="from-orange-500"
                 gradientTo="to-amber-600"
                 href="/apps?category=Art"
-                backgroundImage="/category-bg/productivity-bg.jpg"
+                backgroundImage="/category-bg/art-bg.webp"
               />
             </div>
           </motion.section>
@@ -385,7 +390,9 @@ export default function HomePage() {
                 Premium developer tools and advanced features coming soon
               </p>
             </div>
-            <ComingSoonPremiumSection />
+            <Suspense fallback={<div className="h-64 bg-gray-900/50 rounded-xl animate-pulse" />}>
+              <ComingSoonPremiumSection />
+            </Suspense>
           </motion.section>
         </div>
       </main>

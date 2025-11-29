@@ -63,7 +63,7 @@ const collapsibleSections: CollapsibleSection[] = [
     label: "Rewards",
     icon: Award,
     items: [
-      { href: "/dashboard", label: "Season" },
+      { href: "/dashboard", label: "Dashboard" },
       { href: "/quests", label: "Quests" },
     ],
   },
@@ -173,7 +173,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-20 w-auto max-w-[200px]"
+                className="h-12 sm:h-16 md:h-20 w-auto max-w-[200px]"
                 priority
                 unoptimized
               />

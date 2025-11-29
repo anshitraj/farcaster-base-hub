@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Play, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
+import RatingStars from "./RatingStars";
 
 interface TopBannerProps {
   apps: {
@@ -192,24 +193,21 @@ export default function TopBanner({ apps }: TopBannerProps) {
                   transition={{ delay: 0.3 }}
                   className="flex items-center gap-6 flex-wrap"
                 >
-                  {currentApp.ratingCount && currentApp.ratingCount > 0 && currentApp.ratingAverage && currentApp.ratingAverage > 0 ? (
-                    <div className="flex items-center gap-2">
-                      <Star className="w-5 h-5 text-yellow-300 fill-yellow-300" />
-                      <span className="text-white font-semibold">
-                        {(currentApp.ratingAverage % 1 === 0) 
-                          ? currentApp.ratingAverage.toString() 
-                          : currentApp.ratingAverage.toFixed(1)}
+                  <div className="flex items-center gap-2">
+                    <RatingStars
+                      rating={currentApp.ratingAverage || 0}
+                      ratingCount={currentApp.ratingCount || 0}
+                      size={20}
+                      showNumber
+                      className="text-white"
+                    />
+                    {currentApp.ratingCount && currentApp.ratingCount > 0 && (
+                      <span className="text-white/80 text-sm">
+                        ({currentApp.ratingCount})
                       </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-white/80 text-sm">Not rated yet</span>
-                      <span className="px-2 py-1 bg-green-500/30 text-green-300 rounded-full text-xs font-medium border border-green-400/50">
-                        New
-                      </span>
-                    </div>
-                  )}
-                  {currentApp.installs && (
+                    )}
+                  </div>
+                  {currentApp.installs && currentApp.installs > 0 && (
                     <div className="text-white/80 text-sm">
                       {currentApp.installs.toLocaleString()} installs
                     </div>

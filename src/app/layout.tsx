@@ -13,10 +13,15 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Mini App Store - Discover Farcaster & Base Mini Apps",
   description: "Explore, submit, and earn developer badges in the ultimate hub for decentralized mini applications.",
+  icons: {
+    icon: "/image.ico",
+    shortcut: "/image.ico",
+    apple: "/image.ico",
+  },
 };
 
-// Prevent static generation - all routes should be dynamic
-export const dynamic = 'force-dynamic';
+// Allow static generation where possible, but keep dynamic for auth-dependent routes
+export const dynamic = 'auto';
 
 export default function RootLayout({
   children,
@@ -26,6 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        {/* Custom Favicon */}
+        <link rel="icon" href="/image.ico" type="image/x-icon" />
+        <link rel="shortcut icon" href="/image.ico" type="image/x-icon" />
         {/* Google Analytics */}
         {process.env.NEXT_PUBLIC_GA_ID && (
           <>

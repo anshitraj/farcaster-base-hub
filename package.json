@@ -17,7 +17,8 @@
     "check:admin": "npx tsx scripts/check-admin.ts",
     "import:seed": "npx tsx scripts/import-seed.ts",
     "generate:miniapps": "npx tsx scripts/generateMiniappsSeed.ts",
-    "export:apps": "node scripts/export-my-apps.js"
+    "export:apps": "node scripts/export-my-apps.js",
+    "fix:review-counts": "npx tsx scripts/fix-review-counts.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

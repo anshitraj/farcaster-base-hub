@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -33,7 +33,7 @@ export default function AppDetailPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
-  const [developerApps, setDeveloperApps] = useState<any[]>([]);
+  const [recommendedApps, setRecommendedApps] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -44,9 +44,19 @@ export default function AppDetailPage() {
   useEffect(() => {
     async function fetchApp() {
       try {
-        const res = await fetch(`/api/apps/${id}`);
+        const res = await fetch(`/api/apps/${id}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
         if (res.ok) {
           const data = await res.json();
+          console.log('[AppDetail] Fetched data:', {
+            ratingCount: data.app?.ratingCount,
+            reviewsLength: data.reviews?.length,
+            ratingAverage: data.app?.ratingAverage,
+          });
           setApp(data.app);
           setReviews(data.reviews || []);
           if (data.app) {
@@ -72,22 +82,37 @@ export default function AppDetailPage() {
               setIsOwner(false);
             }
             
-            // Fetch developer's other apps
-            if (data.app.developer?.wallet) {
-              try {
-                const devRes = await fetch(`/api/developers/${encodeURIComponent(data.app.developer.wallet)}`);
-                if (devRes.ok) {
-                  const devData = await devRes.json();
-                  // Filter out the current app from the list
-                  const otherApps = (devData.developer?.apps || []).filter(
-                    (a: any) => a.id !== id
-                  );
-                  setDeveloperApps(otherApps.slice(0, 6)); // Show max 6 other apps
-                }
-              } catch (devError) {
-                console.error("Error fetching developer apps:", devError);
-                setDeveloperApps([]);
+            // Fetch recommended apps based on tags and category
+            try {
+              const tags = data.app.tags || [];
+              const category = data.app.category;
+              
+              // Build query params for recommendations
+              const params = new URLSearchParams();
+              params.set("limit", "12"); // Get more to ensure we have enough after filtering
+              params.set("sort", "trending");
+              
+              // If app has tags, search by tags first
+              if (tags.length > 0) {
+                // Use the first tag for recommendations
+                params.set("tag", tags[0].toLowerCase());
+              } else if (category) {
+                // Fallback to category if no tags
+                params.set("category", category);
               }
+              
+              const recRes = await fetch(`/api/apps?${params.toString()}`);
+              if (recRes.ok) {
+                const recData = await recRes.json();
+                // Filter out the current app and get up to 6 recommended apps
+                const filtered = (recData.apps || []).filter(
+                  (a: any) => a.id !== id
+                );
+                setRecommendedApps(filtered.slice(0, 6));
+              }
+            } catch (recError) {
+              console.error("Error fetching recommended apps:", recError);
+              setRecommendedApps([]);
             }
           }
         }
@@ -101,7 +126,7 @@ export default function AppDetailPage() {
     if (id) fetchApp();
   }, [id]);
 
-  const handleOpenApp = async (type: "base" | "farcaster") => {
+  const handleOpenApp = useCallback(async (type: "base" | "farcaster") => {
     if (!app) return;
 
     // Award launch XP
@@ -169,7 +194,7 @@ export default function AppDetailPage() {
     }
     
     window.location.href = url;
-  };
+  }, [app, id, toast]);
 
   if (loading) {
     return <PageLoader message="Loading app..." />;
@@ -252,22 +277,12 @@ export default function AppDetailPage() {
                 <div className="flex items-center gap-4 mb-4">
                   <RatingStars
                     rating={app.ratingAverage || 0}
-                    ratingCount={app.ratingCount || 0}
+                    ratingCount={reviews.length}
                     size={16}
                     showNumber
                   />
-                  {app.ratingCount > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      {app.ratingCount} {app.ratingCount === 1 ? 'review' : 'reviews'}
-                    </span>
-                  )}
-                  {app.ratingCount === 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      No reviews yet
-                    </span>
-                  )}
                   <span className="text-sm text-muted-foreground">
-                    {app.installs || 0} {app.installs === 1 ? 'install' : 'installs'}
+                    ({reviews.length})
                   </span>
                 </div>
 
@@ -376,11 +391,11 @@ export default function AppDetailPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.15 }}
-            className="grid grid-cols-3 gap-4 mb-6"
+            className="grid grid-cols-2 gap-4 mb-6"
           >
             <Card className="glass-card text-center p-4">
               <div className="text-2xl font-bold mb-1">
-                {app.ratingCount > 0 ? (
+                {reviews.length > 0 ? (
                   (app.ratingAverage || 0) % 1 === 0 
                     ? (app.ratingAverage || 0).toString() 
                     : (app.ratingAverage || 0).toFixed(1)
@@ -389,14 +404,8 @@ export default function AppDetailPage() {
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {app.ratingCount > 0 ? 'Rating' : 'Not rated'}
+                {reviews.length > 0 ? 'Rating' : 'Not rated'}
               </div>
-            </Card>
-            <Card className="glass-card text-center p-4">
-              <div className="text-2xl font-bold mb-1">
-                {app.installs || 0}
-              </div>
-              <div className="text-xs text-muted-foreground">Installs</div>
             </Card>
             <Card className="glass-card text-center p-4">
               <div className="text-2xl font-bold mb-1">
@@ -406,39 +415,41 @@ export default function AppDetailPage() {
             </Card>
           </motion.div>
 
-          {/* Developer's Other Apps */}
-          {app.developer && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="mb-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">
-                  More from {app.developer.name || "Developer"}
-                </h2>
-                <Link
-                  href={`/developers/${app.developer.wallet}`}
-                  className="text-base-blue text-sm font-medium"
-                >
-                  View All →
-                </Link>
-              </div>
-              {developerApps.length > 0 ? (
-                <AppGrid
-                  apps={developerApps}
-                  variant="horizontal"
-                />
-              ) : (
-                <Card className="glass-card p-4 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    No other apps from this developer yet.
-                  </p>
-                </Card>
+          {/* Recommended Mini Apps */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="mb-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                Recommended Mini Apps
+              </h2>
+              {app.tags && app.tags.length > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  Similar to: {app.tags.slice(0, 2).join(", ")}
+                </span>
               )}
-            </motion.div>
-          )}
+              {!app.tags && app.category && (
+                <span className="text-xs text-muted-foreground">
+                  Similar to: {app.category}
+                </span>
+              )}
+            </div>
+            {recommendedApps.length > 0 ? (
+              <AppGrid
+                apps={recommendedApps}
+                variant="horizontal"
+              />
+            ) : (
+              <Card className="glass-card p-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No recommended apps found.
+                </p>
+              </Card>
+            )}
+          </motion.div>
 
           {/* Reviews Section */}
           <motion.div
@@ -448,7 +459,7 @@ export default function AppDetailPage() {
             className="mb-6"
           >
             <h2 className="text-lg font-semibold mb-4">
-              Ratings & Reviews ({app.ratingCount || 0})
+              Ratings & Reviews ({reviews.length})
             </h2>
             
             {!isOwner && (
@@ -457,7 +468,12 @@ export default function AppDetailPage() {
                   appId={id}
                   onReviewSubmitted={async () => {
                     // Refresh app data to show updated rating and review count
-                    const res = await fetch(`/api/apps/${id}`);
+                    const res = await fetch(`/api/apps/${id}`, {
+                      cache: 'no-store',
+                      headers: {
+                        'Cache-Control': 'no-cache',
+                      },
+                    });
                     if (res.ok) {
                       const data = await res.json();
                       setApp(data.app);

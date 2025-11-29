@@ -20,7 +20,7 @@ export default function RatingStars({
   className = "",
 }: RatingStarsProps) {
   // If no ratings, show 5 empty stars without a rating number
-  if (ratingCount === 0 || rating === 0) {
+  if (ratingCount === 0 || (rating === 0 && ratingCount === 0)) {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
         <div className="flex items-center">
@@ -41,8 +41,11 @@ export default function RatingStars({
     );
   }
 
-  const fullStars = Math.floor(rating);
-  const hasHalfStar = rating % 1 >= 0.5;
+  // Calculate stars based on rating (not ratingCount)
+  // Ensure rating is between 0 and maxRating
+  const normalizedRating = Math.max(0, Math.min(rating, maxRating));
+  const fullStars = Math.floor(normalizedRating);
+  const hasHalfStar = normalizedRating % 1 >= 0.5;
   const emptyStars = maxRating - fullStars - (hasHalfStar ? 1 : 0);
 
   return (
@@ -51,7 +54,7 @@ export default function RatingStars({
         {Array.from({ length: fullStars }).map((_, i) => (
           <Star
             key={`full-${i}`}
-            className="fill-base-cyan text-base-cyan"
+            className="fill-blue-500 text-blue-500"
             size={size}
           />
         ))}
@@ -62,7 +65,7 @@ export default function RatingStars({
               size={size}
             />
             <Star
-              className="fill-base-cyan text-base-cyan absolute inset-0 overflow-hidden"
+              className="fill-blue-500 text-blue-500 absolute inset-0 overflow-hidden"
               size={size}
               style={{ clipPath: "inset(0 50% 0 0)" }}
             />
@@ -78,7 +81,7 @@ export default function RatingStars({
       </div>
       {showNumber && (
         <span className="text-sm text-muted-foreground ml-1">
-          {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}/{maxRating}
+          {(normalizedRating % 1 === 0) ? normalizedRating.toString() : normalizedRating.toFixed(1)}/{maxRating}
         </span>
       )}
     </div>

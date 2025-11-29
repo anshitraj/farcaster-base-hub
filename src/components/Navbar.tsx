@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Zap } from "lucide-react";
+import Image from "next/image";
 import UserProfile from "./UserProfile";
 
 const Navbar = () => {
@@ -10,11 +10,15 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(var(--background))]/95 backdrop-blur-xl border-b border-[hsl(var(--border))]">
       <div className="max-w-screen-md mx-auto container-padding h-14 md:h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group">
-          <Zap className="w-5 h-5 md:w-6 md:h-6 text-base-blue group-hover:text-purple transition-colors" />
-          <span className="text-lg md:text-xl font-bold text-gradient-base">
-            Mini App Store
-          </span>
+        <Link href="/" className="flex items-center gap-2 group hover:opacity-80 transition-opacity">
+          <Image
+            src="/logo.png"
+            alt="Mini App Store"
+            width={200}
+            height={60}
+            className="h-10 md:h-12 w-auto"
+            priority
+          />
         </Link>
 
         <div className="hidden md:flex items-center gap-6">

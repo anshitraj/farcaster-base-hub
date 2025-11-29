@@ -8,6 +8,7 @@ import { Bell, Search, Plus, Menu } from "lucide-react";
 import UserProfile from "@/components/UserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
+import GasPriceDisplay from "@/components/GasPriceDisplay";
 import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -19,7 +20,7 @@ interface AppHeaderProps {
 function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -43,7 +44,10 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
         });
         if (res.ok) {
           const data = await res.json();
-          setUnreadCount(data.unreadCount || 0);
+          const count = data.unreadCount || 0;
+          setUnreadCount(count > 0 ? count : null);
+        } else {
+          setUnreadCount(null);
         }
       } catch (error) {
         console.error("Error fetching unread count:", error);
@@ -107,34 +111,37 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
-          {/* Mobile Menu Button */}
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onMenuClick}
-            className="lg:hidden p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
-            aria-label="Open menu"
-          >
-            <Menu className="w-6 h-6 text-gray-300" />
-          </motion.button>
+        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-2 sm:gap-3 md:gap-4">
+          {/* Left Side: Menu Button + Logo */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {/* Mobile Menu Button */}
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={onMenuClick}
+              className="lg:hidden p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
+            </motion.button>
 
-          <Link 
-            href="/" 
-            className="flex-shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <Image
-              src="/logo.png"
-              alt="Mini App Store"
-              width={300}
-              height={100}
-              className="h-20 md:h-24 w-auto"
-              priority
-            />
-          </Link>
+            <Link 
+              href="/" 
+              className="flex-shrink-0 hover:opacity-80 transition-opacity"
+            >
+              <Image
+                src="/logo.png"
+                alt="Mini App Store"
+                width={300}
+                height={100}
+                className="h-20 sm:h-14 md:h-18 lg:h-22 w-auto"
+                priority
+              />
+            </Link>
+          </div>
 
           {/* Search Bar - Center */}
-          <div className="flex-1 max-w-2xl mx-4 hidden md:block">
+          <div className="flex-1 max-w-2xl mx-2 sm:mx-4 hidden md:block">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
               <Input
@@ -148,7 +155,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
             {/* List a Project Button */}
             <Link href="/submit">
               <motion.button
@@ -165,27 +172,28 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="md:hidden p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              className="md:hidden p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
               onClick={() => router.push("/search")}
               aria-label="Search"
             >
-              <Search className="w-5 h-5 text-gray-300" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
             </motion.button>
 
             <motion.button 
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="relative p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              className="relative p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
               onClick={() => setNotificationSidebarOpen(true)}
               aria-label="Notifications"
             >
-              <Bell className="w-5 h-5 text-gray-300" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1.5 border-2 border-black shadow-lg">
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
+              {unreadCount !== null && unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white px-1 sm:px-1.5 border-2 border-black shadow-lg">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </motion.button>
+            <GasPriceDisplay />
             <PointsDisplay />
             <UserProfile />
           </div>
@@ -204,18 +212,21 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   return (
     <Suspense fallback={
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
-          <Link href="/" className="flex-shrink-0">
-            <Image
-              src="/logo.png"
-              alt="Mini App Store"
-              width={300}
-              height={100}
-              className="h-20 md:h-24 w-auto"
-              priority
-            />
-          </Link>
-          <div className="flex items-center gap-3">
+        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <Link href="/" className="flex-shrink-0">
+              <Image
+                src="/logo.png"
+                alt="Mini App Store"
+                width={300}
+                height={100}
+                className="h-12 sm:h-14 md:h-18 lg:h-22 w-auto"
+                priority
+              />
+            </Link>
+          </div>
+          <div className="flex-1" />
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
             <div className="h-10 w-32 bg-gray-800 rounded animate-pulse" />
             <div className="h-10 w-10 bg-gray-800 rounded animate-pulse" />
           </div>

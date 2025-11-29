@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -64,9 +65,9 @@ const AppCard = ({
     return null;
   }
 
-  const handleCardClick = () => {
+  const handleCardClick = useCallback(() => {
     router.push(`/apps/${id}`);
-  };
+  }, [router, id]);
 
   // Mobile horizontal card (default)
   if (variant === "horizontal") {
@@ -247,7 +248,7 @@ const AppCard = ({
                           </span>
                         )}
                       </div>
-                      {ratingCount > 0 && installs > 0 && (
+                      {installs > 0 && (
                         <span className="text-xs text-muted-foreground">
                           {installs.toLocaleString()} installs
                         </span>
@@ -311,7 +312,9 @@ const AppCard = ({
                   New
                 </span>
               )}
-              <span>{installs} installs</span>
+              {installs > 0 && (
+                <span>{installs} installs</span>
+              )}
             </div>
           </CardContent>
         </Card>

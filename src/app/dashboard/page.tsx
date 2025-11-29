@@ -21,7 +21,6 @@ import WalletBalance from "@/components/WalletBalance";
 import AppHeader from "@/components/AppHeader";
 import Sidebar from "@/components/Sidebar";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { getInjectedProvider } from "@/lib/wallet";
@@ -99,7 +98,6 @@ export default function DashboardPage() {
   const [xpData, setXpData] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [profileName, setProfileName] = useState("");
-  const [profileBio, setProfileBio] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [displayAvatar, setDisplayAvatar] = useState<string | null>(null);
@@ -211,7 +209,6 @@ export default function DashboardPage() {
                 if (mounted && profileData.developer) {
                   setProfile(profileData.developer);
                   setProfileName(profileData.developer.name || "");
-                  setProfileBio(profileData.developer.bio || "");
                 }
               }
 
@@ -864,21 +861,6 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="developer-bio">Bio (Optional)</Label>
-                  <Textarea
-                    id="developer-bio"
-                    placeholder="Tell us about yourself..."
-                    value={profileBio}
-                    onChange={(e) => setProfileBio(e.target.value)}
-                    className="glass-card focus-visible:ring-base-blue min-h-[100px]"
-                    maxLength={500}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {profileBio.length}/500 characters
-                  </p>
-                </div>
-
                 <GlowButton
                   onClick={async () => {
                     setSavingProfile(true);
@@ -889,7 +871,6 @@ export default function DashboardPage() {
                         credentials: "include",
                         body: JSON.stringify({
                           name: profileName.trim() || null,
-                          bio: profileBio.trim() || null,
                         }),
                       });
 
