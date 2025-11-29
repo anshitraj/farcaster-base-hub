@@ -220,10 +220,14 @@ export default function AppDetailPage() {
       {/* Header Image (like Twitter header) */}
       {app.headerImageUrl && (
         <div className="w-full h-48 md:h-64 lg:h-80 relative overflow-hidden">
-          <img
+          <Image
             src={app.headerImageUrl}
             alt={`${app.name} header`}
+            width={1920}
+            height={800}
             className="w-full h-full object-cover"
+            priority
+            quality={90}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-[#0B0F19]/50 to-transparent" />
         </div>

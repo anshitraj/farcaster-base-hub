@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
@@ -81,10 +82,13 @@ export default function TopBanner({ apps }: TopBannerProps) {
           {/* Header Image or Gradient Background */}
           {currentApp.headerImageUrl ? (
             <>
-              <img
+              <Image
                 src={currentApp.headerImageUrl}
                 alt={currentApp.name}
-                className="absolute inset-0 w-full h-full object-cover z-0"
+                fill
+                className="object-cover z-0"
+                priority
+                quality={90}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 z-[1]" />
             </>
@@ -108,10 +112,13 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 className="w-[104px] h-[104px] md:w-[136px] md:h-[136px] rounded-3xl bg-white/20 backdrop-blur-md p-4 shadow-2xl border border-white/30 flex-shrink-0"
               >
                 {currentApp.iconUrl ? (
-                  <img
+                  <Image
                     src={currentApp.iconUrl}
                     alt={currentApp.name}
+                    width={136}
+                    height={136}
                     className="w-full h-full object-contain rounded-2xl"
+                    quality={90}
                   />
                 ) : (
                   <div className="w-full h-full rounded-2xl bg-white/20 flex items-center justify-center">
