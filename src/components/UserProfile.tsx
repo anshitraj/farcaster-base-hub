@@ -134,11 +134,11 @@ export default function UserProfile() {
   }
 
   async function fetchProfile(wallet: string) {
+    // Normalize wallet address to ensure consistency (declare outside try-catch)
+    const normalizedWallet = wallet.toLowerCase().trim();
+    console.log('[UserProfile] Fetching profile for normalized wallet:', normalizedWallet);
+    
     try {
-      // Normalize wallet address to ensure consistency
-      const normalizedWallet = wallet.toLowerCase().trim();
-      console.log('[UserProfile] Fetching profile for normalized wallet:', normalizedWallet);
-      
       const isBaseWallet = await checkIfBaseWallet(normalizedWallet);
       
       let name: string | null = null;
