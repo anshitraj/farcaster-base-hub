@@ -14,6 +14,7 @@
     "db:studio": "prisma studio",
     "db:test": "node scripts/test-db-connection.js",
     "seed:admin": "npx tsx scripts/seed-admin.ts",
+    "import:seed": "npx tsx scripts/import-seed.ts",
     "generate:miniapps": "npx tsx scripts/generateMiniappsSeed.ts",
     "export:apps": "node scripts/export-my-apps.js"
   },
