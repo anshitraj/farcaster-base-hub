@@ -39,13 +39,29 @@ npm install
 
 ### 2. Environment Variables
 
-Copy `.env.local.example` to `.env.local` and fill in your values:
+**Important:** This project uses two environment files:
+- `.env` - Safe to commit (only contains `ADMIN_WALLET`)
+- `.env.local` - Gitignored (contains sensitive data like `DATABASE_URL`)
 
+**Setup:**
+
+1. Create `.env` file with your admin wallet:
 ```bash
-cp .env.local.example .env.local
+# .env (safe to commit)
+ADMIN_WALLET="0xYourAdminWalletAddress"
 ```
 
-Required variables:
+2. Create `.env.local` file with sensitive variables:
+```bash
+# .env.local (gitignored - DO NOT COMMIT)
+DATABASE_URL="postgresql://user:password@host:port/database"
+ALCHEMY_BASE_URL="https://base-mainnet.g.alchemy.com/v2/YOUR_KEY"
+# ... other sensitive variables
+```
+
+**Note:** Prisma commands automatically load from `.env.local` first, then `.env`. This ensures `DATABASE_URL` from `.env.local` takes precedence.
+
+Required variables in `.env.local`:
 - `DATABASE_URL` - PostgreSQL connection string
 - `ALCHEMY_BASE_URL` - Base RPC endpoint
 - `JWT_SECRET` - Random secret for session tokens

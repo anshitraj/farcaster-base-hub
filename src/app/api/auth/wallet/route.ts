@@ -136,8 +136,10 @@ export async function GET(request: NextRequest) {
     const walletFromCookie = cookieStore.get("walletAddress")?.value;
     
     if (walletFromCookie) {
+      // Normalize wallet address (lowercase, trim)
+      const normalizedWallet = walletFromCookie.toLowerCase().trim();
       return NextResponse.json({
-        wallet: walletFromCookie,
+        wallet: normalizedWallet,
       });
     }
 

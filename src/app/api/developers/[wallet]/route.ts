@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = 'force-dynamic'; // Prevent caching
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { wallet: string } }
@@ -8,7 +10,15 @@ export async function GET(
   try {
     const wallet = params.wallet.toLowerCase();
 
-    const developer = await prisma.developer.findUnique({
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+      return NextResponse.json(
+        { error: "Invalid wallet address format" },
+        { status: 400 }
+      );
+    }
+
+    let developer = await prisma.developer.findUnique({
       where: { wallet },
       include: {
         apps: {
@@ -37,16 +47,68 @@ export async function GET(
           },
         },
       },
+      // adminRole is included by default when using include (all Developer fields are returned)
     });
-
-    if (!developer) {
-      return NextResponse.json(
-        { error: "Developer not found" },
-        { status: 404 }
-      );
+    
+    // Debug: Log adminRole to help troubleshoot
+    if (developer) {
+      console.log(`[API] Developer ${wallet} adminRole:`, developer.adminRole);
     }
 
-    return NextResponse.json({ developer });
+    // Auto-create developer if they don't exist (for valid wallet addresses)
+    if (!developer) {
+      developer = await prisma.developer.create({
+        data: {
+          wallet,
+          name: null,
+          verified: false,
+        },
+        include: {
+          apps: {
+            where: {
+              status: "approved",
+            },
+            select: {
+              id: true,
+              name: true,
+              iconUrl: true,
+              category: true,
+              clicks: true,
+              installs: true,
+              ratingAverage: true,
+              ratingCount: true,
+              verified: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          badges: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+      });
+    }
+
+    // Ensure adminRole is in the response (it should be, but let's be explicit)
+    const response = {
+      developer: {
+        ...developer,
+        adminRole: developer?.adminRole || null, // Explicitly include adminRole
+      }
+    };
+    
+    // Return with no-cache headers to ensure fresh data
+    return NextResponse.json(response, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error: any) {
     // Handle database connection errors gracefully
     if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {

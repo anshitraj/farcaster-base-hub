@@ -53,12 +53,21 @@ export default function UserProfile() {
     
     initAuth();
     
+    // Listen for wallet connected event to refresh profile
+    const handleWalletConnected = () => {
+      if (mounted) {
+        checkAuth();
+      }
+    };
+    
     // Listen for wallet changes (but only if user is logged in)
     let handleAccountsChanged: (() => void) | null = null;
     let handleChainChanged: (() => void) | null = null;
     let provider: any = null;
     
     if (typeof window !== "undefined") {
+      window.addEventListener("walletConnected", handleWalletConnected);
+      
       provider = getInjectedProvider();
       if (provider && profile) {
         // Only listen to wallet changes if user is already connected
@@ -81,6 +90,9 @@ export default function UserProfile() {
     
     return () => {
       mounted = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("walletConnected", handleWalletConnected);
+      }
       if (provider) {
         if (handleAccountsChanged) {
           provider.removeListener("accountsChanged", handleAccountsChanged);
@@ -97,11 +109,15 @@ export default function UserProfile() {
       const res = await fetch("/api/auth/wallet", { 
         method: "GET",
         credentials: "include", // Important: include cookies
+        cache: "no-store", // Force fresh data
       });
       if (res.ok) {
         const data = await res.json();
         if (data.wallet) {
-          await fetchProfile(data.wallet);
+          // Normalize wallet address (lowercase, no extra characters)
+          const normalizedWallet = data.wallet.toLowerCase().trim();
+          console.log('[UserProfile] Auth returned wallet:', normalizedWallet);
+          await fetchProfile(normalizedWallet);
         } else {
           setProfile(null);
         }
@@ -119,7 +135,11 @@ export default function UserProfile() {
 
   async function fetchProfile(wallet: string) {
     try {
-      const isBaseWallet = await checkIfBaseWallet(wallet);
+      // Normalize wallet address to ensure consistency
+      const normalizedWallet = wallet.toLowerCase().trim();
+      console.log('[UserProfile] Fetching profile for normalized wallet:', normalizedWallet);
+      
+      const isBaseWallet = await checkIfBaseWallet(normalizedWallet);
       
       let name: string | null = null;
       let avatar: string | null = null;
@@ -130,30 +150,27 @@ export default function UserProfile() {
         avatar = await fetchBaseAvatar(wallet, name);
       }
 
-      // Check if user is admin using the admin check API
+      // Get developer profile for name, avatar, and admin status
+      // This is the PRIMARY source of truth for admin status
       try {
-        const adminRes = await fetch(`/api/admin/check`, {
+        const devRes = await fetch(`/api/developers/${normalizedWallet}`, {
           credentials: "include",
-        });
-        if (adminRes.ok) {
-          const adminData = await adminRes.json();
-          // hasAccess returns true for both ADMIN and MODERATOR
-          isAdmin = adminData.hasAccess === true || adminData.isAdmin === true || adminData.isModerator === true;
-        }
-      } catch (e) {
-        // Ignore errors checking admin status
-      }
-
-      // Get developer profile for name and avatar
-      try {
-        const devRes = await fetch(`/api/developers/${wallet}`, {
-          credentials: "include",
+          cache: "no-store", // Force fresh data
         });
         if (devRes.ok) {
           const devData = await devRes.json();
-          // Also check adminRole field as fallback (ADMIN or MODERATOR)
-          if (!isAdmin && devData.developer?.adminRole) {
+          // Debug: log full response to help troubleshoot
+          console.log('[UserProfile] Developer data:', {
+            wallet,
+            adminRole: devData.developer?.adminRole,
+            hasAdminRole: !!devData.developer?.adminRole,
+            fullDeveloper: devData.developer
+          });
+          
+          // Check adminRole field - this is the most reliable way to determine admin status
+          if (devData.developer?.adminRole) {
             isAdmin = devData.developer.adminRole === "ADMIN" || devData.developer.adminRole === "MODERATOR";
+            console.log('[UserProfile] Admin status set to:', isAdmin, 'from adminRole:', devData.developer.adminRole);
           }
           // Use developer name if available
           if (devData.developer?.name) {
@@ -166,6 +183,23 @@ export default function UserProfile() {
         }
       } catch (e) {
         // Ignore errors checking developer profile
+      }
+      
+      // Fallback: Check admin API if developer check didn't find admin role
+      // (This is a secondary check in case developer record doesn't have adminRole set)
+      if (!isAdmin) {
+        try {
+          const adminRes = await fetch(`/api/admin/check`, {
+            credentials: "include",
+          });
+          if (adminRes.ok) {
+            const adminData = await adminRes.json();
+            // hasAccess returns true for both ADMIN and MODERATOR
+            isAdmin = adminData.hasAccess === true || adminData.isAdmin === true || adminData.isModerator === true;
+          }
+        } catch (e) {
+          // Ignore errors checking admin status
+        }
       }
 
       // Also try to get from profile API
@@ -183,8 +217,9 @@ export default function UserProfile() {
         // Ignore errors
       }
 
+      console.log('[UserProfile] Setting profile with isAdmin:', isAdmin);
       setProfile({
-        wallet,
+        wallet: normalizedWallet,
         name,
         avatar,
         isBaseWallet,
@@ -193,7 +228,7 @@ export default function UserProfile() {
     } catch (error) {
       console.error("Profile fetch error:", error);
       setProfile({
-        wallet,
+        wallet: normalizedWallet,
         name: null,
         avatar: null,
         isBaseWallet: false,
@@ -549,6 +584,11 @@ export default function UserProfile() {
                   </DropdownMenuItem>
                 </>
               )}
+              {/* Debug: Show admin status (always visible for troubleshooting) */}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled className="text-xs text-muted-foreground cursor-default">
+                Debug: Admin = {profile.isAdmin ? 'YES' : 'NO'}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={disconnect}
