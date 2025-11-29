@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Disable static export - we're using dynamic routes
+  output: 'standalone',
   images: {
     domains: ['api.dicebear.com', 'images.unsplash.com'],
     remotePatterns: [

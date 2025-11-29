@@ -5,6 +5,8 @@ import { searchMiniApps } from "@/lib/neynar/searchMiniApps";
  * Test endpoint to debug Neynar search API
  * Call this to see what the API actually returns
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

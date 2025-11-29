@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   description: "Explore, submit, and earn developer badges in the ultimate hub for decentralized mini applications.",
 };
 
+// Prevent static generation - all routes should be dynamic
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({
   children,
 }: {

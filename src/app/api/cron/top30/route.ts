@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 const CRON_SECRET = process.env.CRON_SECRET || "your-secret-token";
 const TOP30_DATAFEED_URL = "https://raw.githubusercontent.com/anshitraj/base-gpt-datafeed/main/miniapps.json";
 
+export const dynamic = 'force-dynamic';
+
 interface Top30App {
   url: string;
   name: string;

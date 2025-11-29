@@ -6,6 +6,8 @@ import { fetchFarcasterMetadata, hashMetadata } from "@/lib/farcaster-metadata";
 // For security, you can add a secret token check
 const CRON_SECRET = process.env.CRON_SECRET || "your-secret-token";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Optional: Verify cron secret

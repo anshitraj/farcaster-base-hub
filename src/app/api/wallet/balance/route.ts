@@ -15,6 +15,8 @@ const USDC_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();

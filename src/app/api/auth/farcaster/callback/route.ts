@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
