@@ -19,7 +19,7 @@ export default function RatingStars({
   showNumber = false,
   className = "",
 }: RatingStarsProps) {
-  // If no ratings, show 5 empty stars
+  // If no ratings, show 5 empty stars without a rating number
   if (ratingCount === 0 || rating === 0) {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
@@ -34,7 +34,7 @@ export default function RatingStars({
         </div>
         {showNumber && (
           <span className="text-sm text-muted-foreground ml-1">
-            0/{maxRating}
+            Not rated yet
           </span>
         )}
       </div>

@@ -252,14 +252,22 @@ export default function AppDetailPage() {
                 <div className="flex items-center gap-4 mb-4">
                   <RatingStars
                     rating={app.ratingAverage || 0}
+                    ratingCount={app.ratingCount || 0}
                     size={16}
                     showNumber
                   />
+                  {app.ratingCount > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      {app.ratingCount} {app.ratingCount === 1 ? 'review' : 'reviews'}
+                    </span>
+                  )}
+                  {app.ratingCount === 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      No reviews yet
+                    </span>
+                  )}
                   <span className="text-sm text-muted-foreground">
-                    {app.ratingCount || 0} reviews
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {app.installs || 0} installs
+                    {app.installs || 0} {app.installs === 1 ? 'install' : 'installs'}
                   </span>
                 </div>
 
@@ -372,11 +380,17 @@ export default function AppDetailPage() {
           >
             <Card className="glass-card text-center p-4">
               <div className="text-2xl font-bold mb-1">
-                {((app.ratingAverage || 0) % 1 === 0) 
-                  ? (app.ratingAverage || 0).toString() 
-                  : (app.ratingAverage || 0).toFixed(1)}
+                {app.ratingCount > 0 ? (
+                  (app.ratingAverage || 0) % 1 === 0 
+                    ? (app.ratingAverage || 0).toString() 
+                    : (app.ratingAverage || 0).toFixed(1)
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
               </div>
-              <div className="text-xs text-muted-foreground">Rating</div>
+              <div className="text-xs text-muted-foreground">
+                {app.ratingCount > 0 ? 'Rating' : 'Not rated'}
+              </div>
             </Card>
             <Card className="glass-card text-center p-4">
               <div className="text-2xl font-bold mb-1">

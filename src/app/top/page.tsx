@@ -168,7 +168,8 @@ export default function TopAppsPage() {
                               {app.ratingAverage > 0 && (
                                 <div className="flex items-center gap-1">
                                   <RatingStars
-                                    rating={app.ratingAverage}
+                                    rating={app.ratingAverage || 0}
+                                    ratingCount={app.ratingCount || 0}
                                     size={14}
                                   />
                                   <span className="text-xs text-muted-foreground">

@@ -83,7 +83,12 @@ export default function PremiumCard({
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex items-center gap-1">
-                  <RatingStars rating={ratingAverage} size={14} showNumber />
+                  <RatingStars 
+                    rating={ratingAverage} 
+                    ratingCount={ratingCount} 
+                    size={14} 
+                    showNumber 
+                  />
                   {ratingCount > 0 && (
                     <span className="text-xs text-muted-foreground ml-1">
                       ({ratingCount})
