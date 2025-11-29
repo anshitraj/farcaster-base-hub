@@ -10,6 +10,8 @@ import { trackPageView } from "@/lib/analytics";
 import { Trophy, Medal, Award, CheckCircle2 } from "lucide-react";
 import VerifiedBadge from "@/components/VerifiedBadge";
 
+export const dynamic = 'force-dynamic';
+
 export default function DevelopersPage() {
   const [developers, setDevelopers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

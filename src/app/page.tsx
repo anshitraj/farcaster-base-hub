@@ -14,6 +14,8 @@ import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
 import ComingSoonPremiumSection from "@/components/ComingSoonPremiumSection";
 
+export const dynamic = 'force-dynamic';
+
 // All app categories with icons (including game genres)
 const appCategories = [
   // Trending at first position

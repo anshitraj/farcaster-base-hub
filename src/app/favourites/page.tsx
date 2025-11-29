@@ -9,6 +9,8 @@ import AppHeader from "@/components/AppHeader";
 import FavoriteButton from "@/components/FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
 
+export const dynamic = 'force-dynamic';
+
 export default function FavouritesPage() {
   const [favouriteApps, setFavouriteApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

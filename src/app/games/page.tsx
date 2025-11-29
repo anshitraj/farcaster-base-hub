@@ -7,6 +7,8 @@ import { Star, Gamepad2 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
 
+export const dynamic = 'force-dynamic';
+
 export default function GamesPage() {
   const [games, setGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

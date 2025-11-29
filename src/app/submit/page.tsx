@@ -4,6 +4,8 @@ import SubmitForm from "@/components/SubmitForm";
 import AppHeader from "@/components/AppHeader";
 import { Sparkles } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default function SubmitPage() {
   return (
     <div className="min-h-screen bg-[#0B0F19] pb-24">

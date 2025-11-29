@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Pagination from "@/components/Pagination";
@@ -13,10 +13,12 @@ import FavoriteButton from "@/components/FavoriteButton";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { shortenDescription } from "@/lib/description-utils";
 
+export const dynamic = 'force-dynamic';
+
 const ITEMS_PER_PAGE = 20;
 const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities"];
 
-export default function AppsPage() {
+function AppsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(searchParams.get("category") || null);
@@ -315,5 +317,26 @@ export default function AppsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AppsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0D0F1A] pb-24">
+        <AppHeader />
+        <div className="pt-8 pb-8">
+          <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
+            <div className="space-y-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <AppsPageContent />
+    </Suspense>
   );
 }

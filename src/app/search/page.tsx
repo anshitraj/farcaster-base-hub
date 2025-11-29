@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -30,7 +30,9 @@ const appCategories = [
   { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
 ];
 
-export default function SearchPage() {
+export const dynamic = 'force-dynamic';
+
+function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -295,6 +297,27 @@ export default function SearchPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen bg-black">
+        <div className="flex-1 min-h-screen w-full pb-20 lg:pb-0">
+          <AppHeader />
+          <div className="px-4 md:px-6 lg:px-8 py-6">
+            <div className="space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }
 
