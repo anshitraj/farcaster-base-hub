@@ -62,6 +62,8 @@ function calculateRankScore(app: any, events: any[]): number {
   return score;
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -138,6 +140,11 @@ export async function GET() {
       ranks, // Map of appId -> rank for quick lookups
     });
   } catch (error: any) {
+    // Gracefully handle database connection errors during build
+    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+      console.error("Get ranked apps error:", error.message);
+      return NextResponse.json({ apps: [], ranks: {} }, { status: 200 });
+    }
     console.error("Get ranked apps error:", error);
     return NextResponse.json({ apps: [], ranks: {} }, { status: 200 });
   }

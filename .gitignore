@@ -32,6 +32,7 @@ public/uploads/*
 # Next.js build output
 .next/
 out/
+.vercel
 
 # Environment variables
 .env

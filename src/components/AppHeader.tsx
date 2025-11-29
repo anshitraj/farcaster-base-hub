@@ -8,7 +8,7 @@ import { Bell, Search, Plus, Menu } from "lucide-react";
 import UserProfile from "@/components/UserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 
@@ -16,7 +16,7 @@ interface AppHeaderProps {
   onMenuClick?: () => void;
 }
 
-export default function AppHeader({ onMenuClick }: AppHeaderProps) {
+function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
@@ -26,8 +26,12 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   
   // Initialize search query from URL
   useEffect(() => {
-    const urlSearch = searchParams.get("search") || "";
-    setSearchQuery(urlSearch);
+    try {
+      const urlSearch = searchParams?.get("search") || "";
+      setSearchQuery(urlSearch);
+    } catch (error) {
+      // Ignore errors during SSR
+    }
   }, [searchParams]);
 
   // Fetch unread notification count
@@ -57,23 +61,28 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
 
   // Handle real-time search - update URL when debounced value changes
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    
-    if (debouncedSearch.trim()) {
-      params.set("search", debouncedSearch.trim());
-      params.delete("page"); // Reset to page 1 on new search
-    } else {
-      params.delete("search");
-    }
-    
-    const newUrl = `/apps?${params.toString()}`;
-    
-    // Only update URL if we're on apps page or home page
-    if (pathname === "/apps") {
-      router.replace(newUrl, { scroll: false });
-    } else if (pathname === "/" && debouncedSearch.trim()) {
-      // If on home page and user types, navigate to apps page
-      router.push(newUrl);
+    try {
+      if (!searchParams) return;
+      const params = new URLSearchParams(searchParams.toString());
+      
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+        params.delete("page"); // Reset to page 1 on new search
+      } else {
+        params.delete("search");
+      }
+      
+      const newUrl = `/apps?${params.toString()}`;
+      
+      // Only update URL if we're on apps page or home page
+      if (pathname === "/apps") {
+        router.replace(newUrl, { scroll: false });
+      } else if (pathname === "/" && debouncedSearch.trim()) {
+        // If on home page and user types, navigate to apps page
+        router.push(newUrl);
+      }
+    } catch (error) {
+      // Ignore errors during SSR
     }
   }, [debouncedSearch, pathname, router, searchParams]);
 
@@ -188,6 +197,33 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
         onClose={() => setNotificationSidebarOpen(false)}
       />
     </>
+  );
+}
+
+export default function AppHeader({ onMenuClick }: AppHeaderProps) {
+  return (
+    <Suspense fallback={
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
+        <div className="px-6 py-5 flex items-center justify-between gap-4">
+          <Link href="/" className="flex-shrink-0">
+            <Image
+              src="/logo.png"
+              alt="Mini App Store"
+              width={300}
+              height={100}
+              className="h-20 md:h-24 w-auto"
+              priority
+            />
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-32 bg-gray-800 rounded animate-pulse" />
+            <div className="h-10 w-10 bg-gray-800 rounded animate-pulse" />
+          </div>
+        </div>
+      </header>
+    }>
+      <AppHeaderContent onMenuClick={onMenuClick} />
+    </Suspense>
   );
 }
 

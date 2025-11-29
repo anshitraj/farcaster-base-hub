@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Fetch premium apps from different categories
@@ -133,6 +135,19 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error: any) {
+    // Gracefully handle database connection errors during build
+    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+      console.error("Get premium apps error:", error.message);
+      return NextResponse.json(
+        {
+          premiumApps: [],
+          gamesPlaying: [],
+          getStarted: [],
+          onSale: [],
+        },
+        { status: 200 }
+      );
+    }
     console.error("Get premium apps error:", error);
     return NextResponse.json(
       {

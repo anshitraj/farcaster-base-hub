@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   // Extract params first so they're available in catch block
   const searchParams = request.nextUrl.searchParams;
@@ -209,6 +211,16 @@ export async function GET(request: NextRequest) {
       offset,
     });
   } catch (error: any) {
+    // Gracefully handle database connection errors during build
+    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+      console.error("Get apps error:", error.message);
+      return NextResponse.json({
+        apps: [],
+        total: 0,
+        limit,
+        offset,
+      }, { status: 200 });
+    }
     console.error("Get apps error:", error);
     // Return empty array instead of error to prevent UI breakage
     return NextResponse.json({

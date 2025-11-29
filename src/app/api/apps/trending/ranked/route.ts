@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Get trending apps ranked by:
  * 1. Number of reviews (ratingCount)
@@ -77,8 +79,13 @@ export async function GET() {
 
     return NextResponse.json({ apps: result });
   } catch (error: any) {
+    // Gracefully handle database connection errors during build
+    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+      console.error("Get ranked trending apps error:", error.message);
+      return NextResponse.json({ apps: [] }, { status: 200 });
+    }
     console.error("Get ranked trending apps error:", error);
-    return NextResponse.json({ apps: [] });
+    return NextResponse.json({ apps: [] }, { status: 200 });
   }
 }
 
