@@ -111,12 +111,19 @@ export async function GET(
     });
   } catch (error: any) {
     // Handle database connection errors gracefully
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.code === 'P1001' || 
+        error?.message?.includes("Can't reach database") ||
+        error?.message?.includes("P1001") ||
+        error?.message?.includes("connection") ||
+        !process.env.DATABASE_URL) {
       console.error("Database connection error:", error.message);
+      console.error("DATABASE_URL present:", !!process.env.DATABASE_URL);
       return NextResponse.json(
         { 
           error: "Database unavailable",
-          message: "Please check your database connection. Your Supabase project may be paused."
+          message: process.env.DATABASE_URL 
+            ? "Database connection failed. Check if Supabase project is paused or DATABASE_URL is correct."
+            : "DATABASE_URL environment variable is not set. Please configure it in Vercel."
         },
         { status: 503 }
       );
@@ -124,7 +131,7 @@ export async function GET(
     
     console.error("Get developer error:", error);
     return NextResponse.json(
-      { error: "Failed to fetch developer" },
+      { error: "Failed to fetch developer", message: error.message },
       { status: 500 }
     );
   }
