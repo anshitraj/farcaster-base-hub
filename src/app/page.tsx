@@ -5,26 +5,26 @@ import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
 import { motion } from "framer-motion";
-import { ChevronRight, Zap, Users, Puzzle, Grid3x3, CheckSquare, MessageSquare, Music, GraduationCap, Gift, TrendingUp, Coins, Newspaper, DollarSign, Wrench } from "lucide-react";
+import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import TopBanner from "@/components/TopBanner";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
+import ComingSoonPremiumSection from "@/components/ComingSoonPremiumSection";
 
 // All app categories with icons (including game genres)
 const appCategories = [
+  // Trending at first position
+  { name: "Trending", icon: Flame, color: "from-orange-500 to-red-600", href: "/apps?sort=trending" },
   // Game genres
   { name: "Action", icon: Zap, color: "from-red-500 to-red-600", href: "/apps?category=Games&tag=action" },
   { name: "Puzzle", icon: Puzzle, color: "from-blue-500 to-blue-600", href: "/apps?category=Games&tag=puzzle" },
   // App categories
-  { name: "News", icon: Newspaper, color: "from-purple-500 to-purple-600", href: "/apps?category=Social&tag=news" },
-  { name: "Social", icon: Users, color: "from-red-500 to-red-600", href: "/apps?category=Social" },
-  { name: "Productivity", icon: CheckSquare, color: "from-blue-500 to-blue-600", href: "/apps?category=Tools&tag=productivity" },
+  { name: "New Apps", icon: Sparkles, color: "from-blue-500 to-cyan-600", href: "/apps?sort=newest" },
+  { name: "Premium Apps", icon: Crown, color: "from-yellow-500 to-amber-600", href: "/apps?premium=true" },
   { name: "Communication", icon: MessageSquare, color: "from-green-500 to-green-600", href: "/apps?category=Social&tag=communication" },
-  { name: "Music & Audio", icon: Music, color: "from-yellow-500 to-yellow-600", href: "/apps?category=Social&tag=music" },
-  { name: "Education", icon: GraduationCap, color: "from-indigo-500 to-indigo-600", href: "/apps?category=Tools&tag=education" },
   { name: "Airdrop", icon: Gift, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Airdrops" },
   { name: "Prediction", icon: TrendingUp, color: "from-orange-500 to-orange-600", href: "/apps?category=Finance&tag=prediction" },
   { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
@@ -256,12 +256,66 @@ export default function HomePage() {
               />
               <CategoryHighlightCard
                 title="Utility"
-                featuredApp="Tools"
+                featuredApp="Artyug"
                 ctaLabel="Open"
                 gradientFrom="from-slate-500"
                 gradientTo="to-gray-600"
-                href="/apps?category=Tools"
+                href="/apps?category=Utilities"
                 backgroundImage="/category-bg/utility-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Tools"
+                featuredApp="Tools"
+                ctaLabel="Open"
+                gradientFrom="from-cyan-500"
+                gradientTo="to-blue-600"
+                href="/apps?category=Tools"
+                backgroundImage="/category-bg/productivity-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="DeFi"
+                featuredApp="DeFi"
+                ctaLabel="Open"
+                gradientFrom="from-yellow-500"
+                gradientTo="to-orange-600"
+                href="/apps?category=Finance&tag=defi"
+                backgroundImage="/category-bg/finance-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Education"
+                featuredApp="Education"
+                ctaLabel="Open"
+                gradientFrom="from-indigo-500"
+                gradientTo="to-purple-600"
+                href="/apps?category=Education"
+                backgroundImage="/category-bg/productivity-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Entertainment"
+                featuredApp="Entertainment"
+                ctaLabel="Open"
+                gradientFrom="from-pink-500"
+                gradientTo="to-rose-600"
+                href="/apps?category=Entertainment"
+                backgroundImage="/category-bg/productivity-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="News"
+                featuredApp="News"
+                ctaLabel="Open"
+                gradientFrom="from-purple-500"
+                gradientTo="to-violet-600"
+                href="/apps?category=News"
+                backgroundImage="/category-bg/productivity-bg.jpg"
+              />
+              <CategoryHighlightCard
+                title="Art"
+                featuredApp="Art"
+                ctaLabel="Open"
+                gradientFrom="from-orange-500"
+                gradientTo="to-amber-600"
+                href="/apps?category=Art"
+                backgroundImage="/category-bg/productivity-bg.jpg"
               />
             </div>
           </motion.section>
@@ -282,15 +336,13 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
               {appCategories.map((category, index) => {
                 // Map category names to background patterns
-                const patternMap: Record<string, "action" | "puzzle" | "entertainment" | "social" | "productivity" | "communication" | "music" | "education"> = {
+                const patternMap: Record<string, "action" | "puzzle" | "entertainment" | "social" | "communication"> = {
+                  "Trending": "action",
                   "Action": "action",
                   "Puzzle": "puzzle",
-                  "News": "entertainment",
-                  "Social": "social",
-                  "Productivity": "productivity",
+                  "New Apps": "entertainment",
+                  "Premium Apps": "action",
                   "Communication": "communication",
-                  "Music & Audio": "music",
-                  "Education": "education",
                   "Airdrop": "action",
                   "Prediction": "entertainment",
                   "Crowdfunding": "social",
@@ -308,6 +360,30 @@ export default function HomePage() {
                 );
               })}
             </div>
+          </motion.section>
+
+          {/* Paid Developer Apps - Coming Soon Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.4 }}
+            className="mb-16 mt-10"
+          >
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-8 w-1 bg-gradient-to-b from-purple-500 to-blue-600 rounded-full"></div>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">Paid Developer Apps</h2>
+                  <div className="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-purple-600/20 text-purple-300 border border-purple-500/40">
+                    Launching Soon
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground ml-4">
+                Premium developer tools and advanced features coming soon
+              </p>
+            </div>
+            <ComingSoonPremiumSection />
           </motion.section>
         </div>
       </main>

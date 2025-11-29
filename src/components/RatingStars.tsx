@@ -19,13 +19,24 @@ export default function RatingStars({
   showNumber = false,
   className = "",
 }: RatingStarsProps) {
-  // If no ratings, show "Not rated yet" or "Unrated"
+  // If no ratings, show 5 empty stars
   if (ratingCount === 0 || rating === 0) {
     return (
       <div className={`flex items-center gap-1 ${className}`}>
-        <span className="text-xs text-muted-foreground">
-          Not rated yet
-        </span>
+        <div className="flex items-center">
+          {Array.from({ length: maxRating }).map((_, i) => (
+            <Star
+              key={`empty-${i}`}
+              className="text-muted-foreground fill-muted-foreground/20"
+              size={size}
+            />
+          ))}
+        </div>
+        {showNumber && (
+          <span className="text-sm text-muted-foreground ml-1">
+            0/{maxRating}
+          </span>
+        )}
       </div>
     );
   }
@@ -67,7 +78,7 @@ export default function RatingStars({
       </div>
       {showNumber && (
         <span className="text-sm text-muted-foreground ml-1">
-          {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}
+          {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}/{maxRating}
         </span>
       )}
     </div>

@@ -11,7 +11,7 @@ import GlowButton from "./GlowButton";
 import { Shield, CheckCircle2, XCircle, Wallet, Globe, ExternalLink, X, Tag, Image as ImageIcon, Upload } from "lucide-react";
 import VerifiedBadge from "./VerifiedBadge";
 
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art"];
 
 const developerTags = [
   "Team of 1",
@@ -96,18 +96,25 @@ const SubmitForm = () => {
         if (res.ok) {
           const data = await res.json();
           if (data.metadata) {
+            // Extract screenshots from metadata
+            const metadataScreenshots = data.metadata.screenshotUrls || data.metadata.screenshots || [];
+            
             setFormData((prev) => ({
               ...prev,
               name: prev.name || data.metadata.name || "",
               description: prev.description || data.metadata.description || "",
-              iconUrl: prev.iconUrl || data.metadata.icon || "",
+              iconUrl: prev.iconUrl || data.metadata.icon || data.metadata.iconUrl || "",
               headerImageUrl: prev.headerImageUrl || data.metadata.ogImage || "",
               category: prev.category || data.metadata.category || "",
               url: data.metadata.url || url,
+              // Auto-populate screenshots if they exist in metadata and form is empty
+              screenshots: prev.screenshots.length === 0 && Array.isArray(metadataScreenshots) && metadataScreenshots.length > 0
+                ? metadataScreenshots
+                : prev.screenshots,
             }));
             toast({
               title: "Metadata Loaded",
-              description: "Auto-filled from farcaster.json",
+              description: `Auto-filled from farcaster.json${metadataScreenshots.length > 0 ? ` (${metadataScreenshots.length} screenshot${metadataScreenshots.length > 1 ? 's' : ''} found)` : ''}`,
             });
           }
         }

@@ -130,21 +130,42 @@ export default function UserProfile() {
         avatar = await fetchBaseAvatar(wallet, name);
       }
 
-      // Check if user is admin and get developer profile
+      // Check if user is admin using the admin check API
+      try {
+        const adminRes = await fetch(`/api/admin/check`, {
+          credentials: "include",
+        });
+        if (adminRes.ok) {
+          const adminData = await adminRes.json();
+          // hasAccess returns true for both ADMIN and MODERATOR
+          isAdmin = adminData.hasAccess === true || adminData.isAdmin === true || adminData.isModerator === true;
+        }
+      } catch (e) {
+        // Ignore errors checking admin status
+      }
+
+      // Get developer profile for name and avatar
       try {
         const devRes = await fetch(`/api/developers/${wallet}`, {
           credentials: "include",
         });
         if (devRes.ok) {
           const devData = await devRes.json();
-          isAdmin = devData.developer?.isAdmin || false;
+          // Also check adminRole field as fallback (ADMIN or MODERATOR)
+          if (!isAdmin && devData.developer?.adminRole) {
+            isAdmin = devData.developer.adminRole === "ADMIN" || devData.developer.adminRole === "MODERATOR";
+          }
           // Use developer name if available
           if (devData.developer?.name) {
             name = devData.developer.name;
           }
+          // Use developer avatar if available
+          if (devData.developer?.avatar && !avatar) {
+            avatar = devData.developer.avatar;
+          }
         }
       } catch (e) {
-        // Ignore errors checking admin status
+        // Ignore errors checking developer profile
       }
 
       // Also try to get from profile API

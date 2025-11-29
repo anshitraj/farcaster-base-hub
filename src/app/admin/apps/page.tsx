@@ -29,12 +29,16 @@ export default function AdminAppsPage() {
   const [userRole, setUserRole] = useState<"ADMIN" | "MODERATOR" | null>(null);
   const [showAutoImportDialog, setShowAutoImportDialog] = useState(false);
   const [autoImportUrl, setAutoImportUrl] = useState("");
-  const [autoImportWallet, setAutoImportWallet] = useState("");
   const [importing, setImporting] = useState(false);
   const [showJsonImportDialog, setShowJsonImportDialog] = useState(false);
   const [jsonUrl, setJsonUrl] = useState("");
   const [jsonWallet, setJsonWallet] = useState("");
   const [importingJson, setImportingJson] = useState(false);
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
+  const [bulkJsonUrl, setBulkJsonUrl] = useState("");
+  const [bulkDefaultWallet, setBulkDefaultWallet] = useState("0x0CF70E448ac98689e326bd79075a96CcBcec1665");
+  const [importingBulk, setImportingBulk] = useState(false);
+  const [syncingMiniapps, setSyncingMiniapps] = useState(false);
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [uploadingHeader, setUploadingHeader] = useState(false);
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
@@ -87,6 +91,64 @@ export default function AdminAppsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSyncMiniapps() {
+    setSyncingMiniapps(true);
+    try {
+      // Use the new sync-featured endpoint that uses free search API (not paid catalog)
+      const res = await fetch("/api/admin/miniapps/sync-featured", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to sync mini-apps");
+      }
+
+      // Check if sync was successful but found 0 apps
+      if (data.synced === 0) {
+        const errorDetails: string[] = [];
+        if (data.searchErrors && data.searchErrors.length > 0) {        
+          errorDetails.push(`Search errors: ${data.searchErrors.join(", ")}`);
+        }
+        if (data.details?.suggestion) {
+          errorDetails.push(data.details.suggestion);
+        }
+        
+        toast({
+          title: "Sync Completed - No Apps Found",
+          description: data.message || `No apps found. ${errorDetails.length > 0 ? errorDetails.join(". ") : "Check console logs for details."}`,
+          variant: data.success === false ? "destructive" : "default",
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: "Sync Complete!",
+          description: `Synced ${data.synced} apps from Neynar search (${data.created} new, ${data.updated} updated)`,
+        });
+      }
+
+      // Refresh apps list
+      await fetchApps();
+    } catch (error: any) {
+      console.error("Error syncing mini-apps:", error);
+      const errorMessage = error.message || "Failed to sync mini-apps from Neynar";
+      const isPaymentRequired = errorMessage.includes("Payment Required") || errorMessage.includes("paid plan");
+      
+      toast({
+        title: "Sync Failed",
+        description: isPaymentRequired 
+          ? "Neynar API requires a paid plan for catalog access. Use Auto Import or add apps manually instead."
+          : errorMessage,
+        variant: "destructive",
+        duration: isPaymentRequired ? 8000 : 5000, // Show longer for payment required
+      });
+    } finally {
+      setSyncingMiniapps(false);
     }
   }
 
@@ -341,6 +403,34 @@ export default function AdminAppsPage() {
                   >
                     <Upload className="w-4 h-4" />
                     Import from .json URL
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10"
+                    onClick={() => setShowBulkImportDialog(true)}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Bulk Import (CSV JSON)
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="gap-2 bg-gradient-to-r from-purple-500 to-base-blue hover:from-purple-600 hover:to-base-blue/90"
+                    onClick={handleSyncMiniapps}
+                    disabled={syncingMiniapps}
+                  >
+                    {syncingMiniapps ? (
+                      <>
+                        <Zap className="w-4 h-4 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4" />
+                        Sync Featured Mini Apps
+                      </>
+                    )}
                   </Button>
                 </>
               )}
@@ -863,7 +953,7 @@ export default function AdminAppsPage() {
                   Auto Import from Farcaster.json
                 </DialogTitle>
                 <DialogDescription>
-                  Enter the app URL and developer wallet. We'll automatically fetch metadata from /.well-known/farcaster.json
+                  Enter the app URL. We'll automatically fetch metadata from /.well-known/farcaster.json including name, icon, description, and all app details.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -877,17 +967,9 @@ export default function AdminAppsPage() {
                     onChange={(e) => setAutoImportUrl(e.target.value)}
                     className="glass-card"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="import-wallet">Developer Wallet *</Label>
-                  <Input
-                    id="import-wallet"
-                    type="text"
-                    placeholder="0x..."
-                    value={autoImportWallet}
-                    onChange={(e) => setAutoImportWallet(e.target.value)}
-                    className="glass-card font-mono"
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    We'll automatically fetch farcaster.json and extract all metadata including the app icon.
+                  </p>
                 </div>
               </div>
               <DialogFooter>
@@ -896,7 +978,6 @@ export default function AdminAppsPage() {
                   onClick={() => {
                     setShowAutoImportDialog(false);
                     setAutoImportUrl("");
-                    setAutoImportWallet("");
                   }}
                   disabled={importing}
                 >
@@ -904,10 +985,22 @@ export default function AdminAppsPage() {
                 </Button>
                 <Button
                   onClick={async () => {
-                    if (!autoImportUrl || !autoImportWallet) {
+                    if (!autoImportUrl) {
                       toast({
                         title: "Error",
-                        description: "Please fill in all fields",
+                        description: "Please enter an app URL",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    // Validate URL format
+                    try {
+                      new URL(autoImportUrl);
+                    } catch {
+                      toast({
+                        title: "Error",
+                        description: "Please enter a valid URL",
                         variant: "destructive",
                       });
                       return;
@@ -921,24 +1014,22 @@ export default function AdminAppsPage() {
                         credentials: "include",
                         body: JSON.stringify({
                           url: autoImportUrl,
-                          developerWallet: autoImportWallet,
                         }),
                       });
 
                       const data = await res.json();
 
                       if (!res.ok) {
-                        throw new Error(data.error || "Failed to import app");
+                        throw new Error(data.error || data.message || "Failed to import app");
                       }
 
                       toast({
                         title: "Success",
-                        description: "App imported successfully from farcaster.json",
+                        description: `App "${data.app?.name || 'App'}" imported successfully from farcaster.json`,
                       });
 
                       setShowAutoImportDialog(false);
                       setAutoImportUrl("");
-                      setAutoImportWallet("");
                       fetchApps();
                     } catch (error: any) {
                       toast({
@@ -950,7 +1041,7 @@ export default function AdminAppsPage() {
                       setImporting(false);
                     }
                   }}
-                  disabled={importing || !autoImportUrl || !autoImportWallet}
+                  disabled={importing || !autoImportUrl}
                   className="bg-base-blue hover:bg-base-blue/90"
                 >
                   {importing ? "Importing..." : "Import App"}
@@ -1075,6 +1166,127 @@ export default function AdminAppsPage() {
                   className="bg-purple-500 hover:bg-purple-600"
                 >
                   {importingJson ? "Importing..." : "Import App"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Bulk CSV-Style JSON Import Dialog */}
+          <Dialog open={showBulkImportDialog} onOpenChange={setShowBulkImportDialog}>
+            <DialogContent className="glass-card border-white/10 max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-cyan-400" />
+                  Bulk Import from CSV-Style JSON
+                </DialogTitle>
+                <DialogDescription>
+                  Import multiple apps from a CSV-style JSON array (matches export format). Use this for the seed file at <code className="text-xs bg-white/10 px-1 rounded">/seed/miniapps-seed.json</code>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-json-url">JSON URL *</Label>
+                  <Input
+                    id="bulk-json-url"
+                    type="url"
+                    placeholder="http://localhost:3000/seed/miniapps-seed.json"
+                    value={bulkJsonUrl}
+                    onChange={(e) => setBulkJsonUrl(e.target.value)}
+                    className="glass-card"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL to CSV-style JSON array (e.g., <code className="text-xs">/seed/miniapps-seed.json</code>)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bulk-default-wallet">Default Developer Wallet (Optional)</Label>
+                  <Input
+                    id="bulk-default-wallet"
+                    type="text"
+                    placeholder="0x0CF70E448ac98689e326bd79075a96CcBcec1665"
+                    value={bulkDefaultWallet}
+                    onChange={(e) => setBulkDefaultWallet(e.target.value)}
+                    className="glass-card font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used for apps without a Developer Wallet. Defaults to system wallet if empty.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowBulkImportDialog(false);
+                    setBulkJsonUrl("");
+                    setBulkDefaultWallet("0x0CF70E448ac98689e326bd79075a96CcBcec1665");
+                  }}
+                  disabled={importingBulk}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!bulkJsonUrl) {
+                      toast({
+                        title: "Error",
+                        description: "Please provide a JSON URL",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    setImportingBulk(true);
+                    try {
+                      const res = await fetch("/api/admin/apps/import-csv-json", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                          jsonUrl: bulkJsonUrl,
+                          defaultDeveloperWallet: bulkDefaultWallet || undefined,
+                        }),
+                      });
+
+                      const data = await res.json();
+
+                      if (!res.ok) {
+                        throw new Error(data.error || data.message || "Failed to import apps");
+                      }
+
+                      toast({
+                        title: "Success",
+                        description: `Imported ${data.total || 0} apps (${data.created || 0} created, ${data.updated || 0} updated)`,
+                        duration: 5000,
+                      });
+
+                      if (data.errors && data.errors.length > 0) {
+                        console.warn("Import errors:", data.errors);
+                        toast({
+                          title: "Some errors occurred",
+                          description: `${data.errors.length} apps had errors. Check console for details.`,
+                          variant: "destructive",
+                          duration: 8000,
+                        });
+                      }
+
+                      setShowBulkImportDialog(false);
+                      setBulkJsonUrl("");
+                      fetchApps();
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: error.message || "Failed to import apps",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setImportingBulk(false);
+                    }
+                  }}
+                  disabled={importingBulk || !bulkJsonUrl}
+                  className="bg-cyan-500 hover:bg-cyan-600"
+                >
+                  {importingBulk ? "Importing..." : "Import Apps"}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -14,6 +14,9 @@ interface MiniAppListItemProps {
   description?: string;
   ratingAverage?: number;
   ratingCount?: number;
+  url?: string; // Main app URL
+  farcasterUrl?: string; // Farcaster mini app URL
+  baseMiniAppUrl?: string; // Base mini app URL
   onClick?: () => void;
 }
 
@@ -26,6 +29,9 @@ export function MiniAppListItem({
   description,
   ratingAverage = 0,
   ratingCount = 0,
+  url,
+  farcasterUrl,
+  baseMiniAppUrl,
   onClick,
 }: MiniAppListItemProps) {
   const hasRating = ratingCount > 0 && ratingAverage > 0;

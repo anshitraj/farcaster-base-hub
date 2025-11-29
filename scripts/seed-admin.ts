@@ -1,4 +1,11 @@
 import { PrismaClient } from "@prisma/client";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load environment variables from .env.local (takes precedence) or .env
+// This ensures DATABASE_URL and other env vars are available
+config({ path: resolve(process.cwd(), ".env.local") });
+config({ path: resolve(process.cwd(), ".env") });
 
 const prisma = new PrismaClient();
 

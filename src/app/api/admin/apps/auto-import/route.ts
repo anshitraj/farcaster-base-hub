@@ -6,7 +6,6 @@ import { z } from "zod";
 
 const importSchema = z.object({
   url: z.string().url("URL must be valid"),
-  developerWallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid wallet address"),
 });
 
 export async function POST(request: NextRequest) {
@@ -34,23 +33,33 @@ export async function POST(request: NextRequest) {
       owners: metadata.owners || metadata.owner || DEFAULT_OWNER_ADDRESS,
     };
 
+    // Extract developer wallet from metadata or use default system wallet
+    const developerWallet = Array.isArray(metadata.owner) 
+      ? metadata.owner[0] 
+      : (typeof metadata.owner === 'string' ? metadata.owner : DEFAULT_OWNER_ADDRESS);
+
     // Find or create developer
     let developer = await prisma.developer.findUnique({
-      where: { wallet: validated.developerWallet.toLowerCase() },
+      where: { wallet: developerWallet.toLowerCase() },
     });
 
     if (!developer) {
       developer = await prisma.developer.create({
         data: {
-          wallet: validated.developerWallet.toLowerCase(),
-          name: metadata.developer?.name || null,
+          wallet: developerWallet.toLowerCase(),
+          name: metadata.developer?.name || "Unknown",
+          verified: true, // Auto-imported apps get verified developer
         },
       });
     }
 
-    // Check if app already exists
+    // Extract homeUrl (frame homeUrl or fallback to provided URL)
+    const normalizedUrl = validated.url.replace(/\/$/, "");
+    const homeUrl = metadata.homeUrl || metadata.url || normalizedUrl;
+
+    // Check if app already exists (by homeUrl)
     const existingApp = await prisma.miniApp.findUnique({
-      where: { url: validated.url },
+      where: { url: homeUrl },
     });
 
     if (existingApp) {
@@ -60,35 +69,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Try to fetch icon.png from /.well-known/ if icon is not in JSON
-    let iconUrl = metadata.icon;
+    // Get iconUrl from metadata (already processed by fetchFarcasterMetadata)
+    // It handles relative paths and converts them to absolute
+    let iconUrl = metadata.iconUrl || metadata.icon;
+    
+    // Final fallback if still no icon
     if (!iconUrl) {
-      try {
-        const normalizedUrl = validated.url.replace(/\/$/, "");
-        const iconPngUrl = `${normalizedUrl}/.well-known/icon.png`;
-        const iconResponse = await fetch(iconPngUrl, {
-          method: "HEAD", // Just check if it exists
-          signal: AbortSignal.timeout(5000),
-        });
-        if (iconResponse.ok) {
-          iconUrl = iconPngUrl;
-        }
-      } catch (e) {
-        // Icon.png doesn't exist, will use placeholder
-        console.log("icon.png not found at /.well-known/icon.png");
-      }
+      iconUrl = "https://via.placeholder.com/512?text=App+Icon";
     }
+
+    // Extract other fields from metadata
+    const appName = metadata.name || "Untitled App";
+    const description = metadata.description || metadata.subtitle || "";
+    const category = metadata.category || metadata.primaryCategory || "Utilities";
+    const tags = metadata.tags || [];
+    const screenshots = metadata.screenshotUrls || metadata.screenshots || [];
+    const headerImageUrl = metadata.ogImage || null;
+    
+    // Don't use webhook URL for baseMiniAppUrl - use the original URL instead
+    // The frameUrl is typically a webhook endpoint, not the app URL
+    const frameUrl = metadata.frameUrl || null;
+    const isWebhookUrl = frameUrl?.includes('/fc-webhook') || 
+                        frameUrl?.includes('/webhook') ||
+                        frameUrl?.includes('/frame');
+    
+    // Only set baseMiniAppUrl if it's not a webhook URL, otherwise use null
+    // The app.url (homeUrl) will be used as the Base app URL
+    const baseMiniAppUrl = (frameUrl && !isWebhookUrl) ? frameUrl : null;
 
     // Create app
     const app = await prisma.miniApp.create({
       data: {
-        name: metadata.name || "Untitled App",
-        description: metadata.description || "", // Allow empty description - can be edited later
-        url: validated.url,
-        iconUrl: iconUrl || "https://via.placeholder.com/512?text=App+Icon",
-        category: metadata.category || "Utilities",
-        developerTags: [], // Can be extracted from metadata if available
-        screenshots: metadata.screenshots || [],
+        name: appName,
+        description: description || `${appName} - A Farcaster mini app`,
+        url: homeUrl, // This is the original URL - use for Base
+        iconUrl: iconUrl,
+        headerImageUrl: headerImageUrl,
+        category: category,
+        tags: Array.isArray(tags) ? tags.slice(0, 10) : [], // Limit to 10 tags
+        developerTags: [],
+        screenshots: Array.isArray(screenshots) ? screenshots.slice(0, 5) : [], // Limit to 5 screenshots
+        baseMiniAppUrl: baseMiniAppUrl, // Only set if not a webhook URL
+        farcasterUrl: normalizedUrl, // Store the original input URL for Farcaster
         farcasterJson: JSON.stringify(metadataWithOwner),
         autoUpdated: true,
         status: "approved", // Auto-imported apps are auto-approved

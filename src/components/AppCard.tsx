@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Star, Users, ExternalLink } from "lucide-react";
@@ -32,6 +33,9 @@ interface AppCardProps {
   autoUpdated?: boolean;
   rank?: number; // Overall app rank
   variant?: "horizontal" | "grid" | "featured";
+  url?: string; // Main app URL
+  farcasterUrl?: string; // Farcaster mini app URL
+  baseMiniAppUrl?: string; // Base mini app URL
 }
 
 const AppCard = ({
@@ -50,20 +54,32 @@ const AppCard = ({
   autoUpdated = false,
   rank,
   variant = "horizontal",
+  url,
+  farcasterUrl,
+  baseMiniAppUrl,
 }: AppCardProps) => {
+  const router = useRouter();
+
   if (!id) {
     return null;
   }
 
+  const handleCardClick = () => {
+    router.push(`/apps/${id}`);
+  };
+
   // Mobile horizontal card (default)
   if (variant === "horizontal") {
     return (
-      <Link href={`/apps/${id}`} className="block min-w-[280px]">
+      <div className="block min-w-[280px]">
         <motion.div
           whileTap={{ scale: 0.98 }}
           transition={{ duration: 0.2 }}
         >
-          <Card className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))]">
+          <Card 
+            className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))] cursor-pointer"
+            onClick={handleCardClick}
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 {/* Icon */}
@@ -127,29 +143,35 @@ const AppCard = ({
                 </div>
 
                 {/* Open Button */}
-                <div className="flex-shrink-0">
-                  <div className="bg-base-blue/20 hover:bg-base-blue/30 text-base-blue px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1 transition-all hover:glow-base-blue border border-base-blue/30">
+                <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Link
+                    href={`/apps/${id}`}
+                    className="bg-base-blue/20 hover:bg-base-blue/30 text-base-blue px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1 transition-all hover:glow-base-blue border border-base-blue/30"
+                  >
                     <ExternalLink className="w-3 h-3" />
                     Open
-                  </div>
+                  </Link>
                 </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
-      </Link>
+      </div>
     );
   }
 
   // Featured card (larger)
   if (variant === "featured") {
     return (
-      <Link href={`/apps/${id}`} className="block">
+      <div className="block">
         <motion.div
           whileTap={{ scale: 0.98 }}
           transition={{ duration: 0.2 }}
         >
-          <Card className="card-surface hover-glow transition-all duration-300 overflow-hidden border-base-blue/30">
+          <Card 
+            className="card-surface hover-glow transition-all duration-300 overflow-hidden border-base-blue/30 cursor-pointer"
+            onClick={handleCardClick}
+          >
             <CardContent className="p-0">
               <div className="relative">
                 {/* Hero Image/Icon Section */}
@@ -231,29 +253,35 @@ const AppCard = ({
                         </span>
                       )}
                     </div>
-                    <div className="bg-base-blue hover:bg-base-blue/90 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0">
+                    <Link
+                      href={`/apps/${id}`}
+                      className="bg-base-blue hover:bg-base-blue/90 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-colors flex-shrink-0"
+                    >
                       <ExternalLink className="w-4 h-4" />
                       Open
-                    </div>
+                    </Link>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
-      </Link>
+      </div>
     );
   }
 
   // Grid card (desktop)
   return (
-    <Link href={`/apps/${id}`} className="block">
+    <div className="block">
       <motion.div
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         transition={{ duration: 0.2 }}
       >
-          <Card className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))]">
+          <Card 
+            className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))] cursor-pointer"
+            onClick={handleCardClick}
+          >
           <CardContent className="p-4">
             <div className="flex flex-col items-center text-center mb-4">
               {iconUrl && (
@@ -288,7 +316,7 @@ const AppCard = ({
           </CardContent>
         </Card>
       </motion.div>
-    </Link>
+    </div>
   );
 };
 

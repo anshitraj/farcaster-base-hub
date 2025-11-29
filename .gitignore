@@ -28,3 +28,28 @@ dist-ssr
 # Uploaded files
 public/uploads/*
 !public/uploads/.gitkeep
+
+# Next.js build output
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env*.local
+!.env.example
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env*.local
+
+# Build artifacts
+*.log
+.DS_Store

@@ -39,6 +39,7 @@ const collapsibleSections: CollapsibleSection[] = [
       { href: "/apps?category=Social", label: "Social" },
       { href: "/apps?category=Finance", label: "Finance" },
       { href: "/apps?category=DeFi", label: "DeFi" },
+      { href: "#", label: "Paid Developer Apps (Soon)" },
     ],
   },
   {
@@ -325,6 +326,18 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                           {section.items.map((item) => {
                             const itemPath = item.href.split("?")[0];
                             const isActive = pathname === itemPath || pathname?.startsWith(itemPath);
+                            const isComingSoon = item.href === "#";
+                            
+                            if (isComingSoon) {
+                              return (
+                                <div
+                                  key={item.href}
+                                  className="block px-4 py-2 rounded-lg text-sm opacity-60 cursor-not-allowed text-[#666]"
+                                >
+                                  {item.label}
+                                </div>
+                              );
+                            }
                             
                             return (
                               <Link

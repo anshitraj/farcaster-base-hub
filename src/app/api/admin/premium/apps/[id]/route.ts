@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentWallet } from "@/lib/auth";
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return NextResponse.json(
+    { error: "Method not allowed" },
+    { status: 405 }
+  );
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

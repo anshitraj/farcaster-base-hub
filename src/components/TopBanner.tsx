@@ -22,6 +22,9 @@ interface TopBannerProps {
     ratingAverage?: number;
     ratingCount?: number;
     installs?: number;
+    url?: string; // Main app URL
+    farcasterUrl?: string; // Farcaster mini app URL
+    baseMiniAppUrl?: string; // Base mini app URL
   }[];
 }
 
@@ -58,6 +61,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
     setCurrentIndex(index);
     setIsAutoPlaying(false);
   };
+
 
   return (
     <div className="relative mb-8 group">

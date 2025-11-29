@@ -152,8 +152,17 @@ export default function AppDetailPage() {
     // Open app - use specific URL if available, otherwise generate deep link
     let url: string;
     if (type === "base") {
-      // Use baseMiniAppUrl if available, otherwise generate deep link from main URL
-      url = app.baseMiniAppUrl || getBaseDeepLink(app.url);
+      // For Base, use the original app URL (not webhook URL)
+      // Only use baseMiniAppUrl if it exists and is NOT a webhook URL
+      const isWebhookUrl = app.baseMiniAppUrl?.includes('/fc-webhook') || 
+                          app.baseMiniAppUrl?.includes('/webhook') ||
+                          app.baseMiniAppUrl?.includes('/frame');
+      if (app.baseMiniAppUrl && !isWebhookUrl) {
+        url = app.baseMiniAppUrl;
+      } else {
+        // Use original URL or generate deep link from main URL
+        url = app.url || getBaseDeepLink(app.url);
+      }
     } else {
       // Use farcasterUrl if available, otherwise generate deep link from main URL
       url = app.farcasterUrl || getFarcasterDeepLink(app.url);
@@ -305,6 +314,41 @@ export default function AppDetailPage() {
               </button>
             </div>
           </motion.div>
+
+          {/* Screenshots Section */}
+          {app.screenshots && app.screenshots.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.08 }}
+              className="mb-6"
+            >
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
+                {app.screenshots.map((screenshot: string, index: number) => (
+                  <div
+                    key={index}
+                    className="flex-shrink-0 relative group cursor-pointer snap-center"
+                    onClick={() => {
+                      // Open screenshot in lightbox or new tab
+                      window.open(screenshot, '_blank');
+                    }}
+                  >
+                    <div className="relative w-48 h-80 md:w-64 md:h-96 rounded-2xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-sm shadow-xl group-hover:border-white/40 transition-all group-hover:shadow-2xl">
+                      <Image
+                        src={screenshot}
+                        alt={`${app.name} screenshot ${index + 1}`}
+                        fill
+                        className="object-cover transition-transform group-hover:scale-105"
+                        sizes="(max-width: 768px) 192px, 256px"
+                        unoptimized
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* About Section */}
           <motion.div
