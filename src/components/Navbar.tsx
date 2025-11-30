@@ -12,7 +12,7 @@ const Navbar = () => {
       <div className="max-w-screen-md mx-auto container-padding h-14 md:h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group hover:opacity-80 transition-opacity">
           <Image
-            src="/logo.png"
+            src="/logo.webp"
             alt="Mini App Store"
             width={200}
             height={60}

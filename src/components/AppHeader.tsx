@@ -297,7 +297,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
               className="flex-shrink-0 hover:opacity-80 transition-opacity"
             >
               <Image
-                src="/logo.png"
+                src="/logo.webp"
                 alt="Mini App Store"
                 width={300}
                 height={100}
@@ -449,7 +449,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <Link href="/" className="flex-shrink-0">
               <Image
-                src="/logo.png"
+                src="/logo.webp"
                 alt="Mini App Store"
                 width={300}
                 height={100}

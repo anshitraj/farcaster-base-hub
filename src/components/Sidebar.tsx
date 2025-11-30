@@ -205,7 +205,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
               className="flex-shrink-0"
             >
               <Image
-                src="/logo.png"
+                src="/logo.webp"
                 alt="Mini App Store"
                 width={300}
                 height={100}
@@ -222,7 +222,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
               className="flex-shrink-0"
             >
               <Image
-                src="/logo.png"
+                src="/logo.webp"
                 alt="Mini App Store"
                 width={64}
                 height={64}
