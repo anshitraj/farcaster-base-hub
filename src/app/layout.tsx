@@ -8,6 +8,7 @@ import BottomNav from "@/components/BottomNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { MiniAppProvider } from "@/components/MiniAppProvider";
+import { WagmiProvider } from "@/components/WagmiProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -77,17 +78,19 @@ export default function RootLayout({
         )}
       </head>
       <body className={inter.className}>
-        <MiniAppProvider>
-          <ErrorBoundary>
-            <main className="min-h-screen pb-20 lg:pb-0">
-              {children}
-            </main>
-            <Footer />
-            {/* Mobile Bottom Navigation - Show on all pages */}
-            <BottomNav />
-            <Toaster />
-          </ErrorBoundary>
-        </MiniAppProvider>
+        <WagmiProvider>
+          <MiniAppProvider>
+            <ErrorBoundary>
+              <main className="min-h-screen pb-20 lg:pb-0">
+                {children}
+              </main>
+              <Footer />
+              {/* Mobile Bottom Navigation - Show on all pages */}
+              <BottomNav />
+              <Toaster />
+            </ErrorBoundary>
+          </MiniAppProvider>
+        </WagmiProvider>
       </body>
     </html>
   );

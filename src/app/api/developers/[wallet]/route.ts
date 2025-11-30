@@ -10,8 +10,11 @@ export async function GET(
   try {
     const wallet = params.wallet.toLowerCase();
 
-    // Validate wallet address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    // Validate wallet address format (allow Ethereum addresses or Farcaster format)
+    const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(wallet);
+    const isFarcasterWallet = /^farcaster:\d+$/.test(wallet);
+    
+    if (!isEthereumAddress && !isFarcasterWallet) {
       return NextResponse.json(
         { error: "Invalid wallet address format" },
         { status: 400 }

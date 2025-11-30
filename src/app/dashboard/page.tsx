@@ -90,7 +90,7 @@ function MonetizationToggle({ appId, enabled, onToggle }: { appId: string; enabl
   );
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -820,3 +820,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+export default DashboardPageContent;

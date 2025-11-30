@@ -12,9 +12,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { getInjectedProvider } from "@/lib/wallet";
-import { sdk } from "@farcaster/miniapp-sdk";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useSignMessage } from "wagmi";
 import { useMiniApp } from "@/components/MiniAppProvider";
+import { getCurrentUser, clearCurrentUser } from "@/lib/auth-helpers";
+import Link from "next/link";
 
 interface UserProfileData {
   wallet: string;
@@ -23,15 +25,22 @@ interface UserProfileData {
   isBaseWallet: boolean;
   isAdmin?: boolean;
   developerName?: string | null; // Developer profile name
+  fid?: number | null; // Farcaster ID
+  isFarcaster?: boolean; // Whether this is a Farcaster login
 }
 
 export default function UserProfile() {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const { user: miniAppUser, context: miniAppContext, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
+  
+  // Wagmi hooks
+  const { address, isConnected } = useAccount();
+  const { connect, connectors, isPending: isConnecting } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
 
   useEffect(() => {
     let mounted = true;
@@ -82,46 +91,15 @@ export default function UserProfile() {
       }
     };
     
-    // Listen for wallet changes (but only if user is logged in)
-    let handleAccountsChanged: (() => void) | null = null;
-    let handleChainChanged: (() => void) | null = null;
-    let provider: any = null;
-    
+    // Wagmi handles account/chain changes automatically, so we don't need manual listeners
     if (typeof window !== "undefined") {
       window.addEventListener("walletConnected", handleWalletConnected);
-      
-      provider = getInjectedProvider();
-      if (provider && profile) {
-        // Only listen to wallet changes if user is already connected
-        handleAccountsChanged = () => {
-          if (mounted && !isLoggingOut) {
-            checkAuth();
-          }
-        };
-        
-        handleChainChanged = () => {
-          if (mounted && !isLoggingOut) {
-            checkAuth();
-          }
-        };
-        
-        provider.on("accountsChanged", handleAccountsChanged);
-        provider.on("chainChanged", handleChainChanged);
-      }
     }
     
     return () => {
       mounted = false;
       if (typeof window !== "undefined") {
         window.removeEventListener("walletConnected", handleWalletConnected);
-      }
-      if (provider) {
-        if (handleAccountsChanged) {
-          provider.removeListener("accountsChanged", handleAccountsChanged);
-        }
-        if (handleChainChanged) {
-          provider.removeListener("chainChanged", handleChainChanged);
-        }
       }
     };
   }, [profile]);
@@ -134,13 +112,61 @@ export default function UserProfile() {
         const address = userCtx.address || userCtx.custodyAddress;
         if (address) {
           const normalizedWallet = address.toLowerCase().trim();
-          await fetchProfile(normalizedWallet, miniAppUser);
+          // Pass FID if available from MiniApp user
+          await fetchProfile(normalizedWallet, miniAppUser, miniAppUser.fid);
           setLoading(false);
           return;
         }
       }
 
-      // Otherwise, check wallet auth
+      // Check for Farcaster user from localStorage (FIP-11)
+      const fcUser = getCurrentUser();
+      if (fcUser && fcUser.fid) {
+        const farcasterWallet = `farcaster:${fcUser.fid}`;
+        await fetchProfile(farcasterWallet, {
+          username: fcUser.username,
+          displayName: fcUser.displayName,
+          pfpUrl: fcUser.pfpUrl,
+        }, fcUser.fid);
+        setLoading(false);
+        return;
+      }
+
+      // Check for Farcaster session (fid cookie) - fallback
+      try {
+        const fidRes = await fetch("/api/auth/farcaster/me", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (fidRes.ok) {
+          const farcasterData = await fidRes.json();
+          if (farcasterData.farcaster) {
+            const fid = farcasterData.farcaster.fid;
+            const farcasterWallet = `farcaster:${fid}`;
+            await fetchProfile(farcasterWallet, undefined, fid);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        // Continue to wallet check if Farcaster check fails
+      }
+
+      // Check Wagmi connection first (for Farcaster Mini App wallet or Base Account)
+      if (isConnected && address) {
+        const normalizedWallet = address.toLowerCase().trim();
+        // If we have MiniApp user info, pass it along with FID
+        const userInfo = miniAppUser ? {
+          username: miniAppUser.username,
+          displayName: miniAppUser.displayName,
+          pfpUrl: miniAppUser.pfpUrl,
+        } : undefined;
+        await fetchProfile(normalizedWallet, userInfo, miniAppUser?.fid);
+        setLoading(false);
+        return;
+      }
+
+      // Otherwise, check wallet auth from session
       const res = await fetch("/api/auth/wallet", { 
         method: "GET",
         credentials: "include", // Important: include cookies
@@ -151,7 +177,13 @@ export default function UserProfile() {
         if (data.wallet) {
           // Normalize wallet address (lowercase, no extra characters)
           const normalizedWallet = data.wallet.toLowerCase().trim();
-          await fetchProfile(normalizedWallet);
+          // Check if it's a Farcaster wallet format
+          const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+          if (fidMatch) {
+            await fetchProfile(normalizedWallet, undefined, parseInt(fidMatch[1]));
+          } else {
+            await fetchProfile(normalizedWallet);
+          }
         } else {
           setProfile(null);
         }
@@ -167,26 +199,54 @@ export default function UserProfile() {
     }
   }
 
-  async function fetchProfile(wallet: string, miniAppUser?: { username?: string; displayName?: string; pfpUrl?: string }) {
+  async function fetchProfile(wallet: string, miniAppUser?: { username?: string; displayName?: string; pfpUrl?: string }, fid?: number) {
       // Normalize wallet address to ensure consistency (declare outside try-catch)
     const normalizedWallet = wallet.toLowerCase().trim();
     
+    // Check if this is a Farcaster wallet
+    const isFarcaster = normalizedWallet.startsWith("farcaster:") || !!fid;
+    let extractedFid: number | null = null;
+    
+    if (isFarcaster) {
+      if (fid) {
+        extractedFid = fid;
+      } else {
+        const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+        if (fidMatch) {
+          extractedFid = parseInt(fidMatch[1]);
+        }
+      }
+    }
+    
     try {
-      const isBaseWallet = await checkIfBaseWallet(normalizedWallet);
+      const isBaseWallet = !isFarcaster && await checkIfBaseWallet(normalizedWallet);
       
       let name: string | null = null;
       let avatar: string | null = null;
       let isAdmin = false;
 
-      // Use Mini App user info if available (highest priority)
+      // Use Mini App user info if available (highest priority for avatar and name)
       if (miniAppUser) {
-        name = miniAppUser.displayName || miniAppUser.username || null;
         avatar = miniAppUser.pfpUrl || null;
+        // For Farcaster users, use displayName/username
+        // For Base users, we'll try to get .minicast name below
+        if (isFarcaster) {
+          name = miniAppUser.displayName || miniAppUser.username || name;
+        } else if (!name) {
+          // For Base, try MiniApp name but .minicast takes priority
+          name = miniAppUser.displayName || miniAppUser.username || null;
+        }
       }
 
-      if (isBaseWallet && !avatar) {
-        name = name || await resolveBaseName(wallet);
-        avatar = avatar || await fetchBaseAvatar(wallet, name);
+      // Always try to resolve .minicast name for Base wallets (even if MiniApp has a name)
+      if (isBaseWallet) {
+        const baseName = await resolveBaseName(wallet);
+        if (baseName) {
+          name = baseName; // .minicast name takes priority
+        }
+        if (!avatar) {
+          avatar = await fetchBaseAvatar(wallet, name);
+        }
       }
 
       // Get developer profile for name, avatar, and admin status
@@ -253,6 +313,8 @@ export default function UserProfile() {
         avatar,
         isBaseWallet,
         isAdmin,
+        fid: extractedFid,
+        isFarcaster: isFarcaster,
       });
     } catch (error) {
       console.error("Profile fetch error:", error);
@@ -262,36 +324,35 @@ export default function UserProfile() {
         avatar: null,
         isBaseWallet: false,
         isAdmin: false,
+        fid: extractedFid,
+        isFarcaster: isFarcaster,
       });
     }
   }
 
   async function checkIfBaseWallet(wallet: string): Promise<boolean> {
-    if (typeof window !== "undefined") {
-      try {
-        const provider = getInjectedProvider();
-        if (!provider) return false;
-        
-        if (provider.isBase || provider.isCoinbaseWallet || provider.isCoinbaseBrowser) {
-          return true;
-        }
-        
-        const chainId = await provider.request({
-          method: "eth_chainId",
-        });
-        if (chainId === "0x2105" || chainId === "0x14a34") {
-          return true;
-        }
-      } catch (e) {
-        console.error("Chain check error:", e);
-      }
-    }
-    return false;
+    // With Wagmi, we can check if we're on Base chain
+    // For now, we'll assume Base wallets are EVM addresses (not Farcaster format)
+    // In a Mini App context, Wagmi will handle chain detection
+    return !wallet.startsWith("farcaster:");
   }
 
   async function resolveBaseName(wallet: string): Promise<string | null> {
-    // Skip ENS resolution to avoid CORS errors - not critical for app functionality
-    // If needed, implement server-side proxy for ENS lookups
+    try {
+      // Use our API endpoint to resolve .minicast names
+      const res = await fetch(`/api/base/profile?wallet=${encodeURIComponent(wallet)}`, {
+        credentials: "include",
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name && data.name.endsWith('.minicast')) {
+          return data.name;
+        }
+      }
+    } catch (error) {
+      console.error("Error resolving base name:", error);
+    }
     return null;
   }
 
@@ -318,174 +379,100 @@ export default function UserProfile() {
   }
 
   const connectWallet = async () => {
-    if (connecting) return;
+    if (isConnecting) return;
 
     try {
-      setConnecting(true);
-      
-      // Check for Farcaster Mini App SDK first (Base App uses this)
-      const win = window as any;
-      let address: string = "";
-      let signature: string = "";
+      // In Base/Farcaster Mini Apps, wallet should auto-connect
+      // This is only for regular browsers
+      if (isInMiniApp) {
+        toast({
+          title: "Already Connected",
+          description: "Your wallet is automatically connected in Base/Farcaster App",
+        });
+        return;
+      }
+
+      // Use Wagmi to connect - baseAccount connector for regular browsers
+      if (connectors.length > 0) {
+        // Try baseAccount connector first (for regular browsers)
+        const connector = connectors.find(c => c.id === 'baseAccount') || connectors[0];
+        
+        // Connect using Wagmi (connection success will be handled by useEffect watching isConnected)
+        connect({ connector });
+      } else {
+        toast({
+          title: "No Wallet Available",
+          description: "Please open in Farcaster or Base App for automatic connection",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("Wallet connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: error.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const authenticateWallet = async (walletAddress: string) => {
+    try {
       const message = "Login to Mini App Store";
+      let signature = "";
 
-      // Try Farcaster Mini App SDK first
-      let useFarcasterSDK = false;
+      // Try to sign message if possible
       try {
-        const isMini = await sdk.isInMiniApp();
-        if (isMini) {
-          console.log("Detected Farcaster Mini App, checking for wallet provider");
-          // In Farcaster Mini App, use the standard provider from window
-          // The SDK doesn't provide getSigner, but window.ethereum should be available
-          const win = window as any;
-          if (win.ethereum || win.wallet) {
-            // Use the provider that's available in the Mini App context
-            const provider = win.ethereum || win.wallet;
-            try {
-              const accounts = await provider.request({
-                method: "eth_requestAccounts",
-              });
-              if (accounts && accounts.length > 0) {
-                address = accounts[0];
-                useFarcasterSDK = true;
-                console.log("Farcaster Mini App wallet obtained:", address);
-                
-                // Try to sign message (optional - some environments don't require it)
-                try {
-                  signature = await provider.request({
-                    method: "personal_sign",
-                    params: [message, address],
-                  });
-                  console.log("Message signed via Farcaster Mini App provider");
-                } catch (signError: any) {
-                  console.warn("Farcaster Mini App sign failed (non-critical):", signError.message);
-                  // Continue without signature - backend will accept it
-                  signature = "";
-                }
-              } else {
-                throw new Error("No account available in Farcaster Mini App");
-              }
-            } catch (providerError: any) {
-              console.log("Farcaster Mini App provider error, falling back:", providerError.message);
-              throw providerError;
-            }
-          } else {
-            throw new Error("No wallet provider in Farcaster Mini App");
-          }
-        } else {
-          throw new Error("Not in Mini App context");
-        }
-      } catch (fcError: any) {
-        console.log("Farcaster SDK not available, using standard provider:", fcError.message);
-        useFarcasterSDK = false;
+        signature = await signMessageAsync({ message });
+      } catch (signError: any) {
+        console.warn("Message signing failed (non-critical):", signError.message);
+        // Continue without signature - backend will accept it
       }
 
-      // Use standard Web3 provider if Farcaster SDK didn't work
-      if (!useFarcasterSDK) {
-        // Use standard Web3 provider
-        const provider = getInjectedProvider();
-
-        if (!provider) {
-          toast({
-            title: "No Wallet Found",
-            description: "Please install MetaMask or open in Base App",
-            variant: "destructive",
-          });
-          setConnecting(false);
-          return;
-        }
-
-        // Request accounts - this will trigger wallet popup
-        let accounts: string[];
-        try {
-          accounts = await provider.request({
-            method: "eth_requestAccounts",
-          });
-        } catch (requestError: any) {
-          if (requestError.code === 4001 || requestError.message?.includes("reject") || requestError.message?.includes("not authorized")) {
-            throw new Error("Wallet connection request was rejected");
-          }
-          throw new Error(requestError.message || "Failed to request accounts");
-        }
-
-        if (!accounts || accounts.length === 0) {
-          throw new Error("No account selected");
-        }
-
-        address = accounts[0];
-
-        // Request signature - try different parameter formats
-        try {
-          // Standard format for MetaMask: [message, address]
-          signature = await provider.request({
-            method: "personal_sign",
-            params: [message, address],
-          });
-        } catch (e: any) {
-          // If user rejected
-          if (e.code === 4001 || e.message?.includes("reject") || e.message?.includes("not authorized")) {
-            throw new Error("Signature request was rejected");
-          }
-          // Try alternative format [address, message] for some wallets
-          try {
-            signature = await provider.request({
-              method: "personal_sign",
-              params: [address, message],
-            });
-          } catch (e2: any) {
-            if (e2.code === 4001 || e2.message?.includes("reject") || e2.message?.includes("not authorized")) {
-              throw new Error("Signature request was rejected");
-            }
-            // For Base App, try without signature (some environments don't require it)
-            console.warn("Signature failed, attempting connection without signature:", e2.message);
-            signature = "";
-          }
-        }
-      }
-
-      // Call backend auth
       const res = await fetch("/api/auth/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({
-          wallet: address,
-          signature: signature || undefined,
-          message: signature ? message : undefined,
+          wallet: walletAddress,
+          signature,
+          message,
         }),
+        credentials: "include",
       });
 
       if (res.ok) {
-        const data = await res.json();
-        await fetchProfile(data.wallet || address);
-        
-        // Dispatch custom event to notify other components
-        window.dispatchEvent(new Event("walletConnected"));
-        
         toast({
           title: "Wallet Connected",
-          description: "Successfully connected your wallet",
+          description: `Connected as ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
         });
-        
-        // Refresh to update all components
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+        checkAuth(); // Re-fetch profile after successful connection
       } else {
-        const errorData = await res.json().catch(() => ({}));
+        const errorData = await res.json();
         throw new Error(errorData.error || "Authentication failed");
       }
     } catch (error: any) {
-      console.error("Connection error:", error);
+      console.error("Authentication error:", error);
       toast({
-        title: "Connection Failed",
-        description: error.message || "Failed to connect wallet. Please try again.",
+        title: "Authentication Failed",
+        description: error.message || "Failed to authenticate wallet",
         variant: "destructive",
       });
-    } finally {
-      setConnecting(false);
     }
   };
+
+  // Auto-authenticate when wallet connects via Wagmi (only if not already authenticated)
+  // In Base/Farcaster Mini Apps, this happens automatically on load via farcasterMiniApp/baseAccount
+  useEffect(() => {
+    if (isConnected && address && !profile && !loading) {
+      // Faster authentication in Mini Apps (auto-connects instantly)
+      const delay = isInMiniApp ? 300 : 500;
+      const timer = setTimeout(() => {
+        authenticateWallet(address);
+      }, delay);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, address, profile, loading, isInMiniApp]);
+
 
   const copyAddress = async () => {
     if (!profile) return;
@@ -508,61 +495,38 @@ export default function UserProfile() {
     }
   };
 
-  const disconnect = async () => {
+  const handleDisconnect = async () => {
     try {
-      // Set logout flag to prevent auto-reconnection
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("logoutInProgress", "true");
+      // Clear Farcaster user data
+      clearCurrentUser();
+      
+      // Disconnect Wagmi wallet
+      if (isConnected) {
+        disconnect();
       }
       
-      const res = await fetch("/api/auth/wallet", { 
-        method: "DELETE",
-        credentials: "include", // Important: include cookies
+      // Clear server-side session
+      const res = await fetch("/api/auth/logout", { 
+        method: "GET",
+        credentials: "include",
       });
       
       if (res.ok) {
-        // Clear profile state immediately
+        // Clear profile state
         setProfile(null);
-        
-        // Clear any local storage or session storage if used
-        if (typeof window !== "undefined") {
-          // Clear any wallet-related data
-          try {
-            localStorage.removeItem("walletAddress");
-            // Don't clear sessionStorage yet - we'll do it after reload
-          } catch (e) {
-            // Ignore storage errors
-          }
-        }
         
         toast({
           title: "Disconnected",
-          description: "Wallet disconnected successfully. You can now connect a different wallet.",
+          description: "Logged out successfully.",
         });
         
-        // Dispatch wallet disconnected event to notify other components
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("walletDisconnected"));
-        }
-        
-        // Small delay before reload to ensure cookies are cleared
-        setTimeout(() => {
-          if (typeof window !== "undefined") {
-            sessionStorage.removeItem("logoutInProgress");
-          }
-          window.location.reload();
-        }, 500);
+        // Reload to ensure all state is reset
+        window.location.reload();
       } else {
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem("logoutInProgress");
-        }
         throw new Error("Failed to logout");
       }
     } catch (error) {
       console.error("Disconnect error:", error);
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("logoutInProgress");
-      }
       toast({
         title: "Logout Failed",
         description: "Failed to disconnect. Please try again.",
@@ -577,43 +541,55 @@ export default function UserProfile() {
     );
   }
 
+  // In Base/Farcaster Mini Apps, don't show connect button - auto-connects
+  // Only show connect button in regular browsers
   if (!profile) {
+    // If in Mini App, show loading state (auto-connecting)
+    if (isInMiniApp) {
+      return (
+        <div className="w-9 h-9 rounded-full bg-muted animate-pulse" />
+      );
+    }
+
+    // Regular browser - show connect options
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            disabled={connecting}
+            disabled={isConnecting}
+            onClick={connectWallet}
             className="bg-base-blue hover:bg-base-blue/90 text-white shadow-lg shadow-base-blue/30 text-xs px-2 py-1 h-7"
             size="sm"
           >
             <Wallet className="w-3 h-3 mr-1" />
-            <span className="hidden sm:inline">{connecting ? "Connecting..." : "Connect"}</span>
-            <span className="sm:hidden">{connecting ? "..." : "Connect"}</span>
+            <span className="hidden sm:inline">{isConnecting ? "Connecting..." : "Connect"}</span>
+            <span className="sm:hidden">{isConnecting ? "..." : "Connect"}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="glass-card border-white/10 w-56">
+          {/* Farcaster login option - only show if not in Mini App */}
           <DropdownMenuItem asChild>
             <a
-              href="/api/auth/farcaster/login"
+              href="/login"
               className="cursor-pointer flex items-center gap-2 w-full"
             >
               <ExternalLink className="w-4 h-4 text-purple-400" />
               <div className="flex flex-col">
                 <span className="font-medium">Farcaster</span>
-                <span className="text-xs text-muted-foreground">Login with Farcaster</span>
+                <span className="text-xs text-muted-foreground">Sign In With Farcaster</span>
               </div>
             </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={connectWallet}
-            disabled={connecting}
+            disabled={isConnecting}
             className="cursor-pointer flex items-center gap-2"
           >
             <Wallet className="w-4 h-4 text-base-blue" />
             <div className="flex flex-col">
-              <span className="font-medium">Base Wallet</span>
-              <span className="text-xs text-muted-foreground">Connect MetaMask or other wallet</span>
+              <span className="font-medium">Connect Wallet</span>
+              <span className="text-xs text-muted-foreground">Connect Web3 wallet</span>
             </div>
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -621,8 +597,18 @@ export default function UserProfile() {
     );
   }
 
-  const displayName = profile.name || `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
-  const displayAddress = `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
+  // Display name priority: .minicast name > FID > display name > wallet address
+  const displayName = profile.name && profile.name.endsWith('.minicast') 
+    ? profile.name.replace('.minicast', '') // Remove .minicast suffix for display
+    : profile.isFarcaster && profile.fid
+    ? `FID: ${profile.fid}`
+    : profile.name || `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
+  
+  const displayAddress = profile.isFarcaster && profile.fid
+    ? `FID: ${profile.fid}`
+    : profile.name && profile.name.endsWith('.minicast')
+    ? profile.name
+    : `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
   
   const avatarUrl = profile.avatar || 
     (profile.isBaseWallet 
@@ -667,9 +653,24 @@ export default function UserProfile() {
               />
               <div className="flex-1 min-w-0">
                 {profile.name && (
-                  <p className="text-sm font-semibold truncate">{profile.name}</p>
+                  <p className="text-sm font-semibold truncate">
+                    {profile.name}
+                  </p>
                 )}
-                {profile.isBaseWallet && (
+                {!profile.name && (
+                  <p className="text-sm font-semibold truncate text-muted-foreground">
+                    {displayAddress}
+                  </p>
+                )}
+                {/* Show Base .minicast name if available */}
+                {profile.isBaseWallet && profile.name && profile.name.endsWith('.minicast') && (
+                  <p className="text-xs text-base-blue mt-0.5">{profile.name}</p>
+                )}
+                {/* Show FID for Farcaster users */}
+                {profile.isFarcaster && profile.fid && (
+                  <p className="text-xs text-purple-400 mt-0.5">FID: {profile.fid}</p>
+                )}
+                {profile.isBaseWallet && !profile.name?.endsWith('.minicast') && (
                   <p className="text-xs text-base-blue mt-0.5">Base Wallet</p>
                 )}
                 <p className="text-xs text-muted-foreground font-mono mt-1 truncate">
@@ -678,55 +679,74 @@ export default function UserProfile() {
               </div>
             </div>
           </div>
-              <DropdownMenuItem
-                onClick={copyAddress}
-                className="cursor-pointer"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4 mr-2 text-green-500" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy Address
-                  </>
-                )}
-              </DropdownMenuItem>
+          {/* First option: Name with .minicast or FID (if available) */}
+          {profile.name && profile.name.endsWith('.minicast') && (
+            <DropdownMenuItem className="cursor-default">
+              <User className="w-4 h-4 mr-2" />
+              <span className="font-medium">{profile.name}</span>
+            </DropdownMenuItem>
+          )}
+          {/* Show FID for Farcaster users */}
+          {profile.isFarcaster && profile.fid && (
+            <DropdownMenuItem className="cursor-default">
+              <User className="w-4 h-4 mr-2" />
+              <span className="font-medium">FID: {profile.fid}</span>
+            </DropdownMenuItem>
+          )}
+          {/* Second option: Copy Address */}
+          <DropdownMenuItem
+            onClick={copyAddress}
+            className="cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 mr-2 text-green-500" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Address
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {/* Logout */}
+          <DropdownMenuItem
+            onClick={handleDisconnect}
+            className="text-destructive focus:text-destructive cursor-pointer"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {/* Additional options */}
+          <DropdownMenuItem asChild>
+            <a href="/dashboard" className="cursor-pointer">
+              <User className="w-4 h-4 mr-2" />
+              Dashboard
+            </a>
+          </DropdownMenuItem>
+          {!profile.isAdmin && (
+            <DropdownMenuItem asChild>
+              <a href="/verify" className="cursor-pointer">
+                <Shield className="w-4 h-4 mr-2" />
+                {profile.isBaseWallet ? "Verify Developer" : "Verify Account"}
+              </a>
+            </DropdownMenuItem>
+          )}
+          {/* Admin Portal option */}
+          {profile.isAdmin && (
+            <>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <a href="/dashboard" className="cursor-pointer">
-                  <User className="w-4 h-4 mr-2" />
-                  Dashboard
+                <a href="/admin" className="cursor-pointer">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Admin Portal
                 </a>
               </DropdownMenuItem>
-              {!profile.isAdmin && (
-                <DropdownMenuItem asChild>
-                  <a href="/verify" className="cursor-pointer">
-                    <Shield className="w-4 h-4 mr-2" />
-                    {profile.isBaseWallet ? "Verify Developer" : "Verify Account"}
-                  </a>
-                </DropdownMenuItem>
-              )}
-              {profile.isAdmin && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <a href="/admin" className="cursor-pointer">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Admin Portal
-                    </a>
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuItem
-                onClick={disconnect}
-                className="text-destructive focus:text-destructive cursor-pointer"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

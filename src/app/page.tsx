@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
 import { motion } from "framer-motion";
-import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare, TrendingDown, Briefcase } from "lucide-react";
+import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare, TrendingDown, Briefcase, AlertTriangle, X } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import TopBanner from "@/components/TopBanner";
@@ -13,6 +14,7 @@ import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
 import { useMiniApp } from "@/components/MiniAppProvider";
+import { useToast } from "@/hooks/use-toast";
 
 // Lazy load heavy components
 const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremiumSection"));
@@ -36,7 +38,7 @@ const appCategories = [
   { name: "Tools", icon: Wrench, color: "from-cyan-500 to-blue-600", href: "/apps?category=Tools" },
 ];
 
-export default function HomePage() {
+function HomePageContent() {
   const [topApps, setTopApps] = useState<any[]>([]);
   const [trendingApps, setTrendingApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,10 @@ export default function HomePage() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
+  const [farcasterError, setFarcasterError] = useState<string | null>(null);
   const miniAppContext = useMiniApp();
   const { isInMiniApp, loaded: miniAppLoaded } = miniAppContext;
+  const searchParams = useSearchParams();
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed
@@ -70,6 +74,90 @@ export default function HomePage() {
   useEffect(() => {
     trackPageView("/");
   }, []);
+
+  // Check for Farcaster login errors in URL
+  useEffect(() => {
+    const error = searchParams?.get("error");
+    if (error) {
+      let errorMessage = "";
+      const hint = searchParams?.get("hint");
+      
+      if (error.includes("token_exchange")) {
+        errorMessage = "Farcaster login failed during token exchange.";
+        if (hint) {
+          errorMessage += ` ${hint}`;
+        }
+      } else if (error === "config") {
+        errorMessage = "Farcaster OAuth not configured. Check NEYNAR_CLIENT_ID and NEYNAR_CLIENT_SECRET.";
+      } else if (error === "no_code") {
+        errorMessage = "Farcaster login cancelled or no authorization code received.";
+      } else if (error === "no_token") {
+        errorMessage = "Failed to get access token from Farcaster.";
+      } else if (error === "user_fetch") {
+        errorMessage = "Failed to fetch user info from Farcaster.";
+      } else if (error === "no_user") {
+        errorMessage = "No user data received from Farcaster.";
+      } else if (error === "callback_error") {
+        errorMessage = "Error during Farcaster login callback.";
+      }
+      
+      if (errorMessage) {
+        setFarcasterError(errorMessage);
+        // Clear error from URL after 10 seconds
+        setTimeout(() => {
+          setFarcasterError(null);
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("error");
+            url.searchParams.delete("hint");
+            window.history.replaceState({}, "", url.toString());
+          }
+        }, 10000);
+      }
+    }
+  }, [searchParams]);
+
+  // Check for Farcaster login errors in URL
+  useEffect(() => {
+    const error = searchParams?.get("error");
+    if (error) {
+      let errorMessage = "";
+      const hint = searchParams?.get("hint");
+      
+      if (error.includes("token_exchange")) {
+        errorMessage = "Farcaster login failed during token exchange.";
+        if (hint) {
+          errorMessage += ` ${hint}`;
+        }
+      } else if (error === "config") {
+        errorMessage = "Farcaster OAuth not configured. Check NEYNAR_CLIENT_ID and NEYNAR_CLIENT_SECRET.";
+      } else if (error === "no_code") {
+        errorMessage = "Farcaster login cancelled or no authorization code received.";
+      } else if (error === "no_token") {
+        errorMessage = "Failed to get access token from Farcaster.";
+      } else if (error === "user_fetch") {
+        errorMessage = "Failed to fetch user info from Farcaster.";
+      } else if (error === "no_user") {
+        errorMessage = "No user data received from Farcaster.";
+      } else if (error === "callback_error") {
+        errorMessage = "Error during Farcaster login callback.";
+      }
+      
+      if (errorMessage) {
+        setFarcasterError(errorMessage);
+        // Clear error from URL after 10 seconds
+        setTimeout(() => {
+          setFarcasterError(null);
+          if (typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("error");
+            url.searchParams.delete("hint");
+            window.history.replaceState({}, "", url.toString());
+          }
+        }, 10000);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     // Wait for Mini App context to load before making API calls
@@ -133,6 +221,36 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-screen bg-black">
+      {/* Farcaster Error Banner */}
+      {farcasterError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-400 mb-1">Farcaster Login Error</p>
+              <p className="text-xs text-red-300/80">{farcasterError}</p>
+              <Link 
+                href="/api/auth/farcaster/check" 
+                target="_blank"
+                className="text-xs text-red-400 hover:text-red-300 underline mt-2 inline-block"
+              >
+                Check Configuration →
+              </Link>
+            </div>
+            <button
+              onClick={() => setFarcasterError(null)}
+              className="text-red-400 hover:text-red-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        </div>
+      )}
       {/* Sidebar */}
       <Sidebar 
         onCollapseChange={handleSidebarChange}
@@ -385,5 +503,19 @@ export default function HomePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen bg-black">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-base-blue"></div>
+        </div>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }

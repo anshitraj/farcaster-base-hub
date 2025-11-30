@@ -70,3 +70,44 @@ export async function getCurrentWallet(): Promise<string | null> {
   return session?.wallet || null;
 }
 
+/**
+ * Get Farcaster session data from cookies
+ */
+export async function getFarcasterSession() {
+  try {
+    const cookieStore = await cookies();
+    const fid = cookieStore.get("fid")?.value;
+    const sessionToken = cookieStore.get("sessionToken")?.value;
+    
+    if (!fid || !sessionToken) {
+      return null;
+    }
+
+    // Verify session is still valid
+    const session = await getSessionFromToken(sessionToken);
+    if (!session) {
+      return null;
+    }
+
+    // Get developer data
+    const developer = await prisma.developer.findFirst({
+      where: {
+        OR: [
+          { wallet: `farcaster:${fid}` },
+          { wallet: session.wallet },
+        ],
+      },
+    });
+
+    return {
+      fid: parseInt(fid),
+      sessionToken,
+      wallet: session.wallet,
+      developer,
+    };
+  } catch (error) {
+    console.error("Error getting Farcaster session:", error);
+    return null;
+  }
+}
+

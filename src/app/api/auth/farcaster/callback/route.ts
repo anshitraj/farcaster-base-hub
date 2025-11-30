@@ -59,7 +59,18 @@ export async function GET(request: NextRequest) {
         statusText: tokenResponse.statusText,
         error: errorText,
       });
-      return NextResponse.redirect(new URL(`/?error=token_exchange&status=${tokenResponse.status}`, request.url));
+      
+      // Provide helpful error messages based on status code
+      let errorMessage = `token_exchange&status=${tokenResponse.status}`;
+      if (tokenResponse.status === 400) {
+        errorMessage += "&hint=Check redirect_uri matches Neynar dashboard";
+      } else if (tokenResponse.status === 401) {
+        errorMessage += "&hint=Check NEYNAR_CLIENT_ID and NEYNAR_CLIENT_SECRET";
+      } else if (tokenResponse.status === 403) {
+        errorMessage += "&hint=Redirect URI not authorized in Neynar dashboard";
+      }
+      
+      return NextResponse.redirect(new URL(`/?error=${errorMessage}`, request.url));
     }
 
     const tokenData = await tokenResponse.json();

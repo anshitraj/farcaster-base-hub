@@ -27,6 +27,19 @@ export async function GET(request: NextRequest) {
 
     console.log("Redirecting to Farcaster OAuth:", authUrl.toString());
     console.log("Redirect URI:", redirectUri);
+    console.log("Base URL:", baseUrl);
+    console.log("Client ID configured:", !!clientId);
+    
+    // Log diagnostic info for debugging
+    if (process.env.NODE_ENV === "development") {
+      console.log("🔍 Farcaster OAuth Diagnostics:");
+      console.log("  - Client ID:", clientId ? "✅ Set" : "❌ Missing");
+      console.log("  - Base URL:", baseUrl);
+      console.log("  - Redirect URI:", redirectUri);
+      console.log("  - Full OAuth URL:", authUrl.toString());
+      console.log("  - ⚠️  Make sure this redirect URI is added in Neynar dashboard!");
+    }
+    
     return NextResponse.redirect(authUrl.toString());
   } catch (error: any) {
     console.error("Farcaster login error:", error);
