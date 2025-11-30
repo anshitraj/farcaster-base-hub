@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
-import MiniAppSDK from "@/components/MiniAppSDK";
+import { MiniAppProvider } from "@/components/MiniAppProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -77,16 +77,17 @@ export default function RootLayout({
         )}
       </head>
       <body className={inter.className}>
-        <MiniAppSDK />
-        <ErrorBoundary>
-          <main className="min-h-screen pb-20 lg:pb-0">
-            {children}
-          </main>
-          <Footer />
-          {/* Mobile Bottom Navigation - Show on all pages */}
-          <BottomNav />
-          <Toaster />
-        </ErrorBoundary>
+        <MiniAppProvider>
+          <ErrorBoundary>
+            <main className="min-h-screen pb-20 lg:pb-0">
+              {children}
+            </main>
+            <Footer />
+            {/* Mobile Bottom Navigation - Show on all pages */}
+            <BottomNav />
+            <Toaster />
+          </ErrorBoundary>
+        </MiniAppProvider>
       </body>
     </html>
   );

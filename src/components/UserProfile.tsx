@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getInjectedProvider } from "@/lib/wallet";
 import { sdk } from "@farcaster/miniapp-sdk";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 interface UserProfileData {
   wallet: string;
@@ -30,6 +31,7 @@ export default function UserProfile() {
   const [connecting, setConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { user: miniAppUser, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
 
   useEffect(() => {
     let mounted = true;
@@ -49,7 +51,26 @@ export default function UserProfile() {
     }
     
     async function initAuth() {
-      await checkAuth();
+      // Wait for Mini App to load if in Mini App context
+      if (isInMiniApp && !miniAppLoaded) {
+        // Wait for Mini App context to load (max 3 seconds)
+        let attempts = 0;
+        const maxAttempts = 30; // 3 seconds with 100ms intervals
+        const checkInterval = setInterval(() => {
+          attempts++;
+          if (miniAppLoaded || attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            if (mounted) {
+              checkAuth();
+            }
+          }
+        }, 100);
+        return () => clearInterval(checkInterval);
+      } else {
+        if (mounted) {
+          await checkAuth();
+        }
+      }
     }
     
     initAuth();
@@ -107,6 +128,15 @@ export default function UserProfile() {
 
   async function checkAuth() {
     try {
+      // If in Mini App and context is loaded, use Mini App user first
+      if (isInMiniApp && miniAppLoaded && miniAppUser?.address) {
+        const normalizedWallet = miniAppUser.address.toLowerCase().trim();
+        await fetchProfile(normalizedWallet, miniAppUser);
+        setLoading(false);
+        return;
+      }
+
+      // Otherwise, check wallet auth
       const res = await fetch("/api/auth/wallet", { 
         method: "GET",
         credentials: "include", // Important: include cookies
@@ -133,7 +163,7 @@ export default function UserProfile() {
     }
   }
 
-  async function fetchProfile(wallet: string) {
+  async function fetchProfile(wallet: string, miniAppUser?: { username?: string; displayName?: string; pfpUrl?: string }) {
       // Normalize wallet address to ensure consistency (declare outside try-catch)
     const normalizedWallet = wallet.toLowerCase().trim();
     
@@ -144,9 +174,15 @@ export default function UserProfile() {
       let avatar: string | null = null;
       let isAdmin = false;
 
-      if (isBaseWallet) {
-        name = await resolveBaseName(wallet);
-        avatar = await fetchBaseAvatar(wallet, name);
+      // Use Mini App user info if available (highest priority)
+      if (miniAppUser) {
+        name = miniAppUser.displayName || miniAppUser.username || null;
+        avatar = miniAppUser.pfpUrl || null;
+      }
+
+      if (isBaseWallet && !avatar) {
+        name = name || await resolveBaseName(wallet);
+        avatar = avatar || await fetchBaseAvatar(wallet, name);
       }
 
       // Get developer profile for name, avatar, and admin status

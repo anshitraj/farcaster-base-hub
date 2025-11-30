@@ -12,6 +12,7 @@ import TopBanner from "@/components/TopBanner";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 // Lazy load heavy components
 const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremiumSection"));
@@ -43,6 +44,7 @@ export default function HomePage() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
+  const { isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed
@@ -69,6 +71,11 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    // Wait for Mini App context to load before making API calls
+    if (isInMiniApp && !miniAppLoaded) {
+      return; // Don't fetch until Mini App context is ready
+    }
+
     async function fetchData() {
       try {
         const fetchWithErrorHandling = async (url: string, fallback: any = []) => {
@@ -121,7 +128,7 @@ export default function HomePage() {
     }
 
     fetchData();
-  }, []);
+  }, [isInMiniApp, miniAppLoaded]);
 
   return (
     <div className="flex min-h-screen bg-black">
