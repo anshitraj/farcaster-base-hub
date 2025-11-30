@@ -134,7 +134,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-14 sm:h-14 md:h-18 lg:h-22 w-auto"
+                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"
                 priority
               />
             </Link>
@@ -155,7 +155,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0">
             {/* List a Project Button */}
             <Link href="/submit">
               <motion.button
@@ -172,7 +172,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="md:hidden p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              className="md:hidden p-1.5 sm:p-2 hover:bg-gray-800 rounded-xl transition-all duration-300"
               onClick={() => router.push("/search")}
               aria-label="Search"
             >
@@ -182,19 +182,24 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             <motion.button 
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="relative p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              className="relative p-1.5 sm:p-2 hover:bg-gray-800 rounded-xl transition-all duration-300"
               onClick={() => setNotificationSidebarOpen(true)}
               aria-label="Notifications"
             >
               <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
               {unreadCount !== null && unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-white px-1 sm:px-1.5 border-2 border-black shadow-lg">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] sm:min-w-[18px] sm:h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-white px-0.5 sm:px-1.5 border-2 border-black shadow-lg">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </motion.button>
-            <GasPriceDisplay />
-            <PointsDisplay />
+            {/* Hide GasPriceDisplay and PointsDisplay on very small screens */}
+            <div className="hidden sm:block">
+              <GasPriceDisplay />
+            </div>
+            <div className="hidden sm:block">
+              <PointsDisplay />
+            </div>
             <UserProfile />
           </div>
         </div>
@@ -220,7 +225,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-12 sm:h-14 md:h-18 lg:h-22 w-auto"
+                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"
                 priority
               />
             </Link>
