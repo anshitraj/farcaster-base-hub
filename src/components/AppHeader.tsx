@@ -134,7 +134,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"
+                className="h-14 sm:h-12 md:h-14 lg:h-16 w-auto"
                 priority
               />
             </Link>
@@ -193,10 +193,9 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 </span>
               )}
             </motion.button>
-            {/* Hide GasPriceDisplay and PointsDisplay on very small screens */}
-            <div className="hidden sm:block">
-              <GasPriceDisplay />
-            </div>
+            {/* Gas Price Display - Always visible */}
+            <GasPriceDisplay />
+            {/* Hide PointsDisplay on very small screens */}
             <div className="hidden sm:block">
               <PointsDisplay />
             </div>

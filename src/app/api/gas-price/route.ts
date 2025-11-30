@@ -64,10 +64,52 @@ export async function GET() {
       );
     }
 
+    // Fetch ETH price in USD from CoinGecko
+    let ethPriceUSD = 0;
+    try {
+      // Create timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const ethPriceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd", {
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (ethPriceRes.ok) {
+        const ethPriceData = await ethPriceRes.json();
+        ethPriceUSD = ethPriceData.ethereum?.usd || 0;
+        console.log("ETH price fetched:", ethPriceUSD);
+      } else {
+        console.error("CoinGecko API error:", ethPriceRes.status, ethPriceRes.statusText);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.error("ETH price fetch timeout");
+      } else {
+        console.error("Error fetching ETH price:", error.message || error);
+      }
+      // Use a fallback ETH price if API fails (approximate current price)
+      ethPriceUSD = 3000; // Fallback to ~$3000 if API fails
+    }
+
+    // Calculate gas price in USD
+    // Formula: (gasPriceGwei / 1e9) * ethPriceUSD
+    // For a standard transaction (21000 gas), multiply by 21000
+    const gasPriceInETH = gasPriceGwei / 1e9;
+    const standardTxGas = 21000; // Standard ETH transfer uses ~21000 gas
+    const gasPriceUSD = gasPriceInETH * ethPriceUSD * standardTxGas;
+
     // Base mainnet often has very low gas prices (< 0.01 gwei)
     // Return the actual value even if it's very small
     return NextResponse.json({
       gasPriceGwei: gasPriceGwei, // Return actual value, don't round to 0
+      gasPriceUSD: gasPriceUSD, // Gas price in USD for a standard transaction
+      ethPriceUSD: ethPriceUSD,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

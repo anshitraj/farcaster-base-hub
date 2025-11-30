@@ -70,7 +70,7 @@ export function CategoryHighlightCard({
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ scale: 1.02, y: -2 }}
       transition={{ duration: 0.3 }}
-      className="relative h-[260px] w-full rounded-[24px] overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300"
+      className="relative h-[320px] md:h-[360px] w-full rounded-[24px] overflow-hidden cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300"
     >
       {/* Background Image or Gradient */}
       {backgroundImage ? (

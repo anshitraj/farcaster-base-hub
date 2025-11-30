@@ -469,24 +469,44 @@ export default function UserProfile() {
 
   if (!profile) {
     return (
-      <div className="flex items-center gap-2">
-        <a
-          href="/api/auth/farcaster/login"
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs font-medium transition-all"
-          title="Login with Farcaster"
-        >
-          Farcaster
-        </a>
-        <Button
-          onClick={connectWallet}
-          disabled={connecting}
-          className="bg-base-blue hover:bg-base-blue/90 text-white shadow-lg shadow-base-blue/30"
-          size="sm"
-        >
-          <Wallet className="w-4 h-4 mr-2" />
-          {connecting ? "Connecting..." : "Connect"}
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            disabled={connecting}
+            className="bg-base-blue hover:bg-base-blue/90 text-white shadow-lg shadow-base-blue/30"
+            size="sm"
+          >
+            <Wallet className="w-4 h-4 mr-2" />
+            {connecting ? "Connecting..." : "Connect"}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="glass-card border-white/10 w-56">
+          <DropdownMenuItem asChild>
+            <a
+              href="/api/auth/farcaster/login"
+              className="cursor-pointer flex items-center gap-2 w-full"
+            >
+              <ExternalLink className="w-4 h-4 text-purple-400" />
+              <div className="flex flex-col">
+                <span className="font-medium">Farcaster</span>
+                <span className="text-xs text-muted-foreground">Login with Farcaster</span>
+              </div>
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={connectWallet}
+            disabled={connecting}
+            className="cursor-pointer flex items-center gap-2"
+          >
+            <Wallet className="w-4 h-4 text-base-blue" />
+            <div className="flex flex-col">
+              <span className="font-medium">Base Wallet</span>
+              <span className="text-xs text-muted-foreground">Connect MetaMask or other wallet</span>
+            </div>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   }
 

@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import { Zap } from "lucide-react";
 
 export default function GasPriceDisplay() {
-  const [gasPrice, setGasPrice] = useState<number | null>(null);
+  const [gasPriceUSD, setGasPriceUSD] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchGasPrice() {
       try {
-        console.log("Fetching gas price from /api/gas-price");
         const res = await fetch("/api/gas-price", {
           credentials: "include",
           cache: "no-store",
@@ -20,29 +19,37 @@ export default function GasPriceDisplay() {
         
         if (res.ok) {
           const data = await res.json();
-          console.log("Gas price API response data:", data);
+          console.log("Gas price API data:", data);
           
-          // Accept any positive value, even if very small (< 0.01)
-          if (data.gasPriceGwei !== null && data.gasPriceGwei !== undefined && data.gasPriceGwei > 0) {
-            setGasPrice(data.gasPriceGwei);
-            console.log("Gas price set to:", data.gasPriceGwei);
+          // Use gasPriceUSD if available, otherwise calculate from gwei
+          if (data.gasPriceUSD !== null && data.gasPriceUSD !== undefined && data.gasPriceUSD > 0) {
+            console.log("Setting gas price USD:", data.gasPriceUSD);
+            setGasPriceUSD(data.gasPriceUSD);
+          } else if (data.gasPriceGwei !== null && data.gasPriceGwei !== undefined && data.gasPriceGwei > 0 && data.ethPriceUSD) {
+            // Fallback: calculate from gwei if USD not provided
+            const gasPriceInETH = data.gasPriceGwei / 1e9;
+            const standardTxGas = 21000;
+            const calculatedUSD = gasPriceInETH * data.ethPriceUSD * standardTxGas;
+            console.log("Calculated gas price USD:", calculatedUSD);
+            setGasPriceUSD(calculatedUSD);
           } else {
-            console.error("Gas price API returned invalid value:", data);
-            setGasPrice(null);
+            console.warn("No valid gas price data:", data);
+            setGasPriceUSD(null);
           }
         } else {
           const errorData = await res.json().catch(() => ({}));
           console.error("Gas price API error:", res.status, errorData);
-          setGasPrice(null);
+          setGasPriceUSD(null);
         }
       } catch (error: any) {
         console.error("Error fetching gas price:", error.message || error);
-        setGasPrice(null);
+        setGasPriceUSD(null);
       } finally {
         setLoading(false);
       }
     }
 
+    // Fetch immediately
     fetchGasPrice();
     
     // Refresh every 30 seconds
@@ -50,7 +57,16 @@ export default function GasPriceDisplay() {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading || gasPrice === null) {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800">
+        <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400 animate-pulse" />
+        <span className="text-[10px] md:text-xs text-gray-400">...</span>
+      </div>
+    );
+  }
+
+  if (gasPriceUSD === null) {
     return (
       <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800">
         <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400" />
@@ -59,14 +75,21 @@ export default function GasPriceDisplay() {
     );
   }
 
-  // Display format: if less than 0.01, show "<0.01", otherwise show with 2 decimals
-  const displayValue = gasPrice < 0.01 ? "<0.01" : gasPrice.toFixed(2);
+  // Display format: if less than $0.01, show "<$0.01", otherwise show with appropriate decimals
+  let displayValue: string;
+  if (gasPriceUSD < 0.01) {
+    displayValue = "<$0.01";
+  } else if (gasPriceUSD < 1) {
+    displayValue = `$${gasPriceUSD.toFixed(3)}`;
+  } else {
+    displayValue = `$${gasPriceUSD.toFixed(2)}`;
+  }
 
   return (
     <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800 hover:bg-gray-800/50 transition-colors">
       <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-base-blue" />
       <span className="text-[10px] md:text-xs font-semibold text-white">
-        {displayValue} gwei
+        {displayValue}
       </span>
     </div>
   );
