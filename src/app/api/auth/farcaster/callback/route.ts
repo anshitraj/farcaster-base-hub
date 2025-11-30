@@ -30,10 +30,18 @@ export async function GET(request: NextRequest) {
 
     // Exchange code for access token
     console.log("Exchanging code for token...");
+    console.log("Token exchange params:", {
+      client_id: clientId ? "Set" : "Missing",
+      client_secret: clientSecret ? "Set" : "Missing",
+      redirect_uri: redirectUri,
+      code: code ? "Present" : "Missing",
+    });
+
     const tokenResponse = await fetch("https://app.neynar.com/oauth/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json",
       },
       body: JSON.stringify({
         client_id: clientId,
@@ -46,11 +54,21 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error("Token exchange failed:", tokenResponse.status, errorText);
-      return NextResponse.redirect(new URL("/?error=token_exchange", request.url));
+      console.error("Token exchange failed:", {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorText,
+      });
+      return NextResponse.redirect(new URL(`/?error=token_exchange&status=${tokenResponse.status}`, request.url));
     }
 
     const tokenData = await tokenResponse.json();
+    console.log("Token exchange response:", { 
+      hasAccessToken: !!tokenData.access_token,
+      tokenType: tokenData.token_type,
+      expiresIn: tokenData.expires_in,
+    });
+    
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
@@ -59,11 +77,12 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("Fetching user info from Neynar...");
-    // Get user info from Neynar
+    // Get user info from Neynar - try different response structures
     const userResponse = await fetch("https://api.neynar.com/v2/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        "apikey": process.env.NEYNAR_API_KEY || "",
       },
     });
 
@@ -74,15 +93,29 @@ export async function GET(request: NextRequest) {
     }
 
     const userData = await userResponse.json();
-    const fc = userData.result?.user;
+    console.log("Neynar user data response:", JSON.stringify(userData, null, 2));
+    
+    // Handle different response structures
+    let fc = null;
+    if (userData.result?.user) {
+      fc = userData.result.user;
+    } else if (userData.user) {
+      fc = userData.user;
+    } else if (userData.data?.user) {
+      fc = userData.data.user;
+    } else if (userData.fid) {
+      // Direct user object
+      fc = userData;
+    }
 
-    if (!fc) {
+    if (!fc || !fc.fid) {
+      console.error("Invalid user data structure:", userData);
       return NextResponse.redirect(new URL("/?error=no_user", request.url));
     }
 
     const fid = fc.fid.toString();
-    const username = fc.username || `fid-${fid}`;
-    const pfpUrl = fc.pfp_url || null;
+    const username = fc.username || fc.display_name || `fid-${fid}`;
+    const pfpUrl = fc.pfp_url || fc.pfp?.url || null;
 
     // Create or update developer profile
     // Using a special prefix for Farcaster FIDs to distinguish from wallet addresses
@@ -101,17 +134,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Create session
+    // Create or update session (handle duplicates)
     const sessionToken = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await prisma.userSession.create({
-      data: {
-        wallet: farcasterWallet,
-        sessionToken,
-        expiresAt,
-      },
-    });
+    try {
+      // Delete any existing sessions for this wallet first
+      await prisma.userSession.deleteMany({
+        where: { wallet: farcasterWallet },
+      });
+      
+      await prisma.userSession.create({
+        data: {
+          wallet: farcasterWallet,
+          sessionToken,
+          expiresAt,
+        },
+      });
+    } catch (sessionError: any) {
+      console.error("Session creation error:", sessionError);
+      // Continue even if session creation fails - user can still be logged in via cookie
+    }
 
     // Set session cookie
     const cookieStore = await cookies();

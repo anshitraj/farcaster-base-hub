@@ -18,10 +18,16 @@ export async function GET(request: NextRequest) {
     const redirectUri = `${baseUrl}/api/auth/farcaster/callback`;
     const encodedRedirectUri = encodeURIComponent(redirectUri);
 
-    const authUrl = `https://app.neynar.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodedRedirectUri}&response_type=code&scope=openid`;
+    // Build OAuth URL with proper parameters
+    const authUrl = new URL("https://app.neynar.com/oauth/authorize");
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("scope", "openid");
 
-    console.log("Redirecting to Farcaster OAuth:", authUrl);
-    return NextResponse.redirect(authUrl);
+    console.log("Redirecting to Farcaster OAuth:", authUrl.toString());
+    console.log("Redirect URI:", redirectUri);
+    return NextResponse.redirect(authUrl.toString());
   } catch (error: any) {
     console.error("Farcaster login error:", error);
     return NextResponse.json(
