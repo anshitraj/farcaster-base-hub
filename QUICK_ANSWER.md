@@ -73,3 +73,5 @@ The `miniapps-seed.json` file has AI-generated placeholder apps you don't want. 
 **Current issue:** Database connection failed (probably paused)  
 **Solution:** Resume Supabase database → Apps will appear! 🚀
 
+
+

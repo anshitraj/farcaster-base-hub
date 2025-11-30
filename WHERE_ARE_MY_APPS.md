@@ -120,3 +120,5 @@ The `miniapps-seed.json` file contains AI-generated placeholder apps you don't w
 
 **Your apps are safe! Just need to reconnect to the database.** 🎉
 
+
+

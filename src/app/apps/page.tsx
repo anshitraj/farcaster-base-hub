@@ -11,12 +11,13 @@ import { trackPageView, trackEvent } from "@/lib/analytics";
 import { Star, X, CheckCircle2, Flame, Sparkles } from "lucide-react";
 import FavoriteButton from "@/components/FavoriteButton";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import RatingStars from "@/components/RatingStars";
 import { shortenDescription } from "@/lib/description-utils";
 
 export const dynamic = 'force-dynamic';
 
 const ITEMS_PER_PAGE = 20;
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity"];
 
 function AppsPageContent() {
   const searchParams = useSearchParams();
@@ -250,15 +251,15 @@ function AppsPageContent() {
 
                         {/* App Info */}
                         <div className="flex-1 min-w-0 relative">
-                          {/* Favorite Button - Top Right on Mobile, Inline on Desktop */}
-                          <div className="absolute top-0 right-0 md:relative md:top-auto md:right-auto z-10">
+                          {/* Favorite Button - Always Top Right */}
+                          <div className="absolute top-0 right-0 z-10">
                             <FavoriteButton 
                               appId={app.id} 
                               size="md" 
-                              className="flex-shrink-0 md:mt-1" 
+                              className="flex-shrink-0" 
                             />
                           </div>
-                          <div className="pr-10 md:pr-0">
+                          <div className="pr-10">
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex-1 min-w-0">
                                 <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
@@ -273,10 +274,12 @@ function AppsPageContent() {
                             {/* Rating and Action Button Row */}
                             <div className="flex items-center justify-between mt-3">
                               <div className="flex items-center gap-2">
-                                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                                <span className="text-sm font-semibold text-white">
-                                  {(rating % 1 === 0) ? rating.toString() : rating.toFixed(1)}
-                                </span>
+                                <RatingStars 
+                                  rating={rating} 
+                                  ratingCount={app.ratingCount || 0} 
+                                  size={14} 
+                                  showNumber 
+                                />
                               </div>
 
                               <Link

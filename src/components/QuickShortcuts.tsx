@@ -61,7 +61,7 @@ export default function QuickShortcuts({ onScrollToApps, onScrollToBadges }: Qui
 
   const shortcuts = [
     {
-      label: "Submit New App",
+      label: "List your mini app",
       icon: Smartphone,
       action: "submit",
       color: "from-base-blue to-base-cyan",

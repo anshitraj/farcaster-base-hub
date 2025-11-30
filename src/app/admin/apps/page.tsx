@@ -16,7 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { trackPageView } from "@/lib/analytics";
 
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity"];
 
 export default function AdminAppsPage() {
   const [apps, setApps] = useState<any[]>([]);

@@ -1,0 +1,30 @@
+{
+  "name": "Mini App Store",
+  "description": "Discover, submit, and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster & Base.",
+  "icon": "/logo.png",
+  "iconUrl": "/logo.png",
+  "url": "https://minicast.store",
+  "homeUrl": "https://minicast.store",
+  "category": "Social",
+  "primaryCategory": "Social",
+  "subtitle": "Discover Farcaster & Base Mini Apps",
+  "ogImage": "/logo.png",
+  "screenshots": [],
+  "screenshotUrls": [],
+  "tags": ["miniapp", "base", "farcaster", "web3", "dapp", "discovery"],
+  "developer": {
+    "name": "Mini App Store",
+    "url": "https://minicast.store"
+  },
+  "frame": {
+    "name": "Mini App Store",
+    "iconUrl": "/logo.png",
+    "description": "Discover, submit, and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster & Base.",
+    "subtitle": "Discover Farcaster & Base Mini Apps",
+    "homeUrl": "https://minicast.store",
+    "tags": ["miniapp", "base", "farcaster", "web3", "dapp", "discovery"],
+    "primaryCategory": "Social",
+    "screenshotUrls": []
+  }
+}
+

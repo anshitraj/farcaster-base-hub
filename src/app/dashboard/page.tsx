@@ -104,8 +104,6 @@ export default function DashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [trendingApps, setTrendingApps] = useState<any[]>([]);
-  const [loadingTrending, setLoadingTrending] = useState(true);
   const { toast } = useToast();
 
   // On desktop, sidebar should always be visible (isOpen = true)
@@ -132,26 +130,6 @@ export default function DashboardPage() {
     trackPageView("/dashboard");
   }, []);
 
-  // Fetch trending apps
-  useEffect(() => {
-    async function fetchTrendingApps() {
-      try {
-        setLoadingTrending(true);
-        const res = await fetch("/api/apps/trending/ranked", {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setTrendingApps(data.apps || []);
-        }
-      } catch (error) {
-        console.error("Error fetching trending apps:", error);
-      } finally {
-        setLoadingTrending(false);
-      }
-    }
-    fetchTrendingApps();
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -674,12 +652,12 @@ export default function DashboardPage() {
                   ) : (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground text-sm mb-4">
-                        No apps yet. Submit your first app to get started!
+                        No apps yet. List your first mini app to get started!
                       </p>
                       <Link href="/submit">
                         <GlowButton size="sm">
                           <Smartphone className="w-4 h-4 mr-2" />
-                          Submit New App
+                          List your mini app
                         </GlowButton>
                       </Link>
                     </div>
@@ -689,85 +667,6 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
 
-          {/* Trending Apps Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.12 }}
-            className="mt-6"
-          >
-            <Card className="card-surface">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-yellow-500" />
-                  Trending Apps
-                  <span className="text-sm text-muted-foreground font-normal ml-2">
-                    (Ranked by reviews, clicks & verified builders)
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {loadingTrending ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-20 bg-[#141A24] rounded-2xl animate-pulse"
-                      />
-                    ))}
-                  </div>
-                ) : trendingApps.length > 0 ? (
-                  <div className="space-y-3">
-                    {trendingApps.map((app, index) => (
-                      <div key={app.id} className="relative">
-                        {/* Rank Badge */}
-                        <div className="absolute -left-2 top-1/2 -translate-y-1/2 z-10">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 text-white font-bold text-sm shadow-lg border-2 border-[#0B0F19]">
-                            {app.rank}
-                          </div>
-                        </div>
-                        <div className="ml-6">
-                          <MiniAppListItem
-                            id={app.id}
-                            icon={app.iconUrl}
-                            name={app.name}
-                            category={app.category}
-                            tags={app.tags}
-                            description={app.description}
-                            ratingAverage={app.ratingAverage}
-                            ratingCount={app.ratingCount}
-                          />
-                          {/* Additional info row */}
-                          <div className="flex items-center gap-4 mt-2 ml-16 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Star className="w-3 h-3" />
-                              <span>{app.ratingCount || 0} reviews</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />
-                              <span>{app.clicks || 0} clicks</span>
-                            </div>
-                            {app.developer?.verified && (
-                              <div className="flex items-center gap-1">
-                                <VerifiedBadge type="developer" iconOnly size="sm" />
-                                <span className="text-green-400">Verified Builder</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground text-sm">
-                      No trending apps available
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
 
           {/* Badges Section */}
           {developerStatus?.developer?.badges && developerStatus.developer.badges.length > 0 && (
@@ -911,7 +810,7 @@ export default function DashboardPage() {
           <div className="mt-6 text-center">
             <Link href="/submit">
               <GlowButton size="lg" className="w-full md:w-auto">
-                Submit New App
+                List your mini app
               </GlowButton>
             </Link>
           </div>

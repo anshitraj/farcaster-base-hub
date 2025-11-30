@@ -60,8 +60,8 @@ export async function GET() {
       return b.score - a.score;
     });
 
-    // Return top 20 trending apps
-    const result = sorted.slice(0, 20).map(({ app }, index) => ({
+    // Return top 50 trending apps
+    const result = sorted.slice(0, 50).map(({ app }, index) => ({
       id: app.id,
       name: app.name,
       description: app.description,

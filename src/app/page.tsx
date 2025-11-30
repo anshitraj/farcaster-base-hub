@@ -5,7 +5,7 @@ import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
 import { motion } from "framer-motion";
-import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare } from "lucide-react";
+import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare, TrendingDown, Briefcase } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import TopBanner from "@/components/TopBanner";
@@ -19,7 +19,7 @@ const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremi
 // All app categories with icons (including game genres)
 const appCategories = [
   // Trending at first position
-  { name: "Trending", icon: Flame, color: "from-orange-500 to-red-600", href: "/apps?sort=trending" },
+  { name: "Trending", icon: Flame, color: "from-orange-500 to-red-600", href: "/apps/trending" },
   // Game genres
   { name: "Action", icon: Zap, color: "from-red-500 to-red-600", href: "/apps?category=Games&tag=action" },
   { name: "Puzzle", icon: Puzzle, color: "from-blue-500 to-blue-600", href: "/apps?category=Games&tag=puzzle" },
@@ -30,6 +30,8 @@ const appCategories = [
   { name: "Airdrop", icon: Gift, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Airdrops" },
   { name: "Prediction", icon: TrendingUp, color: "from-orange-500 to-orange-600", href: "/apps?category=Finance&tag=prediction" },
   { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
+  { name: "Memecoins", icon: DollarSign, color: "from-purple-500 to-pink-600", href: "/apps?category=Memecoins" },
+  { name: "Productivity", icon: Briefcase, color: "from-blue-500 to-indigo-600", href: "/apps?category=Productivity" },
 ];
 
 export default function HomePage() {
@@ -164,13 +166,13 @@ export default function HomePage() {
           >
             <div className="flex items-center justify-between mb-6">
               <Link
-                href="/apps?sort=trending"
+                href="/apps/trending"
                 className="text-2xl font-bold text-white hover:text-blue-400 transition-colors cursor-pointer"
               >
-                Trending
+                Hot Mini Apps
               </Link>
               <Link
-                href="/apps?sort=trending"
+                href="/apps/trending"
                 className="flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold transition-colors"
               >
                 See All
@@ -244,13 +246,13 @@ export default function HomePage() {
                 backgroundImage="/category-bg/social-bg.webp"
               />
               <CategoryHighlightCard
-                title="Productivity"
-                featuredApp="Notion"
+                title="Shopping"
+                featuredApp="Shopping"
                 ctaLabel="Open"
                 gradientFrom="from-blue-500"
                 gradientTo="to-indigo-600"
-                href="/apps?category=Tools&tag=productivity"
-                backgroundImage="/category-bg/productivity-bg.webp"
+                href="/apps?category=Tools&tag=shopping"
+                backgroundImage="/category-bg/shopping-bg.webp"
               />
               <CategoryHighlightCard
                 title="Finance"

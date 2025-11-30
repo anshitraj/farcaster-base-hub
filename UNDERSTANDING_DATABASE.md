@@ -119,3 +119,5 @@ SELECT name, url, status, "createdAt" FROM "MiniApp" ORDER BY "createdAt" DESC;
 
 **Your apps ARE in the database - we just need to make sure production can see them!** 🎯
 
+
+

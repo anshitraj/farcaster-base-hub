@@ -11,7 +11,7 @@ import GlowButton from "./GlowButton";
 import { Shield, CheckCircle2, XCircle, Wallet, Globe, ExternalLink, X, Tag, Image as ImageIcon, Upload } from "lucide-react";
 import VerifiedBadge from "./VerifiedBadge";
 
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity"];
 
 const developerTags = [
   "Team of 1",

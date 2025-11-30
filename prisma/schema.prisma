@@ -399,3 +399,23 @@ model Notification {
   @@index([createdAt])
   @@index([type])
 }
+
+// Advertisement System
+model Advertisement {
+  id          String   @id @default(uuid())
+  title       String?  // Optional title for the ad
+  imageUrl    String   // URL to the advertisement image
+  linkUrl     String?  // Optional link URL when ad is clicked
+  position    String   @default("sidebar") // "sidebar" | "header" | "footer" | etc.
+  isActive    Boolean  @default(true) // Whether the ad is currently active
+  order       Int      @default(0) // Display order (lower numbers first)
+  clickCount  Int      @default(0) // Track clicks
+  viewCount   Int      @default(0) // Track views
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  // Wallet address of admin who created it
+
+  @@index([isActive])
+  @@index([position])
+  @@index([order])
+}

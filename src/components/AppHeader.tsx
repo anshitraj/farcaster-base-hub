@@ -164,7 +164,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 className="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] transition-all duration-300"
               >
                 <Plus className="w-4 h-4" />
-                <span className="text-sm font-semibold">List a project</span>
+                <span className="text-sm font-semibold">List your mini app</span>
               </motion.button>
             </Link>
 

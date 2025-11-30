@@ -18,6 +18,7 @@ import {
   Award,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 const menuItems = [
   { href: "/", icon: Home, label: "Home" },
@@ -46,7 +47,7 @@ const collapsibleSections: CollapsibleSection[] = [
     label: "Trending now",
     icon: TrendingUp,
     items: [
-      { href: "/apps?sort=trending", label: "Trending Apps" },
+      { href: "/apps/trending", label: "Hot Mini Apps" },
       { href: "/apps?sort=installs", label: "Popular Apps" },
       { href: "/apps?sort=newest", label: "Newest Apps" },
     ],
@@ -56,7 +57,7 @@ const collapsibleSections: CollapsibleSection[] = [
     icon: Trophy,
     items: [
       { href: "/developers", label: "Top Developers" },
-      { href: "/apps?sort=rating", label: "Top Rated" },
+      { href: "/apps/trending", label: "Top Rated" },
     ],
   },
   {
@@ -81,9 +82,11 @@ interface SidebarProps {
 
 export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [advertisements, setAdvertisements] = useState<any[]>([]);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "Explore Web3": true, // Default to expanded
     "Trending now": true, // Default to expanded
@@ -99,6 +102,37 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Fetch advertisements
+  useEffect(() => {
+    async function fetchAdvertisements() {
+      try {
+        const res = await fetch("/api/advertisements?position=sidebar");
+        if (res.ok) {
+          const data = await res.json();
+          setAdvertisements(data.advertisements || []);
+        }
+      } catch (error) {
+        console.error("Error fetching advertisements:", error);
+      }
+    }
+    fetchAdvertisements();
+  }, []);
+
+  const handleAdClick = async (ad: any) => {
+    if (ad.linkUrl) {
+      // Track click
+      try {
+        await fetch(`/api/advertisements/${ad.id}/click`, {
+          method: "POST",
+        });
+      } catch (error) {
+        console.error("Error tracking click:", error);
+      }
+      // Open link in new tab
+      window.open(ad.linkUrl, "_blank", "noopener,noreferrer");
+    }
+  };
 
   const toggleCollapse = () => {
     const newCollapsed = !isCollapsed;
@@ -242,7 +276,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
         </div>
 
         {/* Menu Section */}
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="flex-1 overflow-y-auto py-4 pb-6">
           <div className="px-4 mb-4">
             {!isCollapsed && (
               <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-3">
@@ -363,20 +397,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
             })}
           </nav>
 
-          {/* Ad Banner Space */}
-          {!isCollapsed && (
-            <div className="px-4 mt-6 mb-4">
-              <div className="bg-gradient-to-br from-purple-600/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center">
-                <div className="text-xs font-semibold text-purple-300 mb-2">Advertisement</div>
-                <div className="h-32 bg-gray-800/50 rounded-xl flex items-center justify-center border border-gray-700">
-                  <span className="text-xs text-gray-500">Ad Space</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">Place your ads here</p>
-              </div>
-            </div>
-          )}
-
-          {/* Data Section */}
+          {/* Data Section - Moved before Advertisement */}
           {!isCollapsed && dataItems.length > 0 && (
             <>
               <div className="px-4 mt-6 mb-4">
@@ -384,7 +405,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                   MY DATA
                 </h3>
               </div>
-              <nav className="space-y-1 px-2">
+              <nav className="space-y-1 px-2 mb-6">
                 {dataItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href || pathname?.startsWith(item.href);
@@ -412,6 +433,48 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                 })}
               </nav>
             </>
+          )}
+
+          {/* Ad Banner Space - Moved to bottom */}
+          {!isCollapsed && (
+            <div className="px-4 mt-6 mb-4">
+              {advertisements.length > 0 ? (
+                advertisements.map((ad) => (
+                  <div
+                    key={ad.id}
+                    className="bg-gradient-to-br from-purple-600/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center mb-4 cursor-pointer hover:border-purple-400/50 transition-colors"
+                    onClick={() => handleAdClick(ad)}
+                  >
+                    {ad.title && (
+                      <div className="text-xs font-semibold text-purple-300 mb-2">
+                        {ad.title}
+                      </div>
+                    )}
+                    <div className="h-32 rounded-xl overflow-hidden border border-gray-700">
+                      <Image
+                        src={ad.imageUrl}
+                        alt={ad.title || "Advertisement"}
+                        width={300}
+                        height={128}
+                        className="w-full h-full object-cover"
+                        unoptimized
+                      />
+                    </div>
+                    {ad.linkUrl && (
+                      <p className="text-xs text-gray-400 mt-2">Click to visit</p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="bg-gradient-to-br from-purple-600/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center">
+                  <div className="text-xs font-semibold text-purple-300 mb-2">Advertisement</div>
+                  <div className="h-32 bg-gray-800/50 rounded-xl flex items-center justify-center border border-gray-700">
+                    <span className="text-xs text-gray-500">Ad Space</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Place your ads here</p>
+                </div>
+              )}
+            </div>
           )}
 
         </div>
