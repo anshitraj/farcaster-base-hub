@@ -2,28 +2,29 @@
   "accountAssociation": {
     "header": "eyJmaWQiOjE0MTkxOTAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRGNlNWM5NTJhNDEyNDU4YjZkNDcxMDVBMzFDQzkxMzc4RUQyNGYxIn0",
     "payload": "eyJkb21haW4iOiJtaW5pY2FzdC5zdG9yZSJ9",
-    "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw="
+    "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw=",
+    "baseBuilder": {
+      "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
+    }
   },
-  "baseBuilder": {
-    "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
-  },
-  "miniapp": {
+  "frame": {
     "version": "1",
     "name": "Mini Cast Store",
-    "homeUrl": "https://minicast.store",
     "iconUrl": "https://minicast.store/logo.png",
     "splashImageUrl": "https://minicast.store/splash-image.png",
-    "heroImageUrl": "https://minicast.store/hero-bg.jpg",
-    "subtitle": "Discover Mini Apps",
-    "tagline": "Discover Rate List Mini Apps",
-    "description": "Discover Rate List and enable monetization for your favourite farcaster and base mini apps on a single platform",
+    "splashBackgroundColor": "#000000",
+    "homeUrl": "https://minicast.store/hero.png",
+    "canonicalDomain": "minicast.store",
+    "webhookUrl": "https://minicast.store/api/webhook/farcaster?miniApp=default",
     "primaryCategory": "social",
-    "tags": ["finance", "tools"],
-    "screenshotUrls": [],
     "ogTitle": "Mini Cast Store",
-    "ogDescription": "Discover Rate List and enable monetization for your favourite farcaster and base mini apps",
+    "ogDescription": "Discover, Rate, List and enable monetization for your favourite farcaster and base mini apps on a single platform",
+    "ogImage": "https://minicast.store/logo.png",
     "ogImageUrl": "https://minicast.store/og-image.png",
-    "castShareUrl": "https://minicast.store"
+    "subtitle": "Discover Mini Apps",
+    "tagline": "Discover, Rate, List Mini Apps",
+    "heroImageUrl": "https://minicast.store/hero-bg.jpg",
+    "tags": ["finance", "tools", "shopping", "social", "utilities", "games", "entertainment"]
   }
 }
 

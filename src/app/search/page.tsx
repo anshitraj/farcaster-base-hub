@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, GraduationCap, Puzzle, Gift, TrendingUp, Coins, Newspaper } from "lucide-react";
+import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, GraduationCap, Puzzle, Gift, TrendingUp, Coins, Newspaper, ShoppingBag } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { trackPageView } from "@/lib/analytics";
 import Sidebar from "@/components/Sidebar";
@@ -28,6 +28,7 @@ const appCategories = [
   { name: "Airdrop", icon: Gift, color: "from-cyan-500 to-cyan-600", href: "/apps?category=Airdrops" },
   { name: "Prediction", icon: TrendingUp, color: "from-orange-500 to-orange-600", href: "/apps?category=Finance&tag=prediction" },
   { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
+  { name: "Shopping", icon: ShoppingBag, color: "from-pink-500 to-rose-600", href: "/apps?category=Shopping" },
 ];
 
 export const dynamic = 'force-dynamic';

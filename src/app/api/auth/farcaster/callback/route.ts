@@ -21,10 +21,15 @@ export async function GET(request: NextRequest) {
 
     if (!clientId || !clientSecret) {
       console.error("Neynar credentials not configured");
+      console.error("NEYNAR_CLIENT_ID:", clientId ? "Set" : "Missing");
+      console.error("NEYNAR_CLIENT_SECRET:", clientSecret ? "Set" : "Missing");
       return NextResponse.redirect(new URL("/?error=config", request.url));
     }
 
+    console.log("Farcaster callback - redirectUri:", redirectUri);
+
     // Exchange code for access token
+    console.log("Exchanging code for token...");
     const tokenResponse = await fetch("https://app.neynar.com/oauth/token", {
       method: "POST",
       headers: {
@@ -40,22 +45,31 @@ export async function GET(request: NextRequest) {
     });
 
     if (!tokenResponse.ok) {
-      console.error("Token exchange failed:", await tokenResponse.text());
+      const errorText = await tokenResponse.text();
+      console.error("Token exchange failed:", tokenResponse.status, errorText);
       return NextResponse.redirect(new URL("/?error=token_exchange", request.url));
     }
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
+    if (!accessToken) {
+      console.error("No access token received:", tokenData);
+      return NextResponse.redirect(new URL("/?error=no_token", request.url));
+    }
+
+    console.log("Fetching user info from Neynar...");
     // Get user info from Neynar
     const userResponse = await fetch("https://api.neynar.com/v2/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
     });
 
     if (!userResponse.ok) {
-      console.error("User fetch failed:", await userResponse.text());
+      const errorText = await userResponse.text();
+      console.error("User fetch failed:", userResponse.status, errorText);
       return NextResponse.redirect(new URL("/?error=user_fetch", request.url));
     }
 

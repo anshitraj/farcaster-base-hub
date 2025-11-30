@@ -88,13 +88,23 @@ export default function DeleteAppButton({ appId, appName, onDeleted }: DeleteApp
             <p className="font-semibold text-foreground">
               Are you sure you want to delete "{appName}"?
             </p>
-            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 mt-3">
-              <p className="text-sm font-medium text-destructive mb-2">
-                ⚠️ This action cannot be undone!
+            <div className="bg-destructive/10 border-2 border-destructive/50 rounded-lg p-4 mt-3">
+              <p className="text-sm font-bold text-destructive mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                ⚠️ WARNING: This action cannot be undone!
               </p>
-              <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <div className="bg-destructive/20 border border-destructive/40 rounded-md p-3 mb-3">
+                <p className="text-sm font-semibold text-destructive mb-2">
+                  🚨 All your XP and data will be lost!
+                </p>
+                <p className="text-xs text-destructive/90">
+                  Deleting this app will permanently remove all XP earned from this app, along with all associated data, statistics, and earnings.
+                </p>
+              </div>
+              <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
                 <li>All ratings and reviews will be permanently deleted</li>
-                <li>All XP and earnings from this app will be lost</li>
+                <li className="font-semibold text-destructive">All XP earned from this app will be lost</li>
+                <li className="font-semibold text-destructive">All earnings and statistics will be deleted</li>
                 <li>All click and install statistics will be deleted</li>
                 <li>This app will be removed from the store</li>
               </ul>

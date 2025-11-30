@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Bell, Search, Plus, Menu } from "lucide-react";
 import UserProfile from "@/components/UserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
+import XPSDisplay from "@/components/XPSDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import GasPriceDisplay from "@/components/GasPriceDisplay";
 import { useState, useEffect, Suspense } from "react";
@@ -195,10 +196,10 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             </motion.button>
             {/* Gas Price Display - Always visible */}
             <GasPriceDisplay />
-            {/* Hide PointsDisplay on very small screens */}
-            <div className="hidden sm:block">
-              <PointsDisplay />
-            </div>
+            {/* XPS Display - Always visible */}
+            <XPSDisplay />
+            {/* Points Display - Always visible */}
+            <PointsDisplay />
             <UserProfile />
           </div>
         </div>

@@ -16,7 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { trackPageView } from "@/lib/analytics";
 
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity", "Tech", "Shopping"];
 
 export default function AdminAppsPage() {
   const [apps, setApps] = useState<any[]>([]);
@@ -152,7 +152,7 @@ export default function AdminAppsPage() {
     }
   }
 
-  async function handleAppAction(appId: string, action: "approve" | "reject" | "verify" | "approve_contract" | "reject_contract" | "feature_banner" | "unfeature_banner") {
+  async function handleAppAction(appId: string, action: "approve" | "reject" | "verify" | "unverify" | "approve_contract" | "reject_contract" | "feature_banner" | "unfeature_banner") {
     setProcessing(appId);
     try {
       const updateData: any = {};
@@ -162,6 +162,8 @@ export default function AdminAppsPage() {
         updateData.status = "rejected";
       } else if (action === "verify") {
         updateData.verified = true;
+      } else if (action === "unverify") {
+        updateData.verified = false;
       } else if (action === "approve_contract") {
         updateData.contractVerified = true;
         updateData.verified = true;
@@ -191,6 +193,8 @@ export default function AdminAppsPage() {
         title: "Success",
         description: action === "approve" 
           ? "App approved! It will now appear on the homepage."
+          : action === "unverify"
+          ? "App unverified. It will still be listed but marked as unverified."
           : `App ${action}d successfully`,
       });
 
@@ -548,7 +552,11 @@ export default function AdminAppsPage() {
                         <h4 className="font-semibold truncate">{app.name}</h4>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                           <span>Status: {app.status}</span>
-                          {app.verified && <span className="text-green-500">✓ Verified</span>}
+                          {app.verified ? (
+                            <span className="text-green-500">✓ Verified</span>
+                          ) : (
+                            <span className="text-orange-500">⚠ Unverified</span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           <p className="truncate">URL: {app.url}</p>
@@ -594,7 +602,18 @@ export default function AdminAppsPage() {
                           </Button>
                         </>
                       )}
-                      {!app.verified && (
+                      {app.verified ? (
+                        <Button
+                          onClick={() => handleAppAction(app.id, "unverify")}
+                          disabled={processing === app.id}
+                          variant="outline"
+                          size="sm"
+                          className="border-orange-600/50 text-orange-400 hover:bg-orange-600/10"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Unverify
+                        </Button>
+                      ) : (
                         <Button
                           onClick={() => handleAppAction(app.id, "verify")}
                           disabled={processing === app.id}

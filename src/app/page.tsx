@@ -32,6 +32,7 @@ const appCategories = [
   { name: "Crowdfunding", icon: Coins, color: "from-amber-500 to-amber-600", href: "/apps?category=Finance&tag=crowdfunding" },
   { name: "Memecoins", icon: DollarSign, color: "from-purple-500 to-pink-600", href: "/apps?category=Memecoins" },
   { name: "Productivity", icon: Briefcase, color: "from-blue-500 to-indigo-600", href: "/apps?category=Productivity" },
+  { name: "Tools", icon: Wrench, color: "from-cyan-500 to-blue-600", href: "/apps?category=Tools" },
 ];
 
 export default function HomePage() {
@@ -228,15 +229,6 @@ export default function HomePage() {
                 backgroundImage="/category-bg/game-bg.webp"
               />
               <CategoryHighlightCard
-                title="Music"
-                featuredApp="Spotify"
-                ctaLabel="Open"
-                gradientFrom="from-blue-500"
-                gradientTo="to-blue-600"
-                href="/apps?category=Social&tag=music"
-                backgroundImage="/category-bg/music-bg.webp"
-              />
-              <CategoryHighlightCard
                 title="Social"
                 featuredApp="WeChat"
                 ctaLabel="Open"
@@ -273,31 +265,13 @@ export default function HomePage() {
                 backgroundImage="/category-bg/utility-bg.webp"
               />
               <CategoryHighlightCard
-                title="Tools"
-                featuredApp="Tools"
+                title="Tech"
+                featuredApp="Tech"
                 ctaLabel="Open"
-                gradientFrom="from-cyan-500"
-                gradientTo="to-blue-600"
-                href="/apps?category=Tools"
-                backgroundImage="/category-bg/tools-bg.webp"
-              />
-              <CategoryHighlightCard
-                title="DeFi"
-                featuredApp="DeFi"
-                ctaLabel="Open"
-                gradientFrom="from-yellow-500"
-                gradientTo="to-orange-600"
-                href="/apps?category=Finance&tag=defi"
-                backgroundImage="/category-bg/defi-bg.webp"
-              />
-              <CategoryHighlightCard
-                title="Education"
-                featuredApp="Education"
-                ctaLabel="Open"
-                gradientFrom="from-indigo-500"
-                gradientTo="to-purple-600"
-                href="/apps?category=Education"
-                backgroundImage="/category-bg/education-bg.webp"
+                gradientFrom="from-blue-500"
+                gradientTo="to-cyan-600"
+                href="/apps?category=Tech"
+                backgroundImage="/category-bg/tech-bg.webp"
               />
               <CategoryHighlightCard
                 title="Entertainment"
@@ -357,6 +331,9 @@ export default function HomePage() {
                   "Crowdfunding": "social",
                 };
                 
+                // Use background image for Tools category
+                const isTools = category.name === "Tools";
+                
                 return (
                   <CategoryCard
                     key={category.name}
@@ -364,7 +341,8 @@ export default function HomePage() {
                     icon={category.icon}
                     color={category.color}
                     href={category.href}
-                    backgroundPattern={patternMap[category.name]}
+                    backgroundPattern={isTools ? undefined : patternMap[category.name]}
+                    backgroundImage={isTools ? "/category-bg/tools-bg.webp" : undefined}
                   />
                 );
               })}

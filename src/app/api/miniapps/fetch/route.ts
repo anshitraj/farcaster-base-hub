@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
           "health-fitness": "Utilities",
           "news-media": "Social",
           "music": "Social",
-          "shopping": "Utilities",
+          "shopping": "Shopping",
           "education": "Tools",
           "developer-tools": "Tools",
           "entertainment": "Games",

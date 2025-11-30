@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import RatingStars from "./RatingStars";
 import VerifiedBadge from "./VerifiedBadge";
+import UnverifiedBadge from "./UnverifiedBadge";
 import Top30Badge from "./Top30Badge";
 import AutoUpdateBadge from "./AutoUpdateBadge";
 import RankBadge from "./RankBadge";
@@ -108,8 +109,10 @@ const AppCard = ({
                     {rank && (
                       <RankBadge rank={rank} size="sm" className="flex-shrink-0" />
                     )}
-                    {verified && (
+                    {verified ? (
                       <VerifiedBadge type="app" className="flex-shrink-0" />
+                    ) : (
+                      <UnverifiedBadge className="flex-shrink-0" />
                     )}
                     {topBaseRank && (
                       <Top30Badge rank={topBaseRank} className="flex-shrink-0 text-[10px]" />
@@ -199,8 +202,10 @@ const AppCard = ({
                         {rank && (
                           <RankBadge rank={rank} size="md" className="flex-shrink-0" />
                         )}
-                        {verified && (
+                        {verified ? (
                           <VerifiedBadge type="app" className="flex-shrink-0" />
+                        ) : (
+                          <UnverifiedBadge className="flex-shrink-0" />
                         )}
                         {topBaseRank && (
                           <Top30Badge rank={topBaseRank} className="flex-shrink-0" />

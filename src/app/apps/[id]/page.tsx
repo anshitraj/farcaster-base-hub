@@ -17,6 +17,7 @@ import { motion } from "framer-motion";
 import { getBaseDeepLink, getFarcasterDeepLink } from "@/lib/baseDeepLink";
 import RatingStars from "@/components/RatingStars";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import UnverifiedBadge from "@/components/UnverifiedBadge";
 import Top30Badge from "@/components/Top30Badge";
 import AutoUpdateBadge from "@/components/AutoUpdateBadge";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -264,7 +265,11 @@ export default function AppDetailPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1 flex-wrap">
                       <h1 className="text-base md:text-lg lg:text-xl font-bold">{app.name}</h1>
-                      {app.verified && <VerifiedBadge type="app" />}
+                      {app.verified ? (
+                        <VerifiedBadge type="app" />
+                      ) : (
+                        <UnverifiedBadge />
+                      )}
                     </div>
                     {app.developer && (
                       <Link

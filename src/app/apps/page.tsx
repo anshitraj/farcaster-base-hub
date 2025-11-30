@@ -17,7 +17,7 @@ import { shortenDescription } from "@/lib/description-utils";
 export const dynamic = 'force-dynamic';
 
 const ITEMS_PER_PAGE = 20;
-const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity"];
+const categories = ["Finance", "Tools", "Social", "Airdrops", "Games", "Memecoins", "Utilities", "Education", "Entertainment", "News", "Art", "Productivity", "Tech", "Shopping"];
 
 function AppsPageContent() {
   const searchParams = useSearchParams();

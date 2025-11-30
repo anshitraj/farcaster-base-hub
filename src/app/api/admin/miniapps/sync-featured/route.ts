@@ -46,6 +46,7 @@ function mapCategory(category: string): string {
     productivity: "Tools",
     finance: "Finance",
     utility: "Utilities",
+    shopping: "Shopping",
   };
   return categoryMap[category] || "Utilities";
 }
