@@ -1,16 +1,21 @@
 "use client";
 
 import { sdk } from "@farcaster/miniapp-sdk";
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 
 interface MiniAppContextType {
   context: any;
   user: {
-    fid?: number;
+    fid: number;
     username?: string;
     displayName?: string;
     pfpUrl?: string;
-    address?: string;
   } | null;
   isInMiniApp: boolean;
   loaded: boolean;
@@ -19,10 +24,10 @@ interface MiniAppContextType {
 export const MiniAppContext = createContext<MiniAppContextType | null>(null);
 
 export function MiniAppProvider({ children }: { children: ReactNode }) {
-  const [context, setContext] = useState<any>(null);
+  const [contextVal, setContextVal] = useState<any>(null);
   const [user, setUser] = useState<MiniAppContextType["user"]>(null);
-  const [isInMiniApp, setIsInMiniApp] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [isInMiniApp, setIsInMiniApp] = useState<boolean>(false);
+  const [loaded, setLoaded] = useState<boolean>(false);
 
   useEffect(() => {
     async function init() {
@@ -31,30 +36,26 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
         setIsInMiniApp(inMini);
 
         if (inMini) {
-          // Get Base App context (contains user identity)
-          const ctx = await sdk.context;
-          setContext(ctx);
+          // 1️⃣ CALL READY ASAP
+          sdk.actions.ready();
 
-          // Extract user info from context
+          // 2️⃣ LOAD CONTEXT
+          const ctx = await sdk.context;
+          setContextVal(ctx);
+
+          // 3️⃣ EXTRACT USER (correct fields!)
           if (ctx?.user) {
-            const userCtx = ctx.user as any; // Type assertion for flexible property access
+            const u = ctx.user;
             setUser({
-              fid: userCtx.fid,
-              username: userCtx.username,
-              displayName: userCtx.displayName || userCtx.display_name,
-              pfpUrl: userCtx.pfpUrl || userCtx.pfp_url,
-              address: userCtx.address || userCtx.custodyAddress,
+              fid: u.fid,
+              username: u.username,
+              displayName: u.displayName,
+              pfpUrl: u.pfpUrl,
             });
           }
-
-          // IMPORTANT: tell Base App your app is ready
-          await sdk.actions.ready();
-          console.log("Mini App ready, context loaded:", ctx);
-        } else {
-          console.log("Not in Mini App context");
         }
       } catch (err) {
-        console.error("MiniApp load error", err);
+        console.error("MiniApp Init Error:", err);
       } finally {
         setLoaded(true);
       }
@@ -63,31 +64,32 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
-  // Block UI until Base identity is ready (if in Mini App)
-  // In regular browser, show immediately
+  // Prevent initial UI before identity loads (very important)
   if (!loaded && isInMiniApp) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0A]">
+      <div className="flex items-center justify-center min-h-screen bg-black text-white/70">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-base-blue mx-auto mb-4"></div>
-          <p className="text-white/60">Loading...</p>
+          <div className="animate-spin h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+          <p className="mt-3">Loading Mini App...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <MiniAppContext.Provider value={{ context, user, isInMiniApp, loaded }}>
+    <MiniAppContext.Provider
+      value={{
+        context: contextVal,
+        user,
+        isInMiniApp,
+        loaded,
+      }}
+    >
       {children}
     </MiniAppContext.Provider>
   );
 }
 
 export function useMiniApp() {
-  const context = useContext(MiniAppContext);
-  if (!context) {
-    return { context: null, user: null, isInMiniApp: false, loaded: false };
-  }
-  return context;
+  return useContext(MiniAppContext);
 }
-
