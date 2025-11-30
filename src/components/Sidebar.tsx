@@ -17,6 +17,7 @@ import {
   Trophy,
   Award,
 } from "lucide-react";
+import GasPriceDisplay from "@/components/GasPriceDisplay";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
@@ -277,6 +278,16 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
 
         {/* Menu Section */}
         <div className="flex-1 overflow-y-auto py-4 pb-6">
+          {/* Gas Price Display in Sidebar - Above Menu */}
+          {!isCollapsed && (
+            <div className="px-4 mb-4">
+              <div className="bg-[#141A24] border border-[#1F2733] rounded-lg p-2">
+                <div className="flex items-center justify-center">
+                  <GasPriceDisplay />
+                </div>
+              </div>
+            </div>
+          )}
           <div className="px-4 mb-4">
             {!isCollapsed && (
               <h3 className="text-xs font-semibold text-[#888] uppercase tracking-wider mb-3">

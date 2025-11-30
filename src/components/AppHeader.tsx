@@ -9,7 +9,6 @@ import UserProfile from "@/components/UserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
 import XPSDisplay from "@/components/XPSDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
-import GasPriceDisplay from "@/components/GasPriceDisplay";
 import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -194,8 +193,6 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 </span>
               )}
             </motion.button>
-            {/* Gas Price Display - Always visible */}
-            <GasPriceDisplay />
             {/* XPS Display - Always visible */}
             <XPSDisplay />
             {/* Points Display - Always visible */}

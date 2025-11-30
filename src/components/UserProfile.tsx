@@ -473,11 +473,12 @@ export default function UserProfile() {
         <DropdownMenuTrigger asChild>
           <Button
             disabled={connecting}
-            className="bg-base-blue hover:bg-base-blue/90 text-white shadow-lg shadow-base-blue/30"
+            className="bg-base-blue hover:bg-base-blue/90 text-white shadow-lg shadow-base-blue/30 text-xs px-2 py-1 h-7"
             size="sm"
           >
-            <Wallet className="w-4 h-4 mr-2" />
-            {connecting ? "Connecting..." : "Connect"}
+            <Wallet className="w-3 h-3 mr-1" />
+            <span className="hidden sm:inline">{connecting ? "Connecting..." : "Connect"}</span>
+            <span className="sm:hidden">{connecting ? "..." : "Connect"}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="glass-card border-white/10 w-56">

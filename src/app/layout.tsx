@@ -19,6 +19,19 @@ export const metadata: Metadata = {
     shortcut: "/image.ico",
     apple: "/image.ico",
   },
+  other: {
+    "fc:miniapp": JSON.stringify({
+      version: "next",
+      imageUrl: "https://minicast.store/og-image.png",
+      button: {
+        title: "Open Mini Cast Store",
+        action: {
+          type: "launch_frame",
+          url: "https://minicast.store"
+        }
+      }
+    })
+  },
 };
 
 // Allow static generation where possible, but keep dynamic for auth-dependent routes
