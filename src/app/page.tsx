@@ -44,7 +44,8 @@ export default function HomePage() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationSidebarOpen, setNotificationSidebarOpen] = useState(false);
-  const { isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
+  const miniAppContext = useMiniApp();
+  const { isInMiniApp, loaded: miniAppLoaded } = miniAppContext;
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed

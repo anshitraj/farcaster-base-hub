@@ -11,14 +11,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 export default function XPSDisplay() {
   const [xps, setXps] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
   const router = useRouter();
 
   useEffect(() => {
+    // Wait for Mini App identity if in Mini App
+    if (isInMiniApp && !miniAppLoaded) {
+      return;
+    }
+
     // Don't fetch if not authenticated or still checking auth
     if (authLoading || !isAuthenticated) {
       setXps(0);
@@ -82,7 +89,7 @@ export default function XPSDisplay() {
       window.removeEventListener("walletConnected", handleWalletConnect);
       window.removeEventListener("walletDisconnected", handleWalletDisconnect);
     };
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, isInMiniApp, miniAppLoaded]);
 
   // Don't show XPS display if user is not authenticated
   if (loading || xps === null || !isAuthenticated) {

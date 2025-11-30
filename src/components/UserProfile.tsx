@@ -31,7 +31,7 @@ export default function UserProfile() {
   const [connecting, setConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
-  const { user: miniAppUser, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
+  const { user: miniAppUser, context: miniAppContext, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
 
   useEffect(() => {
     let mounted = true;
@@ -129,11 +129,15 @@ export default function UserProfile() {
   async function checkAuth() {
     try {
       // If in Mini App and context is loaded, use Mini App user first
-      if (isInMiniApp && miniAppLoaded && miniAppUser?.address) {
-        const normalizedWallet = miniAppUser.address.toLowerCase().trim();
-        await fetchProfile(normalizedWallet, miniAppUser);
-        setLoading(false);
-        return;
+      if (isInMiniApp && miniAppLoaded && miniAppContext?.user && miniAppUser) {
+        const userCtx = miniAppContext.user as any;
+        const address = userCtx.address || userCtx.custodyAddress;
+        if (address) {
+          const normalizedWallet = address.toLowerCase().trim();
+          await fetchProfile(normalizedWallet, miniAppUser);
+          setLoading(false);
+          return;
+        }
       }
 
       // Otherwise, check wallet auth

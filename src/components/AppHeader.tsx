@@ -5,13 +5,14 @@ import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Bell, Search, Plus, Menu } from "lucide-react";
-import UserProfile from "@/components/UserProfile";
+import MiniAppUserProfile from "@/components/MiniAppUserProfile";
 import PointsDisplay from "@/components/PointsDisplay";
 import XPSDisplay from "@/components/XPSDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 interface AppHeaderProps {
   onMenuClick?: () => void;
@@ -24,6 +25,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { user, isInMiniApp, loaded } = useMiniApp();
   
   // Initialize search query from URL
   useEffect(() => {
@@ -35,8 +37,11 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
     }
   }, [searchParams]);
 
-  // Fetch unread notification count
+  // Fetch unread notification count - wait for Mini App identity if in Mini App
   useEffect(() => {
+    // Don't fetch if in Mini App and identity not loaded yet
+    if (isInMiniApp && !loaded) return;
+
     async function fetchUnreadCount() {
       try {
         const res = await fetch("/api/notifications?unread=true&limit=1", {
@@ -58,7 +63,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
     // Refresh every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isInMiniApp, loaded]);
 
   // Debounce search query for real-time search (500ms delay)
   const debouncedSearch = useDebounce(searchQuery, 500);
@@ -107,6 +112,15 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
       }
     }
   };
+
+  // Block rendering if in Mini App and identity not loaded yet
+  if (isInMiniApp && !loaded) {
+    return (
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg h-16 flex items-center px-4">
+        <div className="h-10 w-32 bg-gray-800 rounded animate-pulse" />
+      </header>
+    );
+  }
 
   return (
     <>
@@ -197,7 +211,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             <XPSDisplay />
             {/* Points Display - Always visible */}
             <PointsDisplay />
-            <UserProfile />
+            <MiniAppUserProfile />
           </div>
         </div>
       </header>

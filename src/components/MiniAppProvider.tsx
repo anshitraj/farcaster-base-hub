@@ -91,5 +91,9 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
 }
 
 export function useMiniApp() {
-  return useContext(MiniAppContext);
+  const context = useContext(MiniAppContext);
+  if (!context) {
+    return { context: null, user: null, isInMiniApp: false, loaded: false };
+  }
+  return context;
 }

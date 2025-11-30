@@ -11,14 +11,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 export default function PointsDisplay() {
   const [points, setPoints] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
   const router = useRouter();
 
   useEffect(() => {
+    // Wait for Mini App identity if in Mini App
+    if (isInMiniApp && !miniAppLoaded) {
+      return;
+    }
+
     // Don't fetch if not authenticated or still checking auth
     if (authLoading || !isAuthenticated) {
       setPoints(0);
@@ -89,7 +96,7 @@ export default function PointsDisplay() {
       window.removeEventListener("walletDisconnected", handleWalletDisconnect);
       window.removeEventListener("pointsUpdated", handlePointsUpdated);
     };
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, isInMiniApp, miniAppLoaded]);
 
   // Don't show points display if user is not authenticated or has 0 points
   if (loading || points === null || !isAuthenticated) {
