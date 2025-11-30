@@ -11,6 +11,8 @@
     "version": "1",
     "name": "Mini Cast Store",
     "iconUrl": "https://minicast.store/logo.png",
+    "imageUrl": "https://minicast.store/og-image.png",
+    "buttonTitle": "Open Mini Cast Store",
     "splashImageUrl": "https://minicast.store/splash-image.png",
     "splashBackgroundColor": "#000000",
     "homeUrl": "https://minicast.store",
@@ -24,7 +26,7 @@
     "subtitle": "Discover Mini Apps",
     "tagline": "Discover, Rate, List Mini Apps",
     "heroImageUrl": "https://minicast.store/hero-bg.jpg",
-    "tags": ["finance", "tools", "shopping", "utilities", "games", "entertainment"]
+    "tags": ["finance", "utility"]
   }
 }
 
