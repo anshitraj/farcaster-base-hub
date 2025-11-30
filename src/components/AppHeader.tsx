@@ -134,7 +134,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-20 sm:h-14 md:h-18 lg:h-22 w-auto"
+                className="h-14 sm:h-14 md:h-18 lg:h-22 w-auto"
                 priority
               />
             </Link>

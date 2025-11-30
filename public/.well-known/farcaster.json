@@ -12,6 +12,7 @@
     "name": "Mini Cast Store",
     "homeUrl": "https://minicast.store",
     "iconUrl": "https://minicast.store/logo.png",
+    "splashImageUrl": "https://minicast.store/splash-image.png",
     "subtitle": "Discover Mini Apps",
     "description": "Discover submit and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster and Base",
     "primaryCategory": "social",
