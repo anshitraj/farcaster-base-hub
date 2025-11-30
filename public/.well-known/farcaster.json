@@ -1,38 +1,23 @@
 {
-  "name": "Mini Cast Store",
-  "description": "Discover, submit, and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster & Base.",
-  "icon": "https://minicast.store/logo.png",
-  "iconUrl": "https://minicast.store/logo.png",
-  "url": "https://minicast.store",
-  "homeUrl": "https://minicast.store",
-  "category": "Social",
-  "primaryCategory": "Social",
-  "subtitle": "Discover Farcaster & Base Mini Apps",
-  "ogImage": "https://minicast.store/og-image.png",
-  "screenshots": [],
-  "screenshotUrls": [],
-  "tags": ["miniapp", "base", "farcaster", "web3", "dapp", "discovery"],
-  "developer": {
-    "name": "Mini App Store",
-    "url": "https://minicast.store"
-  },
-  "baseBuilder": {
-    "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
-  },
   "accountAssociation": {
     "header": "eyJmaWQiOjE0MTkxOTAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRGNlNWM5NTJhNDEyNDU4YjZkNDcxMDVBMzFDQzkxMzc4RUQyNGYxIn0",
     "payload": "eyJkb21haW4iOiJtaW5pY2FzdC5zdG9yZSJ9",
     "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw="
   },
-  "frame": {
-    "name": "Mini App Store",
-    "iconUrl": "/logo.png",
-    "description": "Discover, submit, and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster & Base.",
-    "subtitle": "Discover Farcaster & Base Mini Apps",
+  "baseBuilder": {
+    "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Mini Cast Store",
     "homeUrl": "https://minicast.store",
-    "tags": ["miniapp", "base", "farcaster", "web3", "dapp", "discovery"],
-    "primaryCategory": "Social",
-    "screenshotUrls": []
+    "iconUrl": "https://minicast.store/logo.png",
+    "subtitle": "Discover Mini Apps",
+    "description": "Discover submit and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster and Base",
+    "primaryCategory": "social",
+    "tags": ["finance", "tools"],
+    "screenshotUrls": [],
+    "ogImageUrl": "https://minicast.store/og-image.png"
   }
 }
 
