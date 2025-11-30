@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { getInjectedProvider } from "@/lib/wallet";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 interface UserProfileData {
   wallet: string;
@@ -282,55 +283,123 @@ export default function UserProfile() {
     try {
       setConnecting(true);
       
-      const provider = getInjectedProvider();
-
-      if (!provider) {
-        toast({
-          title: "No Wallet Found",
-          description: "Please install MetaMask or open in Base App",
-          variant: "destructive",
-        });
-        setConnecting(false);
-        return;
-      }
-
-      // Request accounts - this will trigger MetaMask popup
-      const accounts = await provider.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No account selected");
-      }
-
-      const address = accounts[0];
+      // Check for Farcaster Mini App SDK first (Base App uses this)
+      const win = window as any;
+      let address: string = "";
+      let signature: string = "";
       const message = "Login to Mini App Store";
 
-      // Request signature
-      // MetaMask expects: [message, address]
-      let signature: string;
+      // Try Farcaster Mini App SDK first
+      let useFarcasterSDK = false;
       try {
-        // Standard format for MetaMask: [message, address]
-        signature = await provider.request({
-          method: "personal_sign",
-          params: [message, address],
-        });
-      } catch (e: any) {
-        // If user rejected
-        if (e.code === 4001 || e.message?.includes("reject")) {
-          throw new Error("Signature request rejected");
+        const isMini = await sdk.isInMiniApp();
+        if (isMini) {
+          console.log("Detected Farcaster Mini App, checking for wallet provider");
+          // In Farcaster Mini App, use the standard provider from window
+          // The SDK doesn't provide getSigner, but window.ethereum should be available
+          const win = window as any;
+          if (win.ethereum || win.wallet) {
+            // Use the provider that's available in the Mini App context
+            const provider = win.ethereum || win.wallet;
+            try {
+              const accounts = await provider.request({
+                method: "eth_requestAccounts",
+              });
+              if (accounts && accounts.length > 0) {
+                address = accounts[0];
+                useFarcasterSDK = true;
+                console.log("Farcaster Mini App wallet obtained:", address);
+                
+                // Try to sign message (optional - some environments don't require it)
+                try {
+                  signature = await provider.request({
+                    method: "personal_sign",
+                    params: [message, address],
+                  });
+                  console.log("Message signed via Farcaster Mini App provider");
+                } catch (signError: any) {
+                  console.warn("Farcaster Mini App sign failed (non-critical):", signError.message);
+                  // Continue without signature - backend will accept it
+                  signature = "";
+                }
+              } else {
+                throw new Error("No account available in Farcaster Mini App");
+              }
+            } catch (providerError: any) {
+              console.log("Farcaster Mini App provider error, falling back:", providerError.message);
+              throw providerError;
+            }
+          } else {
+            throw new Error("No wallet provider in Farcaster Mini App");
+          }
+        } else {
+          throw new Error("Not in Mini App context");
         }
-        // Try alternative format [address, message] for some wallets
+      } catch (fcError: any) {
+        console.log("Farcaster SDK not available, using standard provider:", fcError.message);
+        useFarcasterSDK = false;
+      }
+
+      // Use standard Web3 provider if Farcaster SDK didn't work
+      if (!useFarcasterSDK) {
+        // Use standard Web3 provider
+        const provider = getInjectedProvider();
+
+        if (!provider) {
+          toast({
+            title: "No Wallet Found",
+            description: "Please install MetaMask or open in Base App",
+            variant: "destructive",
+          });
+          setConnecting(false);
+          return;
+        }
+
+        // Request accounts - this will trigger wallet popup
+        let accounts: string[];
         try {
+          accounts = await provider.request({
+            method: "eth_requestAccounts",
+          });
+        } catch (requestError: any) {
+          if (requestError.code === 4001 || requestError.message?.includes("reject") || requestError.message?.includes("not authorized")) {
+            throw new Error("Wallet connection request was rejected");
+          }
+          throw new Error(requestError.message || "Failed to request accounts");
+        }
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No account selected");
+        }
+
+        address = accounts[0];
+
+        // Request signature - try different parameter formats
+        try {
+          // Standard format for MetaMask: [message, address]
           signature = await provider.request({
             method: "personal_sign",
-            params: [address, message],
+            params: [message, address],
           });
-        } catch (e2: any) {
-          if (e2.code === 4001 || e2.message?.includes("reject")) {
-            throw new Error("Signature request rejected");
+        } catch (e: any) {
+          // If user rejected
+          if (e.code === 4001 || e.message?.includes("reject") || e.message?.includes("not authorized")) {
+            throw new Error("Signature request was rejected");
           }
-          throw new Error(e2.message || "Failed to get signature");
+          // Try alternative format [address, message] for some wallets
+          try {
+            signature = await provider.request({
+              method: "personal_sign",
+              params: [address, message],
+            });
+          } catch (e2: any) {
+            if (e2.code === 4001 || e2.message?.includes("reject") || e2.message?.includes("not authorized")) {
+              throw new Error("Signature request was rejected");
+            }
+            // For Base App, try without signature (some environments don't require it)
+            console.warn("Signature failed, attempting connection without signature:", e2.message);
+            signature = "";
+          }
         }
       }
 
@@ -338,10 +407,11 @@ export default function UserProfile() {
       const res = await fetch("/api/auth/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           wallet: address,
-          signature,
-          message,
+          signature: signature || undefined,
+          message: signature ? message : undefined,
         }),
       });
 

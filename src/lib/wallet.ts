@@ -7,18 +7,19 @@ export function getInjectedProvider(): any {
 
   const win = window as any;
 
-  // Check for MetaMask first (most common)
+  // Check for Farcaster Mini App SDK first (highest priority for Base/Farcaster)
+  if (win.farcaster && win.farcaster.signer) {
+    return win.farcaster.signer;
+  }
+
+  // Check for Base App / Coinbase Wallet (Base App uses Coinbase Wallet provider)
   if (win.ethereum) {
-    // Check if it's MetaMask specifically
+    // Check if it's Base wallet or Coinbase Wallet
+    if (win.ethereum.isBase || win.ethereum.isCoinbaseWallet || win.ethereum.isCoinbaseBrowser) {
+      return win.ethereum;
+    }
+    // Check if it's MetaMask
     if (win.ethereum.isMetaMask) {
-      return win.ethereum;
-    }
-    // Check if it's Coinbase Wallet
-    if (win.ethereum.isCoinbaseWallet || win.ethereum.isCoinbaseBrowser) {
-      return win.ethereum;
-    }
-    // Check if it's Base wallet
-    if (win.ethereum.isBase) {
       return win.ethereum;
     }
     // Generic ethereum provider (MetaMask, Brave, etc.)
@@ -30,9 +31,14 @@ export function getInjectedProvider(): any {
     return win.coinbaseWalletExtension;
   }
 
-  // Farcaster / Mini App browsers
+  // Farcaster / Mini App browsers (fallback)
   if (win.wallet) {
     return win.wallet;
+  }
+
+  // Check for Base-specific provider
+  if (win.base) {
+    return win.base;
   }
 
   return null;

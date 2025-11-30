@@ -96,7 +96,15 @@ export async function GET(request: NextRequest) {
     console.log("Neynar user data response:", JSON.stringify(userData, null, 2));
     
     // Handle different response structures
-    let fc = null;
+    type UserData = {
+      fid?: number | string;
+      username?: string;
+      display_name?: string;
+      pfp_url?: string;
+      pfp?: { url?: string };
+    };
+    
+    let fc: UserData | null = null;
     if (userData.result?.user) {
       fc = userData.result.user;
     } else if (userData.user) {
@@ -105,7 +113,7 @@ export async function GET(request: NextRequest) {
       fc = userData.data.user;
     } else if (userData.fid) {
       // Direct user object
-      fc = userData;
+      fc = userData as UserData;
     }
 
     if (!fc || !fc.fid) {
