@@ -45,6 +45,7 @@ export default function UserProfile() {
   useEffect(() => {
     let mounted = true;
     let isLoggingOut = false;
+    let timeoutId: NodeJS.Timeout | null = null;
     
     // Check if we're in a logout state (check for a flag in sessionStorage)
     if (typeof window !== "undefined") {
@@ -59,26 +60,24 @@ export default function UserProfile() {
       }
     }
     
+    // Set a timeout to ensure loading is always set to false after max 2 seconds
+    // This prevents the app from getting stuck if auth check hangs
+    timeoutId = setTimeout(() => {
+      if (mounted) {
+        console.log("Auth check timeout - setting loading to false");
+        setLoading(false);
+      }
+    }, 2000);
+    
     async function initAuth() {
-      // Wait for Mini App to load if in Mini App context
-      if (isInMiniApp && !miniAppLoaded) {
-        // Wait for Mini App context to load (max 3 seconds)
-        let attempts = 0;
-        const maxAttempts = 30; // 3 seconds with 100ms intervals
-        const checkInterval = setInterval(() => {
-          attempts++;
-          if (miniAppLoaded || attempts >= maxAttempts) {
-            clearInterval(checkInterval);
-            if (mounted) {
-              checkAuth();
-            }
-          }
-        }, 100);
-        return () => clearInterval(checkInterval);
-      } else {
-        if (mounted) {
-          await checkAuth();
-        }
+      // Don't wait for Mini App - check auth immediately
+      // Wagmi will handle auto-connection, MiniApp context loads in background
+      if (mounted) {
+        await checkAuth();
+      }
+      // Clear timeout if auth check completes
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     }
     
@@ -98,11 +97,14 @@ export default function UserProfile() {
     
     return () => {
       mounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       if (typeof window !== "undefined") {
         window.removeEventListener("walletConnected", handleWalletConnected);
       }
     };
-  }, [profile]);
+  }, [miniAppLoaded, miniAppUser, isConnected, address]); // Re-check when MiniApp or Wagmi state changes
 
   async function checkAuth() {
     try {
@@ -464,14 +466,10 @@ export default function UserProfile() {
   // In Base/Farcaster Mini Apps, this happens automatically on load via farcasterMiniApp/baseAccount
   useEffect(() => {
     if (isConnected && address && !profile && !loading) {
-      // Faster authentication in Mini Apps (auto-connects instantly)
-      const delay = isInMiniApp ? 300 : 500;
-      const timer = setTimeout(() => {
-        authenticateWallet(address);
-      }, delay);
-      return () => clearTimeout(timer);
+      // Immediate authentication - no delay needed as Wagmi handles connection
+      authenticateWallet(address);
     }
-  }, [isConnected, address, profile, loading, isInMiniApp]);
+  }, [isConnected, address, profile, loading]);
 
 
   const copyAddress = async () => {
@@ -535,23 +533,18 @@ export default function UserProfile() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="w-9 h-9 rounded-full bg-muted animate-pulse" />
-    );
-  }
-
   // In Base/Farcaster Mini Apps, don't show connect button - auto-connects
   // Only show connect button in regular browsers
   if (!profile) {
-    // If in Mini App, show loading state (auto-connecting)
-    if (isInMiniApp) {
+    // If in Mini App and still loading, show loading state (auto-connecting)
+    // But only for a short time - don't block forever
+    if (isInMiniApp && loading) {
       return (
         <div className="w-9 h-9 rounded-full bg-muted animate-pulse" />
       );
     }
 
-    // Regular browser - show connect options
+    // Regular browser - show connect options immediately (don't wait for loading)
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

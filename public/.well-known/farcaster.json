@@ -1,32 +1,44 @@
 {
-  "accountAssociation": {
-    "header": "eyJmaWQiOjE0MTkxOTAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRGNlNWM5NTJhNDEyNDU4YjZkNDcxMDVBMzFDQzkxMzc4RUQyNGYxIn0",
-    "payload": "eyJkb21haW4iOiJtaW5pY2FzdC5zdG9yZSJ9",
-    "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw=",
+    "accountAssociation": {
+      "header": "eyJmaWQiOjE0MTkxOTAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRGNlNWM5NTJhNDEyNDU4YjZkNDcxMDVBMzFDQzkxMzc4RUQyNGYxIn0",
+      "payload": "eyJkb21haW4iOiJtaW5pY2FzdC5zdG9yZSJ9",
+      "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw="
+    },
+  
     "baseBuilder": {
       "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
+    },
+  
+    "miniapp": {
+      "version": "1",
+      "name": "Mini Cast Store",
+      "subtitle": "Discover Mini Apps",
+      "description": "Discover, rate, list and enable monetization for your favourite Farcaster and Base mini apps.",
+      "homeUrl": "https://minicast.store",
+  
+      "iconUrl": "https://minicast.store/logo.png",
+      "heroImageUrl": "https://minicast.store/hero-bg.jpg",
+      "splashImageUrl": "https://minicast.store/splash-image.png",
+      "splashBackgroundColor": "#000000",
+  
+      "screenshotUrls": [
+        "https://minicast.store/og-image.png"
+      ],
+  
+      "primaryCategory": "social",
+      "tags": ["finance", "utility"],
+  
+      "tagline": "Discover, Rate, List Mini Apps",
+  
+      "ogTitle": "Mini Cast Store",
+      "ogDescription": "Discover, Rate, List and enable monetization for your favourite Farcaster and Base mini apps.",
+      "ogImageUrl": "https://minicast.store/og-image.png",
+  
+      "canonicalDomain": "minicast.store",
+  
+      "webhookUrl": "https://minicast.store/api/webhook/farcaster?miniApp=default",
+  
+      "noindex": false
     }
-  },
-  "frame": {
-    "version": "1",
-    "name": "Mini Cast Store",
-    "iconUrl": "https://minicast.store/logo.png",
-    "imageUrl": "https://minicast.store/og-image.png",
-    "buttonTitle": "Open Mini Cast Store",
-    "splashImageUrl": "https://minicast.store/splash-image.png",
-    "splashBackgroundColor": "#000000",
-    "homeUrl": "https://minicast.store",
-    "canonicalDomain": "minicast.store",
-    "webhookUrl": "https://minicast.store/api/webhook/farcaster?miniApp=default",
-    "primaryCategory": "social",
-    "ogTitle": "Mini Cast Store",
-    "ogDescription": "Discover, Rate, List and enable monetization for your favourite farcaster and base mini apps",
-    "ogImage": "https://minicast.store/logo.png",
-    "ogImageUrl": "https://minicast.store/og-image.png",
-    "subtitle": "Discover Mini Apps",
-    "tagline": "Discover, Rate, List Mini Apps",
-    "heroImageUrl": "https://minicast.store/hero-bg.jpg",
-    "tags": ["finance", "utility"]
   }
-}
-
+  

@@ -21,11 +21,8 @@ export default function XPSDisplay() {
   const router = useRouter();
 
   useEffect(() => {
-    // Wait for Mini App identity if in Mini App
-    if (isInMiniApp && !miniAppLoaded) {
-      return;
-    }
-
+    // Don't wait for Mini App - fetch immediately
+    // Wagmi handles connection, we can fetch XPS right away
     // Don't fetch if not authenticated or still checking auth
     if (authLoading || !isAuthenticated) {
       setXps(0);
@@ -89,7 +86,7 @@ export default function XPSDisplay() {
       window.removeEventListener("walletConnected", handleWalletConnect);
       window.removeEventListener("walletDisconnected", handleWalletDisconnect);
     };
-  }, [isAuthenticated, authLoading, isInMiniApp, miniAppLoaded]);
+  }, [isAuthenticated, authLoading]);
 
   // Don't show XPS display if user is not authenticated
   if (loading || xps === null || !isAuthenticated) {

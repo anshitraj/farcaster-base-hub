@@ -30,51 +30,57 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState<boolean>(false);
 
   useEffect(() => {
-    async function init() {
+    // Mark as loaded immediately - don't block UI rendering
+    setLoaded(true);
+    
+    // Initialize SDK in background (non-blocking)
+    let mounted = true;
+
+    // Fire and forget - don't await, let it run in background
+    (async () => {
       try {
+        // Check if in Mini App (non-blocking, runs in background)
         const inMini = await sdk.isInMiniApp();
+        if (!mounted) return;
+        
         setIsInMiniApp(inMini);
 
         if (inMini) {
-          // 1️⃣ CALL READY ASAP
-          sdk.actions.ready();
+          // Call ready ASAP (non-blocking)
+          sdk.actions.ready().catch(console.error);
 
-          // 2️⃣ LOAD CONTEXT
-          const ctx = await sdk.context;
-          setContextVal(ctx);
+          // Load context asynchronously (don't block)
+          sdk.context
+            .then((ctx) => {
+              if (!mounted) return;
+              setContextVal(ctx);
 
-          // 3️⃣ EXTRACT USER (correct fields!)
-          if (ctx?.user) {
-            const u = ctx.user;
-            setUser({
-              fid: u.fid,
-              username: u.username,
-              displayName: u.displayName,
-              pfpUrl: u.pfpUrl,
+              // Extract user data
+              if (ctx?.user) {
+                const u = ctx.user;
+                setUser({
+                  fid: u.fid,
+                  username: u.username,
+                  displayName: u.displayName,
+                  pfpUrl: u.pfpUrl,
+                });
+              }
+            })
+            .catch((err) => {
+              console.error("Context load error:", err);
             });
-          }
         }
       } catch (err) {
         console.error("MiniApp Init Error:", err);
-      } finally {
-        setLoaded(true);
       }
-    }
-
-    init();
+    })();
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Prevent initial UI before identity loads (very important)
-  if (!loaded && isInMiniApp) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black text-white/70">
-        <div className="text-center">
-          <div className="animate-spin h-10 w-10 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-          <p className="mt-3">Loading Mini App...</p>
-        </div>
-      </div>
-    );
-  }
+  // Don't block UI - render immediately and let components handle loading states
 
   return (
     <MiniAppContext.Provider

@@ -80,15 +80,15 @@ export default function RootLayout({
       <body className={inter.className}>
         <WagmiProvider>
           <MiniAppProvider>
-            <ErrorBoundary>
-              <main className="min-h-screen pb-20 lg:pb-0">
-                {children}
-              </main>
-              <Footer />
-              {/* Mobile Bottom Navigation - Show on all pages */}
-              <BottomNav />
-              <Toaster />
-            </ErrorBoundary>
+        <ErrorBoundary>
+          <main className="min-h-screen pb-20 lg:pb-0">
+            {children}
+          </main>
+          <Footer />
+          {/* Mobile Bottom Navigation - Show on all pages */}
+          <BottomNav />
+          <Toaster />
+        </ErrorBoundary>
           </MiniAppProvider>
         </WagmiProvider>
       </body>

@@ -33,6 +33,19 @@ interface TopBannerProps {
 export default function TopBanner({ apps }: TopBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Auto-slide every 5 seconds
   useEffect(() => {
@@ -64,6 +77,32 @@ export default function TopBanner({ apps }: TopBannerProps) {
     setIsAutoPlaying(false);
   };
 
+  // Swipe handlers for mobile
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      goToNext();
+    } else if (isRightSwipe) {
+      goToPrevious();
+    }
+  };
+
 
   return (
     <div className="relative mb-8 group">
@@ -75,6 +114,9 @@ export default function TopBanner({ apps }: TopBannerProps) {
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.5 }}
           className="relative rounded-3xl overflow-hidden backdrop-blur-[2px] bg-white/2 shadow-[0_0_40px_rgba(80,100,255,0.15)]"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         >
           {/* Subtle diagonal gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-br from-[#11131A] to-[#080A0F] opacity-60 z-0" />
@@ -238,8 +280,8 @@ export default function TopBanner({ apps }: TopBannerProps) {
         </motion.div>
       </AnimatePresence>
 
-      {/* Navigation Arrows */}
-      {apps.length > 1 && (
+      {/* Navigation Arrows - Only show on desktop */}
+      {apps.length > 1 && !isMobile && (
         <>
           <button
             onClick={goToPrevious}

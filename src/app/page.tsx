@@ -160,11 +160,8 @@ function HomePageContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    // Wait for Mini App context to load before making API calls
-    if (isInMiniApp && !miniAppLoaded) {
-      return; // Don't fetch until Mini App context is ready
-    }
-
+    // Don't wait for Mini App - fetch data immediately
+    // API calls will work with or without Mini App context
     async function fetchData() {
       try {
         const fetchWithErrorHandling = async (url: string, fallback: any = []) => {
@@ -216,8 +213,9 @@ function HomePageContent() {
       }
     }
 
+    // Don't wait for MiniApp - fetch data immediately
     fetchData();
-  }, [isInMiniApp, miniAppLoaded]);
+  }, []); // Remove dependency on miniAppLoaded to fetch immediately
 
   return (
     <div className="flex min-h-screen bg-black">
