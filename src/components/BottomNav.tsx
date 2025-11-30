@@ -110,7 +110,7 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[100] bg-[#0B0F19]/95 backdrop-blur-xl border-t border-[#1F2733] safe-area-inset-bottom">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-[100] bg-[#0B0F19]/95 backdrop-blur-xl border-t border-[#1F2733]" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}>
         <div className="flex items-center justify-around px-2 py-2">
           {navItems.map((item) => {
             const Icon = item.icon;

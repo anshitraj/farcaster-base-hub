@@ -81,7 +81,7 @@ export default function RootLayout({
         <WagmiProvider>
           <MiniAppProvider>
         <ErrorBoundary>
-          <main className="min-h-screen pb-20 lg:pb-0">
+          <main className="min-h-screen pb-20 lg:pb-0" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
             {children}
           </main>
           <Footer />

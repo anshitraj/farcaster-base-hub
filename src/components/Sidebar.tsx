@@ -18,6 +18,7 @@ import {
   Award,
 } from "lucide-react";
 import GasPriceDisplay from "@/components/GasPriceDisplay";
+import XPSDisplay from "@/components/XPSDisplay";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
@@ -284,6 +285,16 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
               <div className="bg-[#141A24] border border-[#1F2733] rounded-lg p-2">
                 <div className="flex items-center justify-center">
                   <GasPriceDisplay />
+                </div>
+              </div>
+            </div>
+          )}
+          {/* XPS Display in Sidebar - Mobile only, Above Menu */}
+          {!isCollapsed && isMobile && (
+            <div className="px-4 mb-4">
+              <div className="bg-[#141A24] border border-[#1F2733] rounded-lg p-2">
+                <div className="flex items-center justify-center">
+                  <XPSDisplay />
                 </div>
               </div>
             </div>

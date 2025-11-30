@@ -361,8 +361,10 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 </span>
               )}
             </motion.button>
-            {/* XPS Display - Always visible */}
-            <XPSDisplay />
+            {/* XPS Display - Hide on mobile (moved to sidebar), show on desktop */}
+            <div className="hidden md:block">
+              <XPSDisplay />
+            </div>
             {/* Points Display - Hide in Mini Apps (Farcaster/Base) to save space, show in regular browsers */}
             {loaded && !isInMiniApp && <PointsDisplay />}
             
