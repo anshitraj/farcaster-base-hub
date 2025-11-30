@@ -15,13 +15,13 @@
     "splashImageUrl": "https://minicast.store/splash-image.png",
     "heroImageUrl": "https://minicast.store/hero-bg.jpg",
     "subtitle": "Discover Mini Apps",
-    "tagline": "Discover submit and earn developer badges",
-    "description": "Discover submit and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster and Base",
+    "tagline": "Discover Rate List Mini Apps",
+    "description": "Discover Rate List and enable monetization for your favourite farcaster and base mini apps on a single platform",
     "primaryCategory": "social",
     "tags": ["finance", "tools"],
     "screenshotUrls": [],
-    "ogTitle": "Mini Cast Store - Discover Farcaster & Base Mini Apps",
-    "ogDescription": "Discover submit and earn developer badges in the ultimate hub for decentralized mini applications on Farcaster and Base",
+    "ogTitle": "Mini Cast Store",
+    "ogDescription": "Discover Rate List and enable monetization for your favourite farcaster and base mini apps",
     "ogImageUrl": "https://minicast.store/og-image.png",
     "castShareUrl": "https://minicast.store"
   }
