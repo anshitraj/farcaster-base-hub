@@ -27,6 +27,7 @@ export const metadata: Metadata = {
         title: "Open Mini Cast Store",
         action: {
           type: "launch_frame",
+          name: "Mini Cast Store",
           url: "https://minicast.store"
         }
       }
