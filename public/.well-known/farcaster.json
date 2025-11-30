@@ -13,18 +13,18 @@
     "iconUrl": "https://minicast.store/logo.png",
     "splashImageUrl": "https://minicast.store/splash-image.png",
     "splashBackgroundColor": "#000000",
-    "homeUrl": "https://minicast.store/hero.png",
+    "homeUrl": "https://minicast.store",
     "canonicalDomain": "minicast.store",
     "webhookUrl": "https://minicast.store/api/webhook/farcaster?miniApp=default",
     "primaryCategory": "social",
     "ogTitle": "Mini Cast Store",
-    "ogDescription": "Discover, Rate, List and enable monetization for your favourite farcaster and base mini apps on a single platform",
+    "ogDescription": "Discover, Rate, List and enable monetization for your favourite farcaster and base mini apps",
     "ogImage": "https://minicast.store/logo.png",
     "ogImageUrl": "https://minicast.store/og-image.png",
     "subtitle": "Discover Mini Apps",
     "tagline": "Discover, Rate, List Mini Apps",
     "heroImageUrl": "https://minicast.store/hero-bg.jpg",
-    "tags": ["finance", "tools", "shopping", "social", "utilities", "games", "entertainment"]
+    "tags": ["finance", "tools", "shopping", "utilities", "games", "entertainment"]
   }
 }
 
