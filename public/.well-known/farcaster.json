@@ -19,6 +19,11 @@
   "baseBuilder": {
     "ownerAddress": "0x0CF70E448ac98689e326bd79075a96CcBcec1665"
   },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjE0MTkxOTAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgwRGNlNWM5NTJhNDEyNDU4YjZkNDcxMDVBMzFDQzkxMzc4RUQyNGYxIn0",
+    "payload": "eyJkb21haW4iOiJtaW5pY2FzdC5zdG9yZSJ9",
+    "signature": "vxAbFo+cBfQD+NtSema9FsemtckTu0CUkxcp3+ql6uABER7Cv/EZTNSSTHf98EQP2iQH2d5EINAUfHllTvGO3xw="
+  },
   "frame": {
     "name": "Mini App Store",
     "iconUrl": "/logo.png",
