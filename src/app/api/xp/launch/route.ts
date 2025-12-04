@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { convertReferralForUser } from "@/lib/referral-helpers";
 
 const LAUNCH_XP_REWARD = 2;
 const LAUNCH_COOLDOWN_MINUTES = 5;
@@ -174,6 +175,9 @@ export async function POST(request: NextRequest) {
         });
 
         xpAwarded = xpToAward;
+
+        // Convert referral if user came from a referral link
+        await convertReferralForUser(wallet);
       } catch (pointsError) {
         console.error("Error awarding launch XP:", pointsError);
         // Don't fail the launch if points system has an error

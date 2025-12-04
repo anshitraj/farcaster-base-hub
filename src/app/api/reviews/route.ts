@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { convertReferralForUser } from "@/lib/referral-helpers";
 import { z } from "zod";
 
 const reviewSchema = z.object({
@@ -45,13 +46,100 @@ export async function POST(request: NextRequest) {
     // Get current rating before update
     const previousRating = app.ratingAverage;
 
-    // Get developer if session exists
+    // Get or create developer if session exists and fetch/update avatar
     let developerId: string | undefined;
+    let reviewerAvatar: string | null = null;
+    
     if (session) {
-      const developer = await prisma.developer.findUnique({
-        where: { wallet: session.wallet },
+      const normalizedWallet = session.wallet.toLowerCase();
+      let developer = await prisma.developer.findUnique({
+        where: { wallet: normalizedWallet },
       });
-      developerId = developer?.id;
+      
+      // Create developer if doesn't exist
+      if (!developer) {
+        developer = await prisma.developer.create({
+          data: {
+            wallet: normalizedWallet,
+          },
+        });
+      }
+      
+      developerId = developer.id;
+      
+      // Fetch avatar from Base or Farcaster if developer doesn't have one
+      if (!developer.avatar) {
+        try {
+          const isFarcaster = normalizedWallet.startsWith("farcaster:");
+          
+          if (isFarcaster) {
+            // Fetch from Farcaster/Neynar API
+            const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+            if (fidMatch) {
+              const fid = fidMatch[1];
+              try {
+                const neynarRes = await fetch(
+                  `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+                  {
+                    headers: {
+                      "apikey": process.env.NEYNAR_API_KEY || "",
+                      "Content-Type": "application/json",
+                    },
+                  }
+                );
+                
+                if (neynarRes.ok) {
+                  const neynarData = await neynarRes.json();
+                  const user = neynarData.users?.[0];
+                  if (user?.pfp_url) {
+                    reviewerAvatar = user.pfp_url;
+                    // Update developer with avatar and name if available
+                    await prisma.developer.update({
+                      where: { id: developer.id },
+                      data: {
+                        avatar: reviewerAvatar,
+                        name: user.display_name || user.username || developer.name,
+                      },
+                    });
+                  }
+                }
+              } catch (neynarError) {
+                console.error("Error fetching Farcaster avatar:", neynarError);
+              }
+            }
+          } else {
+            // Fetch from Base profile API
+            try {
+              const baseRes = await fetch(
+                `${request.nextUrl.origin}/api/base/profile?wallet=${encodeURIComponent(normalizedWallet)}`,
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              
+              if (baseRes.ok) {
+                const baseData = await baseRes.json();
+                if (baseData.avatar) {
+                  reviewerAvatar = baseData.avatar;
+                  // Update developer with avatar
+                  await prisma.developer.update({
+                    where: { id: developer.id },
+                    data: { avatar: reviewerAvatar },
+                  });
+                }
+              }
+            } catch (baseError) {
+              console.error("Error fetching Base avatar:", baseError);
+            }
+          }
+        } catch (avatarError) {
+          console.error("Error fetching avatar:", avatarError);
+        }
+      } else {
+        reviewerAvatar = developer.avatar;
+      }
     }
 
     // Check if user already reviewed this app
@@ -108,11 +196,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Award 100 points for rating (Rate 2 Earn)
+    // Award 10 points for rating (Rate 2 Earn)
     let pointsAwarded = 0;
     if (session && isNewReview) {
       // Only award points if this is a new review (not an update)
-      const RATING_POINTS = 100;
+      const RATING_POINTS = 10; // Changed from 100 to 10
       
       try {
         // Find or create user points record
@@ -151,6 +239,57 @@ export async function POST(request: NextRequest) {
         });
 
         pointsAwarded = RATING_POINTS;
+
+        // Award 50 points to developer for receiving a review
+        try {
+          const developer = await prisma.developer.findUnique({
+            where: { id: app.developerId },
+          });
+
+          if (developer && developer.wallet) {
+            // Find or create developer's user points record
+            let developerPoints = await prisma.userPoints.findUnique({
+              where: { wallet: developer.wallet.toLowerCase() },
+            });
+
+            const DEVELOPER_REVIEW_POINTS = 50;
+
+            if (!developerPoints) {
+              developerPoints = await prisma.userPoints.create({
+                data: {
+                  wallet: developer.wallet.toLowerCase(),
+                  totalPoints: DEVELOPER_REVIEW_POINTS,
+                },
+              });
+            } else {
+              developerPoints = await prisma.userPoints.update({
+                where: { wallet: developer.wallet.toLowerCase() },
+                data: {
+                  totalPoints: {
+                    increment: DEVELOPER_REVIEW_POINTS,
+                  },
+                },
+              });
+            }
+
+            // Create transaction record for developer
+            await prisma.pointsTransaction.create({
+              data: {
+                wallet: developer.wallet.toLowerCase(),
+                points: DEVELOPER_REVIEW_POINTS,
+                type: "review_received",
+                description: `Earned ${DEVELOPER_REVIEW_POINTS} points for receiving a review on "${app.name}"`,
+                referenceId: review.id,
+              },
+            });
+          }
+        } catch (developerPointsError) {
+          // Don't fail the review if developer points system has an error
+          console.error("Error awarding developer points:", developerPointsError);
+        }
+
+        // Convert referral if user came from a referral link
+        await convertReferralForUser(session.wallet);
       } catch (pointsError) {
         // Don't fail the review if points system has an error
         console.error("Error awarding points:", pointsError);

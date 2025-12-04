@@ -2,21 +2,25 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import PageLoader from "@/components/PageLoader";
 import AppHeader from "@/components/AppHeader";
 import Sidebar from "@/components/Sidebar";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { trackPageView } from "@/lib/analytics";
-import { Trophy, Medal, Award, CheckCircle2 } from "lucide-react";
+import { Trophy, Medal, Award, CheckCircle2, X, Zap, ChevronDown } from "lucide-react";
 import VerifiedBadge from "@/components/VerifiedBadge";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 export default function RankingPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [currentUserWallet, setCurrentUserWallet] = useState<string | null>(null);
+  const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user: miniAppUser } = useMiniApp();
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed
@@ -66,7 +70,53 @@ export default function RankingPage() {
         }
         
         const data = await res.json();
-        setUsers(data.users || []);
+        let fetchedUsers = data.users || [];
+        
+        // Enhance user data with Base names and avatars if missing
+        fetchedUsers = await Promise.all(
+          fetchedUsers.map(async (user: any) => {
+            // If user doesn't have a Base name or avatar, try to fetch it
+            if (!user.baseName && user.wallet && !user.wallet.startsWith('farcaster:')) {
+              try {
+                const baseRes = await fetch(`/api/base/profile?wallet=${user.wallet}`);
+                if (baseRes.ok) {
+                  const baseData = await baseRes.json();
+                  if (baseData.baseEthName || (baseData.name && baseData.name.includes('.base.eth'))) {
+                    user.baseName = baseData.baseEthName || baseData.name;
+                    if (!user.name || user.name.includes('...')) {
+                      user.name = user.baseName;
+                    }
+                  }
+                }
+              } catch (e) {
+                // Ignore
+              }
+            }
+            
+            // Generate avatar if missing
+            if (!user.avatar) {
+              if (user.wallet.startsWith('farcaster:')) {
+                user.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=ffffff&hairColor=77311d`;
+              } else {
+                user.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+              }
+            }
+            
+            return user;
+          })
+        );
+        
+        // Find current user's rank
+        if (currentUserWallet) {
+          const userIndex = fetchedUsers.findIndex((u: any) => 
+            u.wallet && u.wallet.toLowerCase() === currentUserWallet
+          );
+          if (userIndex !== -1) {
+            setCurrentUserRank(userIndex + 1);
+          }
+        }
+        
+        setUsers(fetchedUsers);
       } catch (error) {
         console.error("Error fetching ranking:", error);
         setUsers([]);
@@ -78,20 +128,57 @@ export default function RankingPage() {
     fetchRanking();
   }, []);
 
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-400 fill-yellow-400" />;
-    if (rank === 2) return <Medal className="w-5 h-5 text-gray-300 fill-gray-300" />;
-    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600 fill-amber-600" />;
-    return <span className="text-gray-400 font-bold w-5 text-center">{rank}</span>;
+  const getRankDisplay = (rank: number) => {
+    if (rank === 1) {
+      return (
+        <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center">
+          <Trophy className="w-5 h-5 text-white fill-white" />
+        </div>
+      );
+    }
+    if (rank === 2) {
+      return (
+        <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+          <Medal className="w-5 h-5 text-white fill-white" />
+        </div>
+      );
+    }
+    if (rank === 3) {
+      return (
+        <div className="w-8 h-8 rounded-full bg-amber-600 flex items-center justify-center">
+          <Medal className="w-5 h-5 text-white fill-white" />
+        </div>
+      );
+    }
+    return (
+      <span className="text-gray-400 font-bold text-sm">#{rank}</span>
+    );
   };
 
-  const getRankColor = (rank: number, isCurrentUser: boolean) => {
-    if (isCurrentUser) return "bg-base-blue/20 border-base-blue/50";
-    if (rank === 1) return "bg-yellow-500/10 border-yellow-500/30";
-    if (rank === 2) return "bg-gray-400/10 border-gray-400/30";
-    if (rank === 3) return "bg-amber-600/10 border-amber-600/30";
-    return "bg-gray-900 border-gray-800";
+  // Generate temporary username from wallet address
+  const generateTempUsername = (wallet: string): string => {
+    if (!wallet) return "User";
+    // Use last 4 characters of wallet to create a unique username
+    const last4 = wallet.slice(-4).toLowerCase();
+    const adjectives = ["Cool", "Swift", "Bold", "Bright", "Sharp", "Quick", "Smart", "Fast", "Bold", "Epic"];
+    const nouns = ["User", "Player", "Hero", "Star", "Champ", "Pro", "Ace", "Elite", "Master", "Legend"];
+    const adjIndex = parseInt(last4.slice(0, 1), 16) % adjectives.length;
+    const nounIndex = parseInt(last4.slice(1, 2), 16) % nouns.length;
+    return `${adjectives[adjIndex]}${nouns[nounIndex]}${last4.slice(2)}`;
   };
+
+  const sortedUsers = [...users].sort((a, b) => {
+    return (b.totalPoints || 0) - (a.totalPoints || 0);
+  });
+
+  // Get top 3 and current user entry
+  const topUsers = sortedUsers.slice(0, 3);
+  const currentUserEntry = currentUserWallet 
+    ? sortedUsers.find((u: any) => u.wallet && u.wallet.toLowerCase() === currentUserWallet)
+    : null;
+  const currentUserIndex = currentUserWallet 
+    ? sortedUsers.findIndex((u: any) => u.wallet && u.wallet.toLowerCase() === currentUserWallet)
+    : -1;
 
   return (
     <div className="flex min-h-screen bg-black">
@@ -131,104 +218,218 @@ export default function RankingPage() {
 
           {loading ? (
             <PageLoader message="Loading rankings..." />
-          ) : users.length > 0 ? (
+          ) : sortedUsers.length > 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
+              className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl"
             >
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-4 p-4 bg-gray-800/50 border-b border-gray-700 text-sm font-semibold text-gray-300">
-                <div className="col-span-1 text-center">Rank</div>
-                <div className="col-span-5">User</div>
-                <div className="col-span-2 text-center">Points</div>
-                <div className="col-span-2 text-center">XP</div>
-                <div className="col-span-2 text-center">Level</div>
+              {/* Leaderboard Header */}
+              <div className="bg-gray-800/50 border-b border-gray-700 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                  <h2 className="text-xl font-bold text-white">Leaderboard</h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Points Label */}
+                  <span className="text-sm font-medium text-gray-300">Points</span>
+                </div>
               </div>
 
-              {/* Table Rows */}
-              <div className="divide-y divide-gray-800">
-                {users.map((user, index) => {
-                  const rank = index + 1;
-                  const displayName = user.name || "Anonymous";
-                  const walletShort = user.wallet 
-                    ? `${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}`
-                    : "N/A";
-                  const totalPoints = user.totalPoints || 0;
-                  const totalXP = user.totalXP || 0;
-                  const userLevel = user.developerLevel || 1;
-                  const verified = user.verified || false;
-                  const isCurrentUser = Boolean(currentUserWallet && user.wallet && user.wallet.toLowerCase() === currentUserWallet);
+              {/* Current User Entry (Highlighted) */}
+              {currentUserEntry && currentUserIndex >= 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-green-500/10 border-l-4 border-green-500 p-4 mx-4 my-4 rounded-lg"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0">
+                      {getRankDisplay(currentUserIndex + 1)}
+                    </div>
+                    <div className="flex-shrink-0">
+                      {currentUserEntry.avatar ? (
+                        <Image
+                          src={currentUserEntry.avatar}
+                          alt={currentUserEntry.name || "You"}
+                          width={48}
+                          height={48}
+                          className="rounded-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserEntry.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                          <span className="text-lg font-bold text-gray-300">
+                            {(currentUserEntry.name || "U").charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">You</span>
+                        {currentUserEntry.verified && (
+                          <VerifiedBadge type="developer" iconOnly size="sm" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Zap className="w-3 h-3 text-green-400 fill-green-400" />
+                        <span className="text-xs text-gray-400">1 day streak</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-green-400 text-lg">
+                        {(currentUserEntry.totalPoints || 0).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-gray-400">points</div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
+              {/* Top 3 Users */}
+              <div className="px-4 pb-4 space-y-3">
+                {topUsers.map((user, index) => {
+                  const rank = index + 1;
+                  // Generate temp username if no name found
+                  const displayName = user.name || user.baseName || (user.wallet ? generateTempUsername(user.wallet) : "User");
+                  const points = user.totalPoints || 0;
+                  
                   return (
                     <motion.div
                       key={user.wallet}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.05 }}
-                      className={`grid grid-cols-12 gap-4 p-4 hover:bg-gray-800/50 transition-all duration-300 ${getRankColor(rank, isCurrentUser)} border-l-4 ${
-                        rank <= 3 ? "border-l-4" : "border-l-transparent"
-                      }`}
+                      transition={{ duration: 0.4, delay: index * 0.1 }}
+                      className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 hover:bg-gray-800 transition-colors"
                     >
-                      {/* Rank */}
-                      <div className="col-span-1 flex items-center justify-center">
-                        {getRankIcon(rank)}
-                      </div>
-
-                      {/* User Info */}
-                      <div className="col-span-5 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0">
+                          {getRankDisplay(rank)}
+                        </div>
+                        <div className="flex-shrink-0">
                           {user.avatar ? (
-                            <img
+                            <Image
                               src={user.avatar}
                               alt={displayName}
-                              className="w-full h-full rounded-full object-cover"
+                              width={48}
+                              height={48}
+                              className="rounded-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                              }}
                             />
                           ) : (
-                            <span className="text-base font-bold text-blue-400">
-                              {displayName.charAt(0).toUpperCase()}
-                            </span>
+                            <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                              <span className="text-lg font-bold text-gray-300">
+                                {displayName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={`font-semibold truncate ${isCurrentUser ? "text-base-blue" : "text-white"}`}>
-                              {displayName}
-                              {isCurrentUser && " (You)"}
+                            <span className="font-semibold text-white truncate">
+                              {user.baseName 
+                                ? `@${user.baseName.toLowerCase().replace('.base.eth', '').toUpperCase()}.base.eth`
+                                : displayName}
                             </span>
-                            {verified && (
+                            {user.verified && (
                               <VerifiedBadge type="developer" iconOnly size="sm" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-400 font-mono truncate">
-                            {walletShort}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Zap className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            <span className="text-xs text-gray-400">149 day streak</span>
+                          </div>
+                          {rank <= 3 && (
+                            <div className="mt-1">
+                              <span className="text-xs font-bold text-green-400" style={{ fontFamily: 'monospace' }}>
+                                Merch Mogul
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Points */}
-                      <div className="col-span-2 flex items-center justify-center">
-                        <span className={`font-semibold ${isCurrentUser ? "text-base-blue" : "text-blue-400"}`}>
-                          {totalPoints.toLocaleString()}
-                        </span>
-                      </div>
-
-                      {/* XP */}
-                      <div className="col-span-2 flex items-center justify-center">
-                        <span className="text-blue-400 font-semibold">{totalXP.toLocaleString()}</span>
-                      </div>
-
-                      {/* Level */}
-                      <div className="col-span-2 flex items-center justify-center">
-                        <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm font-semibold">
-                          Lv.{userLevel}
-                        </span>
+                        <div className="text-right">
+                          <div className="font-bold text-white text-lg">
+                            {points.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-400">points</div>
+                          {rank <= 3 && (
+                            <div className="flex items-center gap-1 mt-1 justify-end">
+                              <span className="text-xs font-bold text-yellow-400">5x</span>
+                              <Trophy className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   );
                 })}
               </div>
+
+              {/* More Users (if current user is not in top 3) */}
+              {currentUserIndex >= 3 && (
+                <div className="px-4 pb-4 space-y-2 border-t border-gray-700 pt-4">
+                  <p className="text-xs text-gray-400 font-medium mb-2">More Rankings</p>
+                  {sortedUsers.slice(3, 10).map((user, index) => {
+                    const rank = index + 4;
+                    // Generate temp username if no name found
+                    const displayName = user.name || user.baseName || (user.wallet ? generateTempUsername(user.wallet) : "User");
+                    const points = user.totalPoints || 0;
+                    
+                    return (
+                      <div
+                        key={user.wallet}
+                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        <div className="flex-shrink-0 w-6 text-xs text-gray-400 font-medium">
+                          #{rank}
+                        </div>
+                        <div className="flex-shrink-0">
+                          {user.avatar ? (
+                            <Image
+                              src={user.avatar}
+                              alt={displayName}
+                              width={32}
+                              height={32}
+                              className="rounded-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                              <span className="text-xs font-bold text-gray-300">
+                                {displayName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-white truncate block">
+                            {user.baseName 
+                              ? `@${user.baseName.toLowerCase().replace('.base.eth', '').toUpperCase()}.base.eth`
+                              : displayName}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-semibold text-gray-300">
+                            {points.toLocaleString()}
+                          </span>
+                          <div className="text-xs text-gray-400">points</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           ) : (
             <div className="text-center py-20">

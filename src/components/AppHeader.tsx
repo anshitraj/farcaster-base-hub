@@ -6,7 +6,6 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Bell, Search, Plus, Menu, Wallet, Copy, Shield, CheckCircle2, LogOut } from "lucide-react";
 import PointsDisplay from "@/components/PointsDisplay";
-import XPSDisplay from "@/components/XPSDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
@@ -440,10 +439,6 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 </span>
               )}
             </motion.button>
-            {/* XPS Display - Hide on mobile (moved to sidebar), show on desktop */}
-            <div className="hidden md:block">
-              <XPSDisplay />
-            </div>
             {/* Points Display - Hide in Mini Apps (Farcaster/Base) to save space, show in regular browsers */}
             {loaded && !isInMiniApp && <PointsDisplay />}
             

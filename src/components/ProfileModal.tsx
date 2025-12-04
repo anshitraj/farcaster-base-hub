@@ -27,6 +27,7 @@ interface UserProfileData {
   developerName?: string | null;
   fid?: number | null;
   isFarcaster?: boolean;
+  baseName?: string | null; // Base name like "solrishu.base.eth"
 }
 
 function getCurrentUser() {
@@ -218,14 +219,62 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         name = `FID: ${extractedFid}`;
       }
       
-      if (isBaseWallet && !name) {
+      // Fetch Base name (base.eth domain)
+      let baseName: string | null = null;
+      if (isBaseWallet || normalizedWallet.startsWith("0x")) {
         try {
-          const baseRes = await fetch(`/api/base/name?address=${normalizedWallet}`);
-          if (baseRes.ok) {
-            const baseData = await baseRes.json();
-            if (baseData.name) {
-              name = baseData.name;
+          // Try to get from MiniApp context first (Base App provides username)
+          if (miniAppUser?.username) {
+            // Check if username is a Base name (contains .base.eth)
+            const username = miniAppUser.username.toLowerCase();
+            if (username.includes('.base.eth')) {
+              baseName = username;
             }
+          }
+          
+          // If not found in MiniApp context, try to resolve from Base profile API
+          if (!baseName) {
+            try {
+              const baseRes = await fetch(`/api/base/profile?wallet=${normalizedWallet}`);
+              if (baseRes.ok) {
+                const baseData = await baseRes.json();
+                // Check if we have a .base.eth name
+                if (baseData.baseEthName) {
+                  baseName = baseData.baseEthName.toLowerCase();
+                } else if (baseData.name && baseData.name.includes('.base.eth')) {
+                  baseName = baseData.name.toLowerCase();
+                }
+              }
+            } catch (e) {
+              // Ignore resolution errors
+            }
+          }
+          
+          // Also check if the name itself is a Base name
+          if (!baseName && name && (name.includes('.base.eth') || name.endsWith('.base.eth'))) {
+            baseName = name.toLowerCase();
+          }
+          
+          // Also check developer profile for Base name
+          if (!baseName) {
+            try {
+              const devRes = await fetch(`/api/developers/${normalizedWallet}`, {
+                credentials: "include",
+              });
+              if (devRes.ok) {
+                const devData = await devRes.json();
+                if (devData.developer?.name && devData.developer.name.includes('.base.eth')) {
+                  baseName = devData.developer.name.toLowerCase();
+                }
+              }
+            } catch (e) {
+              // Ignore
+            }
+          }
+          
+          // If no name was set and we have a baseName, use it as fallback
+          if (!name && baseName) {
+            name = baseName;
           }
         } catch (e) {
           // Ignore
@@ -246,6 +295,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         isAdmin,
         fid: extractedFid,
         isFarcaster,
+        baseName,
       });
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -585,11 +635,14 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h1 className="text-2xl font-bold text-white truncate">{displayName}</h1>
-                  {profile.name && profile.name.endsWith('.minicast') && (
-                    <p className="text-gray-400 truncate">{profile.name}</p>
-                  )}
                   {profile.isFarcaster && profile.fid && (
                     <p className="text-gray-400">FID: {profile.fid}</p>
+                  )}
+                  {profile.baseName && (
+                    <p className="text-gray-400 truncate">@{profile.baseName.toUpperCase()}</p>
+                  )}
+                  {profile.name && profile.name.endsWith('.minicast') && !profile.baseName && (
+                    <p className="text-gray-400 truncate">{profile.name}</p>
                   )}
                 </div>
               </div>

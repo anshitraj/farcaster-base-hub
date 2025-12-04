@@ -126,8 +126,23 @@ export async function GET(request: NextRequest) {
     const session = await getSessionFromCookies();
     
     if (session) {
+      // Try to get FID from user profile
+      let fid: string | null = null;
+      try {
+        const { prisma } = await import("@/lib/db");
+        const userProfile = await prisma.userProfile.findUnique({
+          where: { wallet: session.wallet.toLowerCase() },
+        });
+        if (userProfile?.farcasterFid) {
+          fid = userProfile.farcasterFid;
+        }
+      } catch (error) {
+        // Ignore errors when fetching FID
+      }
+
       return NextResponse.json({
         wallet: session.wallet,
+        fid: fid,
       });
     }
 
@@ -138,8 +153,24 @@ export async function GET(request: NextRequest) {
     if (walletFromCookie) {
       // Normalize wallet address (lowercase, trim)
       const normalizedWallet = walletFromCookie.toLowerCase().trim();
+      
+      // Try to get FID from user profile
+      let fid: string | null = null;
+      try {
+        const { prisma } = await import("@/lib/db");
+        const userProfile = await prisma.userProfile.findUnique({
+          where: { wallet: normalizedWallet },
+        });
+        if (userProfile?.farcasterFid) {
+          fid = userProfile.farcasterFid;
+        }
+      } catch (error) {
+        // Ignore errors when fetching FID
+      }
+
       return NextResponse.json({
         wallet: normalizedWallet,
+        fid: fid,
       });
     }
 

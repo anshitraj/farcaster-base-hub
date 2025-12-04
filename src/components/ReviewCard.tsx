@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, ThumbsUp } from "lucide-react";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 interface ReviewCardProps {
   userName: string;
@@ -12,6 +13,18 @@ interface ReviewCardProps {
 }
 
 const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: ReviewCardProps) => {
+  // Generate a fallback avatar based on username if no avatar provided
+  const getFallbackAvatar = (name: string) => {
+    if (userAvatar && userAvatar !== "https://via.placeholder.com/48") {
+      return userAvatar;
+    }
+    // Generate a consistent avatar based on username
+    const seed = name || "anonymous";
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+  };
+
+  const avatarUrl = getFallbackAvatar(userName);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -21,11 +34,20 @@ const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: Re
       <Card className="glass-card">
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
-            <img
-              src={userAvatar}
-              alt={userName}
-              className="w-12 h-12 rounded-full bg-background-secondary p-1"
-            />
+            <div className="relative w-12 h-12 rounded-full bg-background-secondary p-1 flex-shrink-0">
+              <Image
+                src={avatarUrl}
+                alt={userName}
+                width={48}
+                height={48}
+                className="w-full h-full rounded-full object-cover"
+                onError={(e) => {
+                  // Fallback to a default avatar if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userName || "user")}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                }}
+              />
+            </div>
             
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">

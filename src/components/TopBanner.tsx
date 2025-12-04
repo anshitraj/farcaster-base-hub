@@ -19,6 +19,7 @@ interface TopBannerProps {
     headerImageUrl?: string; // Header/OG image URL
     category?: string;
     tags?: string[]; // App tags
+    verified?: boolean; // App verification status
     developer?: {
       verified?: boolean;
     };
@@ -281,15 +282,38 @@ export default function TopBanner({ apps }: TopBannerProps) {
               <div className="flex-1">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1">
-                    <motion.h1
+                    <motion.div
                       key={`title-${currentIndex}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: 0.15 }}
-                      className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-2 drop-shadow-lg"
+                      className="flex items-center gap-2 mb-2"
                     >
-                      {currentApp.name}
-                    </motion.h1>
+                      <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white drop-shadow-lg">
+                        {currentApp.name}
+                      </h1>
+                      {currentApp.verified ? (
+                        <Image
+                          src="/verify.svg"
+                          alt="Verified"
+                          width={28}
+                          height={28}
+                          className="w-7 h-7 md:w-8 md:h-8 flex-shrink-0"
+                          title="Verified App"
+                          unoptimized
+                        />
+                      ) : (
+                        <Image
+                          src="/Warning.svg"
+                          alt="Unverified"
+                          width={28}
+                          height={28}
+                          className="w-7 h-7 md:w-8 md:h-8 flex-shrink-0"
+                          title="Unverified App"
+                          unoptimized
+                        />
+                      )}
+                    </motion.div>
                     {/* Category tags and Verified Developer badge */}
                     <motion.div
                       key={`tags-${currentIndex}`}

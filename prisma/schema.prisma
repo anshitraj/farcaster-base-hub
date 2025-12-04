@@ -419,3 +419,26 @@ model Advertisement {
   @@index([position])
   @@index([order])
 }
+
+// Referral System for Quests
+model Referral {
+  id              String   @id @default(uuid())
+  referrerFid     String   // FID of the user who shared the referral link
+  referrerWallet  String?  // Wallet of the referrer (optional)
+  referredFid     String?  // FID of the user who clicked the referral link
+  referredWallet  String?  // Wallet of the referred user (optional)
+  referralUrl     String   // The referral URL that was shared
+  clicked         Boolean  @default(false) // Whether the referral link was clicked
+  converted       Boolean  @default(false) // Whether the referred user completed a quest
+  createdAt       DateTime @default(now())
+  clickedAt       DateTime?
+  convertedAt     DateTime?
+
+  @@index([referrerFid])
+  @@index([referrerWallet])
+  @@index([referredFid])
+  @@index([referredWallet])
+  @@index([clicked])
+  @@index([converted])
+  @@index([createdAt])
+}

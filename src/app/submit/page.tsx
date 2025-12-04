@@ -2,7 +2,6 @@
 
 import SubmitForm from "@/components/SubmitForm";
 import AppHeader from "@/components/AppHeader";
-import { Sparkles } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +12,6 @@ export default function SubmitPage() {
       <div className="pt-6 pb-8">
         <div className="max-w-5xl mx-auto px-4">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 mb-4">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="text-xs text-white/80">Join the ecosystem</span>
-            </div>
-            
             <h1 className="text-3xl md:text-4xl font-bold mb-3">
               <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
                 Submit Your Mini App

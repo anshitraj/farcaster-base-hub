@@ -32,6 +32,7 @@ function AppsPageContent() {
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   useEffect(() => {
     trackPageView("/apps");
@@ -192,8 +193,8 @@ function AppsPageContent() {
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {availableTags.slice(0, 20).map((tag) => (
+              <div className="flex flex-wrap gap-2 items-center">
+                {(showAllTags ? availableTags : availableTags.slice(0, 5)).map((tag) => (
                   <button
                     key={tag}
                     onClick={() => handleTagSelect(selectedTag === tag ? null : tag)}
@@ -206,6 +207,14 @@ function AppsPageContent() {
                     {tag}
                   </button>
                 ))}
+                {availableTags.length > 5 && (
+                  <button
+                    onClick={() => setShowAllTags(!showAllTags)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-300 bg-gray-800 text-gray-300 border border-gray-700 hover:border-gray-600 hover:text-white"
+                  >
+                    {showAllTags ? "Show less" : "Show more"}
+                  </button>
+                )}
               </div>
             </motion.div>
           )}

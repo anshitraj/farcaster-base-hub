@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
-    // Fetch developer info for each user to get name, avatar, etc.
+    // Fetch developer info for each user to get name, avatar, Base name, etc.
     const usersWithInfo = await Promise.all(
       users.map(async (user) => {
         const developer = await prisma.developer.findUnique({
@@ -30,14 +30,75 @@ export async function GET(request: NextRequest) {
           },
         });
 
+        // Try to get Base name from developer profile or UserProfile
+        let baseName: string | null = null;
+        let avatar: string | null = developer?.avatar || null;
+        let displayName: string | null = developer?.name || null;
+
+        if (developer?.name) {
+          // Check if it's a Base name (.base.eth or .minicast)
+          if (developer.name.includes('.base.eth') || developer.name.endsWith('.base.eth')) {
+            baseName = developer.name;
+            displayName = developer.name;
+          } else if (developer.name.endsWith('.minicast')) {
+            // .minicast names can also be used
+            baseName = developer.name;
+            displayName = developer.name;
+          }
+        }
+
+        // If no Base name found, try UserProfile for Farcaster handle or Base name
+        if (!baseName) {
+          try {
+            const userProfile = await prisma.userProfile.findUnique({
+              where: { wallet: user.wallet },
+              select: {
+                farcasterHandle: true,
+                farcasterFid: true,
+              },
+            });
+            
+            // If we have a Farcaster handle, we could use it, but Base name takes priority
+            // For now, we'll keep checking developer name
+          } catch (e) {
+            // Ignore
+          }
+        }
+
+        // If still no display name, generate one from wallet
+        if (!displayName) {
+          // Check if wallet is a Farcaster wallet
+          if (user.wallet.startsWith('farcaster:')) {
+            const fid = user.wallet.replace('farcaster:', '');
+            displayName = `FID: ${fid}`;
+          } else {
+            // For Base wallets, try to get Base name from profile API
+            try {
+              // This would require calling the Base profile API, but to avoid circular calls,
+              // we'll just use wallet short format
+              displayName = `${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}`;
+            } catch (e) {
+              displayName = `${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}`;
+            }
+          }
+        }
+
+        // Generate avatar if not available
+        if (!avatar) {
+          if (user.wallet.startsWith('farcaster:')) {
+            avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=ffffff&hairColor=77311d`;
+          } else {
+            avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+          }
+        }
+
         return {
           wallet: user.wallet,
           totalPoints: user.totalPoints || 0,
-          name: developer?.name || null,
-          avatar: developer?.avatar || null,
+          name: displayName,
+          baseName: baseName,
+          avatar: avatar,
           verified: developer?.verified || false,
-          totalXP: developer?.totalXP || 0,
-          developerLevel: developer?.developerLevel || 1,
         };
       })
     );

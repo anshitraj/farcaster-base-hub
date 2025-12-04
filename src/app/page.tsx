@@ -56,18 +56,44 @@ function HomePageContent() {
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed
+  // Only set initial state once, don't reset on every render
   useEffect(() => {
     const checkMobile = () => {
       if (window.innerWidth >= 1024) {
-        setSidebarOpen(true); // Always open on desktop
+        // On desktop, always open by default
+        setSidebarOpen(true);
       } else {
-        setSidebarOpen(false); // Closed by default on mobile
+        // On mobile, check localStorage or default to closed
+        const savedSidebarState = localStorage.getItem('sidebarOpen');
+        if (savedSidebarState !== null) {
+          setSidebarOpen(savedSidebarState === 'true');
+        } else {
+          setSidebarOpen(false);
+        }
       }
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+    
+    // Set initial state immediately
+    if (typeof window !== 'undefined') {
+      checkMobile();
+    }
+    
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        // Always show on desktop
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []); // Only run once on mount
+
+  // Save sidebar state to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpen', String(sidebarOpen));
+    }
+  }, [sidebarOpen]);
 
   const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
@@ -77,6 +103,17 @@ function HomePageContent() {
   useEffect(() => {
     trackPageView("/");
   }, []);
+
+  // Handle referral links from homepage
+  useEffect(() => {
+    const refFid = searchParams?.get("ref");
+    if (refFid) {
+      // Redirect to quests page with referral parameter
+      if (typeof window !== "undefined") {
+        window.location.href = `/quests?ref=${refFid}`;
+      }
+    }
+  }, [searchParams]);
 
   // Check for Farcaster login errors in URL
   useEffect(() => {

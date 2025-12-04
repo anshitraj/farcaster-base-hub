@@ -18,7 +18,6 @@ import {
   Award,
 } from "lucide-react";
 import GasPriceDisplay from "@/components/GasPriceDisplay";
-import XPSDisplay from "@/components/XPSDisplay";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 
@@ -158,6 +157,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
     }
   };
 
+  // On desktop, if hidden, show a button to reveal it
   if (isHidden && !isMobile) {
     return (
       <button
@@ -168,6 +168,11 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
         <ChevronRight className="w-5 h-5 text-[#AAA]" />
       </button>
     );
+  }
+
+  // On mobile, if not open, don't render the sidebar
+  if (isMobile && !isOpen) {
+    return null;
   }
 
   return (
@@ -188,7 +193,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
         animate={{
           x: isMobile
             ? isOpen && !isHidden ? 0 : -320
-            : isHidden ? -320 : 0,
+            : isHidden ? -320 : 0, // On desktop, only check isHidden, not isOpen
         }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className={`flex fixed left-0 top-0 h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] z-50 lg:z-40 transition-all duration-300 ${
@@ -285,16 +290,6 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
               <div className="bg-[#141A24] border border-[#1F2733] rounded-lg p-2">
                 <div className="flex items-center justify-center">
                   <GasPriceDisplay />
-                </div>
-              </div>
-            </div>
-          )}
-          {/* XPS Display in Sidebar - Mobile only, Above Menu */}
-          {!isCollapsed && isMobile && (
-            <div className="px-4 mb-4">
-              <div className="bg-[#141A24] border border-[#1F2733] rounded-lg p-2">
-                <div className="flex items-center justify-center">
-                  <XPSDisplay />
                 </div>
               </div>
             </div>

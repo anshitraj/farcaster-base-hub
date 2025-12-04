@@ -429,6 +429,48 @@ export async function POST(request: NextRequest) {
       throw dbError;
     }
 
+    // Award 1000 points to developer for listing their app
+    try {
+      // Find or create developer's user points record
+      let developerPoints = await prisma.userPoints.findUnique({
+        where: { wallet: developer.wallet.toLowerCase() },
+      });
+
+      const APP_SUBMISSION_POINTS = 1000;
+
+      if (!developerPoints) {
+        developerPoints = await prisma.userPoints.create({
+          data: {
+            wallet: developer.wallet.toLowerCase(),
+            totalPoints: APP_SUBMISSION_POINTS,
+          },
+        });
+      } else {
+        developerPoints = await prisma.userPoints.update({
+          where: { wallet: developer.wallet.toLowerCase() },
+          data: {
+            totalPoints: {
+              increment: APP_SUBMISSION_POINTS,
+            },
+          },
+        });
+      }
+
+      // Create transaction record for developer
+      await prisma.pointsTransaction.create({
+        data: {
+          wallet: developer.wallet.toLowerCase(),
+          points: APP_SUBMISSION_POINTS,
+          type: "submit",
+          description: `Earned ${APP_SUBMISSION_POINTS} points for listing "${validated.name}"`,
+          referenceId: app.id,
+        },
+      });
+    } catch (pointsError) {
+      // Don't fail the submission if points system has an error
+      console.error("Error awarding submission points:", pointsError);
+    }
+
     return NextResponse.json({ 
       app,
       status: appStatus,

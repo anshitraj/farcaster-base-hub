@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     // Try to resolve .minicast name from developer profile
     // Names are stored in the developer profile when users verify their account
     let baseName: string | null = null;
+    let baseEthName: string | null = null;
     
     try {
       const { prisma } = await import("@/lib/db");
@@ -39,11 +40,32 @@ export async function GET(request: NextRequest) {
         },
       });
       
-      if (developer?.name && developer.name.endsWith('.minicast')) {
-        baseName = developer.name;
+      if (developer?.name) {
+        if (developer.name.endsWith('.minicast')) {
+          baseName = developer.name;
+        } else if (developer.name.endsWith('.base.eth')) {
+          baseEthName = developer.name;
+        }
       }
     } catch (error) {
       console.error("Error fetching developer profile:", error);
+    }
+
+    // Try to resolve .base.eth name from Base ENS (reverse lookup)
+    if (!baseEthName) {
+      try {
+        const provider = new ethers.JsonRpcProvider(BASE_RPC);
+        // Base uses ENS-compatible reverse resolution
+        // Reverse lookup format: {address}.addr.reverse
+        const reverseNode = `${normalizedWallet.slice(2)}.addr.reverse`;
+        
+        // Use the Base Name Service resolver
+        // Note: This is a simplified approach - full ENS resolution would use the resolver contract
+        // For now, we'll check if the developer has a .base.eth name stored
+        // In production, you'd use the full ENS resolver contract to do reverse lookup
+      } catch (error) {
+        console.error("Error resolving Base ENS name:", error);
+      }
     }
 
     // Use a consistent generated avatar based on wallet address
@@ -51,9 +73,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       wallet: normalizedWallet,
-      name: baseName,
+      name: baseName || baseEthName,
+      baseEthName: baseEthName, // Separate field for .base.eth name
       avatar: avatarUrl,
-      source: baseName ? "base" : "generated",
+      source: (baseName || baseEthName) ? "base" : "generated",
     });
   } catch (error: any) {
     console.error("Base profile fetch error:", error);

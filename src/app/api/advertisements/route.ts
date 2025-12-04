@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
+
 // GET - Fetch active advertisements for public display
 export async function GET(request: NextRequest) {
   try {

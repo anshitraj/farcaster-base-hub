@@ -98,66 +98,78 @@ export default function AppDetailPage() {
           });
           setApp(data.app);
           setReviews(data.reviews || []);
+          
+          // Set loading to false immediately so "Open App" button shows
+          setLoading(false);
+          
           if (data.app) {
             trackAppInteraction(id, "view");
             
-            // Check if current user is the owner
-            try {
-              const authRes = await fetch("/api/auth/wallet", {
-                method: "GET",
-                credentials: "include",
-              });
-              if (authRes.ok) {
-                const authData = await authRes.json();
-                if (authData.wallet && data.app.developer?.wallet) {
+            // Check if current user is the owner (non-blocking, in parallel)
+            fetch("/api/auth/wallet", {
+              method: "GET",
+              credentials: "include",
+            })
+              .then(authRes => {
+                if (authRes.ok) {
+                  return authRes.json();
+                }
+                return null;
+              })
+              .then(authData => {
+                if (authData?.wallet && data.app.developer?.wallet) {
                   setIsOwner(
                     authData.wallet.toLowerCase() ===
                       data.app.developer.wallet.toLowerCase()
                   );
                 }
-              }
-            } catch (authError) {
-              // Not authenticated, not owner
-              setIsOwner(false);
-            }
+              })
+              .catch(() => {
+                // Not authenticated, not owner
+                setIsOwner(false);
+              });
             
-            // Fetch recommended apps based on tags and category
-            try {
-              const tags = data.app.tags || [];
-              const category = data.app.category;
-              
-              // Build query params for recommendations
+            // Fetch recommended apps in parallel (non-blocking)
+            const tags = data.app.tags || [];
+            const category = data.app.category;
+            
+            if (tags.length > 0 || category) {
               const params = new URLSearchParams();
-              params.set("limit", "12"); // Get more to ensure we have enough after filtering
+              params.set("limit", "12");
               params.set("sort", "trending");
               
-              // If app has tags, search by tags first
               if (tags.length > 0) {
-                // Use the first tag for recommendations
                 params.set("tag", tags[0].toLowerCase());
               } else if (category) {
-                // Fallback to category if no tags
                 params.set("category", category);
               }
               
-              const recRes = await fetch(`/api/apps?${params.toString()}`);
-              if (recRes.ok) {
-                const recData = await recRes.json();
-                // Filter out the current app and get up to 6 recommended apps
-                const filtered = (recData.apps || []).filter(
-                  (a: any) => a.id !== id
-                );
-                setRecommendedApps(filtered.slice(0, 6));
-              }
-            } catch (recError) {
-              console.error("Error fetching recommended apps:", recError);
-              setRecommendedApps([]);
+              fetch(`/api/apps?${params.toString()}`)
+                .then(recRes => {
+                  if (recRes.ok) {
+                    return recRes.json();
+                  }
+                  return null;
+                })
+                .then(recData => {
+                  if (recData?.apps) {
+                    const filtered = recData.apps.filter(
+                      (a: any) => a.id !== id
+                    );
+                    setRecommendedApps(filtered.slice(0, 6));
+                  }
+                })
+                .catch(recError => {
+                  console.error("Error fetching recommended apps:", recError);
+                  setRecommendedApps([]);
+                });
             }
           }
+        } else {
+          setLoading(false);
         }
       } catch (error) {
         console.error("Error fetching app:", error);
-      } finally {
         setLoading(false);
       }
     }
@@ -168,52 +180,7 @@ export default function AppDetailPage() {
   const handleOpenApp = useCallback(async (type: "base" | "farcaster") => {
     if (!app) return;
 
-    // Award launch XP
-    let xpEarned = 0;
-    try {
-      const launchRes = await fetch("/api/xp/launch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ appId: id }),
-      });
-      
-        if (launchRes.ok) {
-          const launchData = await launchRes.json();
-          xpEarned = launchData.xpEarned || 0;
-          if (xpEarned > 0 && launchData.message) {
-            // Show XP toast
-            toast({
-              title: "XP Earned!",
-              description: launchData.message,
-            });
-          }
-        } else if (launchRes.status === 429) {
-          const launchData = await launchRes.json();
-          toast({
-            title: "Cooldown Active",
-            description: launchData.message || "You can earn XP again in 5 minutes",
-            variant: "default",
-          });
-        }
-    } catch (error) {
-      console.error("Error awarding launch XP:", error);
-    }
-
-    // Log event
-    try {
-      await fetch(`/api/apps/${id}/click`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ type: "open" }),
-      });
-      trackAppInteraction(id, type === "base" ? "open" : "open");
-    } catch (error) {
-      console.error("Error logging event:", error);
-    }
-
-    // Open app - use specific URL if available, otherwise generate deep link
+    // Open app immediately - don't wait for API calls
     let url: string;
     if (type === "base") {
       // For Base, use the original app URL (not webhook URL)
@@ -232,8 +199,32 @@ export default function AppDetailPage() {
       url = app.farcasterUrl || getFarcasterDeepLink(app.url);
     }
     
+    // Track analytics immediately (non-blocking)
+    trackAppInteraction(id, type === "base" ? "open" : "open");
+    
+    // Open app immediately
     window.location.href = url;
-  }, [app, id, toast]);
+    
+    // Log event in background (non-blocking, fire and forget)
+    fetch(`/api/apps/${id}/click`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ type: "open" }),
+    }).catch(error => {
+      console.error("Error logging event:", error);
+    });
+    
+    // Track launch in background (non-blocking, fire and forget)
+    fetch("/api/xp/launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ appId: id }),
+    }).catch(error => {
+      console.error("Error tracking launch:", error);
+    });
+  }, [app, id]);
 
   if (loading) {
     return <PageLoader message="Loading app..." />;
@@ -624,7 +615,7 @@ export default function AppDetailPage() {
                     <ReviewCard
                       key={review.id}
                       userName={review.developerReviewer?.name || "Anonymous"}
-                      userAvatar={review.developerReviewer?.avatar || "https://via.placeholder.com/48"}
+                      userAvatar={review.developerReviewer?.avatar || ""}
                       rating={review.rating}
                       comment={review.comment || ""}
                       date={reviewDate}
