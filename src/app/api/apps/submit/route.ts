@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { z } from "zod";
 import { fetchFarcasterMetadata } from "@/lib/farcaster-metadata";
+import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
 
 const submitSchema = z.object({
   name: z.string().min(1, "App name is required").max(100, "App name must be less than 100 characters"),
@@ -382,8 +383,8 @@ export async function POST(request: NextRequest) {
           url: validated.url,
           baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : null,
           farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : null,
-          iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : "https://via.placeholder.com/512?text=App+Icon",
-          headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : null,
+          iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? optimizeDevImage(validated.iconUrl) : "https://via.placeholder.com/512?text=App+Icon",
+          headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? optimizeBannerImage(validated.headerImageUrl) : null,
           category: validated.category,
           status: appStatus,
           reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : null,

@@ -35,6 +35,39 @@ export async function GET(request: NextRequest) {
       take: limit,
     });
 
+    // For developer notifications (app_updated), extract appId from link and fetch app info
+    const notificationsWithAppInfo = await Promise.all(
+      notifications.map(async (notif) => {
+        if (notif.type === "app_updated" && notif.link) {
+          // Extract appId from link (format: /apps/{appId})
+          const appIdMatch = notif.link.match(/\/apps\/([a-f0-9-]+)/);
+          if (appIdMatch && appIdMatch[1]) {
+            try {
+              const app = await prisma.miniApp.findUnique({
+                where: { id: appIdMatch[1] },
+                select: {
+                  id: true,
+                  name: true,
+                  iconUrl: true,
+                },
+              });
+              if (app) {
+                return {
+                  ...notif,
+                  appId: app.id,
+                  appName: app.name,
+                  appIcon: app.iconUrl,
+                };
+              }
+            } catch (error) {
+              console.error("Error fetching app info for notification:", error);
+            }
+          }
+        }
+        return notif;
+      })
+    );
+
     const unreadCount = await prisma.notification.count({
       where: {
         wallet: wallet.toLowerCase(),
@@ -43,7 +76,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      notifications,
+      notifications: notificationsWithAppInfo,
       unreadCount,
     });
   } catch (error) {

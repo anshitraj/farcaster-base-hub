@@ -13,6 +13,7 @@ import FavoriteButton from "@/components/FavoriteButton";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import RatingStars from "@/components/RatingStars";
 import { shortenDescription } from "@/lib/description-utils";
+import Image from "next/image";
 
 export const dynamic = 'force-dynamic';
 
@@ -262,9 +263,22 @@ function AppsPageContent() {
                           <div className="pr-10">
                             <div className="flex items-start justify-between gap-3 mb-2">
                               <div className="flex-1 min-w-0">
-                                <h3 className="text-lg font-bold text-white mb-1 line-clamp-1">
-                                  {app.name}
-                                </h3>
+                                <div className="flex items-center gap-1 mb-1">
+                                  <h3 className="text-lg font-bold text-white line-clamp-1">
+                                    {app.name}
+                                  </h3>
+                                  {app.verified && (
+                                    <Image
+                                      src="/verify.svg"
+                                      alt="Verified"
+                                      width={18}
+                                      height={18}
+                                      className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
+                                      title="Verified App"
+                                      unoptimized
+                                    />
+                                  )}
+                                </div>
                                 <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
                                   {shortenDescription(app.description) || "No description available"}
                                 </p>

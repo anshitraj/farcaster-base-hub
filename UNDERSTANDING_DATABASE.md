@@ -121,3 +121,6 @@ SELECT name, url, status, "createdAt" FROM "MiniApp" ORDER BY "createdAt" DESC;
 
 
 
+
+
+

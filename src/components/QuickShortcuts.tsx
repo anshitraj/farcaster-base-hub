@@ -20,23 +20,7 @@ export default function QuickShortcuts({ onScrollToApps, onScrollToBadges }: Qui
         router.push("/submit");
         break;
       case "apps":
-        if (onScrollToApps) {
-          onScrollToApps();
-        } else {
-          // Fallback: scroll to apps section
-          const appsSection = document.getElementById("apps-section");
-          if (appsSection) {
-            appsSection.scrollIntoView({ behavior: "smooth" });
-          } else {
-            router.push("/dashboard");
-            setTimeout(() => {
-              const section = document.getElementById("apps-section");
-              if (section) {
-                section.scrollIntoView({ behavior: "smooth" });
-              }
-            }, 100);
-          }
-        }
+        router.push("/developer-dashboard");
         break;
       case "badges":
         if (onScrollToBadges) {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Zap } from "lucide-react";
 
 export default function GasPriceDisplay() {
   const [gasPriceUSD, setGasPriceUSD] = useState<number | null>(null);
@@ -60,7 +59,7 @@ export default function GasPriceDisplay() {
   if (loading) {
     return (
       <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800">
-        <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400 animate-pulse" />
+        <span className="text-[10px] md:text-xs text-gray-400 font-semibold">GWEI</span>
         <span className="text-[10px] md:text-xs text-gray-400">...</span>
       </div>
     );
@@ -69,7 +68,7 @@ export default function GasPriceDisplay() {
   if (gasPriceUSD === null) {
     return (
       <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800">
-        <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-400" />
+        <span className="text-[10px] md:text-xs text-gray-400 font-semibold">GWEI</span>
         <span className="text-[10px] md:text-xs text-gray-400">--</span>
       </div>
     );
@@ -87,7 +86,7 @@ export default function GasPriceDisplay() {
 
   return (
     <div className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-gray-900/50 border border-gray-800 hover:bg-gray-800/50 transition-colors">
-      <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 text-base-blue" />
+      <span className="text-[10px] md:text-xs font-semibold text-base-blue">GWEI</span>
       <span className="text-[10px] md:text-xs font-semibold text-white">
         {displayValue}
       </span>

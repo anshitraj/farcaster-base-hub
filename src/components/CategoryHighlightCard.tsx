@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 import { motion } from "framer-motion";
 
 type CategoryHighlightCardProps = {
@@ -128,7 +129,17 @@ export function CategoryHighlightCard({
                   <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 overflow-hidden shadow-md hover:scale-105 transition-transform duration-200">
                     {app.iconUrl ? (
                       <Image
-                        src={app.iconUrl}
+                        src={optimizeDevImage(app.iconUrl)}
+                        data-original={app.iconUrl}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          const originalUrl = target.getAttribute("data-original");
+                          if (originalUrl) {
+                            target.src = originalUrl;
+                          } else {
+                            target.src = "/placeholder.svg";
+                          }
+                        }}
                         alt={app.name}
                         width={80}
                         height={80}

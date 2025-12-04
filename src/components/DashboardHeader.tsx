@@ -54,7 +54,7 @@ export default function DashboardHeader({
             {/* User Info */}
             <div className="flex-1 min-w-0">
               <h2 className="text-xl font-bold mb-1 truncate">
-                {name ? `Hi ${name.replace('.minicast', '').replace('.base.eth', '').replace('.eth', '')}!` : "Hi Developer!"}
+                {name ? `Hi ${name}!` : "Hi Developer!"}
               </h2>
               <p className="text-xs text-muted-foreground font-mono truncate mb-2">
                 {shortWallet}

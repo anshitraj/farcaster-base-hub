@@ -290,28 +290,44 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     try {
       clearCurrentUser();
       
+      // Disconnect Wagmi wallet first
       if (isConnected) {
         disconnect();
       }
       
+      // Clear local state immediately
+      setProfile(null);
+      setHasAuthenticated(false);
+      
+      // Call logout API with manual redirect handling
       const res = await fetch("/api/auth/logout", { 
         method: "GET",
         credentials: "include",
+        redirect: "manual", // Don't follow redirects automatically
       });
       
-      if (res.ok) {
-        setProfile(null);
+      // Even if the response is a redirect (status 3xx), consider it success
+      // The cookies are cleared by the server
+      if (res.ok || res.status >= 300) {
         toast({
           title: "Disconnected",
           description: "Logged out successfully.",
         });
         onClose();
-        router.push("/");
+        // Reload the page to clear all state
+        window.location.href = "/";
       } else {
         throw new Error("Failed to logout");
       }
     } catch (error) {
       console.error("Disconnect error:", error);
+      // Even if API call fails, try to clear local state and disconnect
+      if (isConnected) {
+        disconnect();
+      }
+      setProfile(null);
+      setHasAuthenticated(false);
+      
       toast({
         title: "Logout Failed",
         description: "Failed to disconnect. Please try again.",
@@ -375,7 +391,35 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const authenticateWallet = async (walletAddress: string) => {
     if (hasAuthenticated) return;
     
+    // Check global authentication lock to prevent multiple components from authenticating simultaneously
+    const authLockKey = `auth_lock_${walletAddress.toLowerCase()}`;
+    const authLock = sessionStorage.getItem(authLockKey);
+    if (authLock === "true") {
+      // Another component is already authenticating, wait and check again
+      return;
+    }
+    
+    // Set global lock
+    sessionStorage.setItem(authLockKey, "true");
+    
     try {
+      // Check if already authenticated by checking session
+      const sessionCheck = await fetch("/api/auth/wallet", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (sessionCheck.ok) {
+        const sessionData = await sessionCheck.json();
+        if (sessionData.wallet && sessionData.wallet.toLowerCase() === walletAddress.toLowerCase()) {
+          // Already authenticated, just set local flag
+          setHasAuthenticated(true);
+          sessionStorage.removeItem(authLockKey);
+          // Refresh profile data
+          await loadProfile(walletAddress);
+          return;
+        }
+      }
+      
       const message = "Login to Mini App Store";
       let signature = "";
 
@@ -383,6 +427,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         signature = await signMessageAsync({ message });
       } catch (signError: any) {
         console.warn("Message signing failed (non-critical):", signError.message);
+        // Remove lock on error
+        sessionStorage.removeItem(authLockKey);
+        return;
       }
 
       const res = await fetch("/api/auth/wallet", {
@@ -398,10 +445,6 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
       if (res.ok) {
         setHasAuthenticated(true);
-        toast({
-          title: "Wallet Connected",
-          description: `Connected as ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
-        });
         // Refresh profile data without full page reload
         // Re-fetch profile after authentication
         const walletRes = await fetch("/api/auth/wallet", { 
@@ -424,6 +467,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       }
     } catch (error: any) {
       console.error("Authentication error:", error);
+    } finally {
+      // Always remove lock after authentication attempt completes
+      sessionStorage.removeItem(authLockKey);
     }
   };
 

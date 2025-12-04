@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
 import { Loader2 } from "lucide-react";
 import { useMiniApp } from "@/components/MiniAppProvider";
 import { sdk } from "@farcaster/miniapp-sdk";
+
+// Lazy load QR code component (heavy library)
+const QRCodeSVG = lazy(() => import("qrcode.react").then(mod => ({ default: mod.QRCodeSVG })));
 
 export default function LoginPage() {
   const [channelToken, setChannelToken] = useState<string | null>(null);
@@ -386,7 +388,9 @@ export default function LoginPage() {
           {qrUrl && (
             <div className="mb-6 flex justify-center">
               <div className="bg-white p-4 rounded-lg">
-                <QRCodeSVG value={qrUrl} size={256} />
+                <Suspense fallback={<div className="w-64 h-64 bg-gray-200 animate-pulse rounded" />}>
+                  <QRCodeSVG value={qrUrl} size={256} />
+                </Suspense>
               </div>
             </div>
           )}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Bell, Search, Plus, Menu, Wallet, Copy, Shield, CheckCircle2 } from "lucide-react";
+import { Bell, Search, Plus, Menu, Wallet, Copy, Shield, CheckCircle2, LogOut } from "lucide-react";
 import PointsDisplay from "@/components/PointsDisplay";
 import XPSDisplay from "@/components/XPSDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
@@ -12,7 +12,7 @@ import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useMiniApp } from "@/components/MiniAppProvider";
-import { useAccount, useConnect, useSignMessage } from "wagmi";
+import { useAccount, useConnect, useSignMessage, useDisconnect } from "wagmi";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { signMessageAsync } = useSignMessage();
+  const { disconnect } = useDisconnect();
   const { toast } = useToast();
   
   // Detect if we're in Base app specifically
@@ -73,25 +74,24 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   }, [searchParams]);
 
   // Fetch unread notification count - don't wait for Mini App
-  useEffect(() => {
-    // Fetch immediately - don't block on Mini App identity
-    async function fetchUnreadCount() {
-      try {
-        const res = await fetch("/api/notifications?unread=true&limit=1", {
-          credentials: "include",
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const count = data.unreadCount || 0;
-          setUnreadCount(count > 0 ? count : null);
-        } else {
-          setUnreadCount(null);
-        }
-      } catch (error) {
-        console.error("Error fetching unread count:", error);
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await fetch("/api/notifications?unread=true&limit=1", {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const count = data.unreadCount || 0;
+        setUnreadCount(count > 0 ? count : null);
+      } else {
+        setUnreadCount(null);
       }
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
     }
+  };
 
+  useEffect(() => {
     fetchUnreadCount();
     // Refresh every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
@@ -176,10 +176,36 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   };
 
   const authenticateWallet = async (walletAddress: string) => {
-    // Prevent multiple authentication attempts
+    // Prevent multiple authentication attempts - check both local state and global lock
     if (hasAuthenticated) return;
     
+    // Check global authentication lock to prevent multiple components from authenticating simultaneously
+    const authLockKey = `auth_lock_${walletAddress.toLowerCase()}`;
+    const authLock = sessionStorage.getItem(authLockKey);
+    if (authLock === "true") {
+      // Another component is already authenticating, wait and check again
+      return;
+    }
+    
+    // Set global lock
+    sessionStorage.setItem(authLockKey, "true");
+    
     try {
+      // Check if already authenticated by checking session
+      const sessionCheck = await fetch("/api/auth/wallet", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (sessionCheck.ok) {
+        const sessionData = await sessionCheck.json();
+        if (sessionData.wallet && sessionData.wallet.toLowerCase() === walletAddress.toLowerCase()) {
+          // Already authenticated, just set local flag
+          setHasAuthenticated(true);
+          sessionStorage.removeItem(authLockKey);
+          return;
+        }
+      }
+      
       const message = "Login to Mini App Store";
       let signature = "";
 
@@ -187,6 +213,9 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
         signature = await signMessageAsync({ message });
       } catch (signError: any) {
         console.warn("Message signing failed (non-critical):", signError.message);
+        // Remove lock on error
+        sessionStorage.removeItem(authLockKey);
+        return;
       }
 
       const res = await fetch("/api/auth/wallet", {
@@ -202,15 +231,14 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
 
       if (res.ok) {
         setHasAuthenticated(true);
-        toast({
-          title: "Wallet Connected",
-          description: `Connected as ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`,
-        });
         // Don't reload - let components update naturally
         // The profile will update when user navigates or opens profile modal
       }
     } catch (error: any) {
       console.error("Authentication error:", error);
+    } finally {
+      // Always remove lock after authentication attempt completes
+      sessionStorage.removeItem(authLockKey);
     }
   };
 
@@ -265,10 +293,61 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      // Disconnect Wagmi wallet first
+      if (isConnected) {
+        disconnect();
+      }
+      
+      // Clear local state
+      setHasAuthenticated(false);
+      setUserProfile(null);
+      
+      // Call logout API
+      const res = await fetch("/api/auth/logout", { 
+        method: "GET",
+        credentials: "include",
+        redirect: "manual", // Don't follow redirects automatically
+      });
+      
+      // Even if the response is a redirect (status 3xx), consider it success
+      // The cookies are cleared by the server
+      if (res.ok || res.status >= 300) {
+        toast({
+          title: "Disconnected",
+          description: "Logged out successfully.",
+        });
+        // Reload the page to clear all state
+        window.location.href = "/";
+      } else {
+        throw new Error("Failed to logout");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if API call fails, try to clear local state and disconnect
+      if (isConnected) {
+        disconnect();
+      }
+      setHasAuthenticated(false);
+      setUserProfile(null);
+      
+      toast({
+        title: "Logout Failed",
+        description: "Failed to disconnect. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Auto-authenticate when wallet connects (desktop only, once)
   useEffect(() => {
     if (isConnected && address && !isInMiniApp && !hasAuthenticated) {
-      authenticateWallet(address);
+      // Add a small delay to prevent race conditions with other components
+      const timer = setTimeout(() => {
+        authenticateWallet(address);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isConnected, address, isInMiniApp, hasAuthenticated]);
 
@@ -424,6 +503,14 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                           </DropdownMenuItem>
                         </>
                       )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleLogout}
+                        className="cursor-pointer text-red-400 focus:text-red-300 focus:bg-red-500/10"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Logout
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
@@ -436,6 +523,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
       <NotificationSidebar 
         isOpen={notificationSidebarOpen} 
         onClose={() => setNotificationSidebarOpen(false)}
+        onNotificationRead={fetchUnreadCount}
       />
     </>
   );

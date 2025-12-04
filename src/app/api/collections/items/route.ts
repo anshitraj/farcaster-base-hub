@@ -168,16 +168,48 @@ export async function POST(request: NextRequest) {
         },
         include: {
           miniApp: {
-            select: {
-              id: true,
-              name: true,
-              iconUrl: true,
-              category: true,
-              description: true,
+            include: {
+              developer: true,
             },
           },
         },
       });
+
+      // Send notification to developer when user favorites their app (only for favorites collection)
+      // Rate limit: 1 notification per app per 24 hours
+      if (validated.collectionType === "favorites" && item.miniApp.developer.wallet) {
+        try {
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          
+          // Check if developer already received a notification for this app in last 24 hours
+          // Use "new_app" type (schema allows custom types with "etc.")
+          const recentNotification = await prisma.notification.findFirst({
+            where: {
+              wallet: item.miniApp.developer.wallet.toLowerCase(),
+              type: "new_app",
+              message: { contains: item.miniApp.name },
+              createdAt: { gte: twentyFourHoursAgo },
+            },
+          });
+
+          // Only send if no recent notification exists
+          if (!recentNotification) {
+            await prisma.notification.create({
+              data: {
+                wallet: item.miniApp.developer.wallet.toLowerCase(),
+                type: "new_app",
+                title: "New Favorite! ⭐",
+                message: `Someone added "${item.miniApp.name}" to their favorites!`,
+                link: `/apps/${validated.miniAppId}`,
+                read: false,
+              },
+            });
+          }
+        } catch (notifError) {
+          // Don't fail the favorite operation if notification fails
+          console.error("Error sending favorite notification:", notifError);
+        }
+      }
 
       return NextResponse.json({ item }, { status: 201 });
     } catch (error: any) {

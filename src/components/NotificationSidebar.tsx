@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Bell, CheckCircle, AlertCircle, Info, Sparkles } from "lucide-react";
+import { X, Bell, CheckCircle, AlertCircle, Info, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import Image from "next/image";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface Notification {
   id: string;
@@ -14,6 +16,9 @@ interface Notification {
   createdAt: string | Date;
   read: boolean;
   link?: string | null;
+  appId?: string | null;
+  appName?: string | null;
+  appIcon?: string | null;
 }
 
 interface NotificationSidebarProps {
@@ -25,6 +30,7 @@ interface NotificationSidebarProps {
 export default function NotificationSidebar({ isOpen, onClose, onNotificationRead }: NotificationSidebarProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function fetchNotifications() {
@@ -51,6 +57,21 @@ export default function NotificationSidebar({ isOpen, onClose, onNotificationRea
       fetchNotifications();
     }
   }, [isOpen]);
+
+  const toggleExpand = (id: string) => {
+    setExpandedNotifications(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const isExpanded = (id: string) => expandedNotifications.has(id);
+  const shouldShowReadMore = (message: string) => message.length > 100;
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -212,59 +233,122 @@ export default function NotificationSidebar({ isOpen, onClose, onNotificationRea
                   </p>
                 </motion.div>
               ) : (
-                notifications.map((notification, index) => (
-                  <motion.div
-                    key={notification.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    onClick={() => {
-                      if (!notification.read) {
-                        markAsRead(notification.id);
-                      }
-                      if (notification.link) {
-                        window.location.href = notification.link;
-                      }
-                    }}
-                    className={`group relative p-4 rounded-2xl border cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
-                      notification.read
-                        ? "bg-[#141A24] border-[#1F2733] opacity-60"
-                        : `${getNotificationBg(notification.type)} border-opacity-50`
-                    }`}
-                  >
-                    {/* Unread indicator */}
-                    {!notification.read && (
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 w-2 h-2 bg-base-blue rounded-full" />
-                    )}
+                notifications.map((notification, index) => {
+                  const expanded = isExpanded(notification.id);
+                  const showReadMore = shouldShowReadMore(notification.message);
+                  const isDeveloperNotification = notification.type === "app_updated" && notification.appName;
+                  
+                  return (
+                    <motion.div
+                      key={notification.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`group relative p-4 rounded-2xl border transition-all duration-300 hover:scale-[1.02] ${
+                        notification.read
+                          ? "bg-[#141A24] border-[#1F2733] opacity-60"
+                          : `${getNotificationBg(notification.type)} border-opacity-50`
+                      }`}
+                    >
+                      {/* Unread indicator */}
+                      {!notification.read && (
+                        <div className="absolute left-2 top-1/2 -translate-y-1/2 w-2 h-2 bg-base-blue rounded-full" />
+                      )}
 
-                    <div className="flex gap-3 pl-4">
-                      <div className="flex-shrink-0 mt-0.5">
-                        {getNotificationIcon(notification.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-white mb-1 line-clamp-1">
-                          {notification.title}
-                        </h3>
-                        <p className="text-xs text-[#A0A4AA] mb-2 line-clamp-2">
-                          {notification.message}
-                        </p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-[#888]">
-                            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                          </span>
-                          {notification.link && (
-                            <Link href={notification.link} className="text-xs text-base-blue font-semibold hover:underline">
-                              View →
-                            </Link>
+                      <div className="flex gap-3 pl-4">
+                        {/* App Icon for developer notifications */}
+                        {isDeveloperNotification && notification.appIcon ? (
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="w-10 h-10 rounded-xl overflow-hidden bg-white/5 border border-white/10">
+                              <Image
+                                src={optimizeDevImage(notification.appIcon)}
+                                alt={notification.appName || "App"}
+                                width={40}
+                                height={40}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = "/placeholder.svg";
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex-shrink-0 mt-0.5">
+                            {getNotificationIcon(notification.type)}
+                          </div>
+                        )}
+                        
+                        <div className="flex-1 min-w-0">
+                          {/* App Name for developer notifications */}
+                          {isDeveloperNotification && (
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className="text-xs text-purple-400 font-semibold">
+                                {notification.appName}
+                              </span>
+                              <span className="text-xs text-white/40">•</span>
+                              <span className="text-xs text-white/60">Developer Update</span>
+                            </div>
                           )}
+                          
+                          <h3 className="text-sm font-bold text-white mb-1 line-clamp-1">
+                            {notification.title}
+                          </h3>
+                          
+                          <div className="mb-2">
+                            <p className={`text-xs text-[#A0A4AA] leading-relaxed ${expanded ? "" : "line-clamp-2"}`}>
+                              {notification.message}
+                            </p>
+                            {showReadMore && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleExpand(notification.id);
+                                }}
+                                className="mt-1.5 text-xs text-base-blue hover:text-purple-400 font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                {expanded ? (
+                                  <>
+                                    <ChevronUp className="w-3 h-3" />
+                                    Read less
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="w-3 h-3" />
+                                    Read more
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-[#888]">
+                              {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                            </span>
+                            {notification.link && (
+                              <Link 
+                                href={notification.link}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!notification.read) {
+                                    markAsRead(notification.id);
+                                  }
+                                }}
+                                className="text-xs text-base-blue font-semibold hover:underline"
+                              >
+                                View →
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Hover shine effect */}
-                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full" />
-                  </motion.div>
-                ))
+                      {/* Hover shine effect */}
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 -translate-x-full group-hover:translate-x-full pointer-events-none" />
+                    </motion.div>
+                  );
+                })
               )}
             </div>
 

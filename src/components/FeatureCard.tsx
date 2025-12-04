@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Sparkles } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface FeatureCardProps {
   id: string;
@@ -13,6 +14,7 @@ interface FeatureCardProps {
   description?: string;
   iconUrl: string;
   gradient: string; // e.g., "from-green-500 to-black"
+  verified?: boolean;
   buttonText?: string;
   buttonColor?: string;
   variant?: "large" | "medium" | "small";
@@ -24,6 +26,7 @@ export default function FeatureCard({
   description,
   iconUrl,
   gradient,
+  verified = false,
   buttonText = "Open",
   buttonColor = "bg-base-blue",
   variant = "medium",
@@ -90,21 +93,44 @@ export default function FeatureCard({
                 className="w-20 h-20 rounded-2xl bg-white/15 backdrop-blur-md p-3 mb-4 shadow-2xl border border-white/20"
               >
                 <Image
-                  src={iconUrl}
+                  src={optimizeDevImage(iconUrl)}
                   alt={name}
                   width={80}
                   height={80}
                   className="w-full h-full object-contain rounded-xl"
                   unoptimized
+                  data-original={iconUrl}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    const originalUrl = target.getAttribute("data-original");
+                    if (originalUrl) {
+                      target.src = originalUrl;
+                    } else {
+                      target.src = "/placeholder.svg";
+                    }
+                  }}
                 />
               </motion.div>
             )}
-            <motion.h3 
-              className="text-2xl md:text-3xl font-extrabold text-white mb-2 drop-shadow-lg"
+            <motion.div 
+              className="flex items-center gap-1 mb-2"
               whileHover={{ x: 4 }}
             >
-              {name}
-            </motion.h3>
+              <h3 className="text-2xl md:text-3xl font-extrabold text-white drop-shadow-lg">
+                {name}
+              </h3>
+              {verified && (
+                <Image
+                  src="/verify.svg"
+                  alt="Verified"
+                  width={24}
+                  height={24}
+                  className="w-6 h-6 flex-shrink-0 ml-0.5 inline-block"
+                  title="Verified App"
+                  unoptimized
+                />
+              )}
+            </motion.div>
             {description && (
               <p className="text-sm md:text-base text-white/90 line-clamp-3 leading-relaxed drop-shadow-md">
                 {shortenDescription(description)}

@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, XCircle, Loader2, Copy, Wallet, Globe, Shield } from "lucide-react";
 import { getInjectedProvider } from "@/lib/wallet";
 import { trackPageView } from "@/lib/analytics";
+import { useAccount, useSignMessage } from "wagmi";
+import { useMiniApp } from "@/components/MiniAppProvider";
 
 const VERIFICATION_MESSAGE = "Verify your developer account for Mini App Store";
 
@@ -27,6 +29,9 @@ export default function VerifyPage() {
   const [verifying, setVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const { toast } = useToast();
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+  const { isInMiniApp } = useMiniApp();
 
   useEffect(() => {
     trackPageView("/verify");
@@ -84,39 +89,68 @@ export default function VerifyPage() {
   const handleWalletVerification = async () => {
     try {
       setVerifying(true);
-      const provider = getInjectedProvider();
-
-      if (!provider) {
-        toast({
-          title: "No Wallet Found",
-          description: "Please install MetaMask or open in Base App",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const accounts = await provider.request({
-        method: "eth_requestAccounts",
-      });
-
-      if (!accounts || accounts.length === 0) {
-        throw new Error("No account selected");
-      }
-
-      const address = accounts[0];
-
-      // Request signature
+      
+      let walletAddress: string;
       let signature: string;
-      try {
-        signature = await provider.request({
-          method: "personal_sign",
-          params: [VERIFICATION_MESSAGE, address],
-        });
-      } catch (e: any) {
-        if (e.code === 4001 || e.message?.includes("reject")) {
-          throw new Error("Signature request rejected");
+
+      // Use Wagmi for Mini Apps (Base/Farcaster) or if already connected
+      if (isInMiniApp || (isConnected && address)) {
+        if (!address) {
+          toast({
+            title: "No Wallet Connected",
+            description: "Please connect your wallet first",
+            variant: "destructive",
+          });
+          setVerifying(false);
+          return;
         }
-        throw new Error(e.message || "Failed to get signature");
+        walletAddress = address;
+
+        // Use Wagmi's signMessageAsync for Mini Apps
+        try {
+          signature = await signMessageAsync({ message: VERIFICATION_MESSAGE });
+        } catch (e: any) {
+          if (e.code === 4001 || e.message?.includes("reject") || e.message?.includes("User rejected")) {
+            throw new Error("Signature request rejected");
+          }
+          throw new Error(e.message || "Failed to get signature");
+        }
+      } else {
+        // Fallback to injected provider for desktop/regular browsers
+        const provider = getInjectedProvider();
+
+        if (!provider) {
+          toast({
+            title: "No Wallet Found",
+            description: "Please install MetaMask or open in Base App",
+            variant: "destructive",
+          });
+          setVerifying(false);
+          return;
+        }
+
+        const accounts = await provider.request({
+          method: "eth_requestAccounts",
+        });
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error("No account selected");
+        }
+
+        walletAddress = accounts[0];
+
+        // Request signature using injected provider
+        try {
+          signature = await provider.request({
+            method: "personal_sign",
+            params: [VERIFICATION_MESSAGE, walletAddress],
+          });
+        } catch (e: any) {
+          if (e.code === 4001 || e.message?.includes("reject")) {
+            throw new Error("Signature request rejected");
+          }
+          throw new Error(e.message || "Failed to get signature");
+        }
       }
 
       // Verify wallet
@@ -363,9 +397,14 @@ export default function VerifyPage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Sign a message with your wallet to verify ownership
                 </p>
+                {isInMiniApp && !address && (
+                  <p className="text-xs text-yellow-500 mb-2">
+                    ⚠️ Please wait for wallet to connect...
+                  </p>
+                )}
                 <GlowButton
                   onClick={handleWalletVerification}
-                  disabled={verifying || walletVerified}
+                  disabled={verifying || walletVerified || (isInMiniApp && !address)}
                   className="w-full"
                 >
                   {verifying ? (

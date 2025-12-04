@@ -2,6 +2,44 @@
 const webpack = require('webpack')
 
 const nextConfig = {
+  reactStrictMode: true,
+  images: {
+    domains: ['api.dicebear.com', 'images.unsplash.com', 'ik.imagekit.io'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ik.imagekit.io',
+      },
+    ],
+    formats: ['image/avif', 'image/webp'], // Prioritize WebP for better compression
+    minimumCacheTTL: 31536000, // 1 year cache for optimized images
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    // Ensure WebP is used when available
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+    optimizePackageImports: [
+      'lucide-react', 
+      'framer-motion',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toast',
+      '@radix-ui/react-tooltip',
+    ],
+  },
+  // Optimize bundle splitting
   webpack: (config, { isServer }) => {
     // Ignore optional dependencies that cause warnings
     if (!isServer) {
@@ -23,30 +61,54 @@ const nextConfig = {
       })
     )
     
+    // Optimize bundle splitting
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            // Separate heavy libraries
+            framerMotion: {
+              name: 'framer-motion',
+              test: /[\\/]node_modules[\\/]framer-motion[\\/]/,
+              chunks: 'all',
+              priority: 20,
+            },
+            recharts: {
+              name: 'recharts',
+              test: /[\\/]node_modules[\\/]recharts[\\/]/,
+              chunks: 'all',
+              priority: 20,
+            },
+            wagmi: {
+              name: 'wagmi',
+              test: /[\\/]node_modules[\\/](wagmi|viem|@tanstack[\\/]react-query)[\\/]/,
+              chunks: 'all',
+              priority: 20,
+            },
+            radix: {
+              name: 'radix-ui',
+              test: /[\\/]node_modules[\\/]@radix-ui[\\/]/,
+              chunks: 'all',
+              priority: 15,
+            },
+            // Common vendor chunk
+            vendor: {
+              name: 'vendor',
+              test: /[\\/]node_modules[\\/]/,
+              chunks: 'all',
+              priority: 10,
+              minChunks: 2,
+            },
+          },
+        },
+      };
+    }
+    
     return config
-  },
-  reactStrictMode: true,
-  images: {
-    domains: ['api.dicebear.com', 'images.unsplash.com'],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
-    formats: ['image/avif', 'image/webp'], // Prioritize WebP for better compression
-    minimumCacheTTL: 60,
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    // Ensure WebP is used when available
-    dangerouslyAllowSVG: true,
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-  },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-    optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
   // Enable compression
   compress: true,

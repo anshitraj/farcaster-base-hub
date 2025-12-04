@@ -8,6 +8,7 @@ import { Star, Play } from "lucide-react";
 import RatingStars from "./RatingStars";
 import PremiumBadge from "./PremiumBadge";
 import PremiumLockedOverlay from "./PremiumLockedOverlay";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface PremiumCardProps {
   id: string;
@@ -43,12 +44,22 @@ export default function PremiumCard({
             <div className="w-full h-40 bg-gradient-to-br from-purple-600/30 via-base-blue/20 to-purple-500/20 flex items-center justify-center relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-transparent to-transparent z-10" />
               <Image
-                src={iconUrl}
+                src={optimizeDevImage(iconUrl)}
                 alt={name}
                 width={100}
                 height={100}
                 className="w-24 h-24 rounded-2xl shadow-2xl z-20 relative"
                 loading="lazy"
+                data-original={iconUrl}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const originalUrl = target.getAttribute("data-original");
+                  if (originalUrl) {
+                    target.src = originalUrl;
+                  } else {
+                    target.src = "/placeholder.svg";
+                  }
+                }}
               />
               {isLocked && (
                 <div className="absolute top-2 right-2 z-30">

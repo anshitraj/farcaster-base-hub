@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Star } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface MiniAppListItemProps {
   id: string;
@@ -14,6 +15,7 @@ interface MiniAppListItemProps {
   description?: string;
   ratingAverage?: number;
   ratingCount?: number;
+  verified?: boolean;
   url?: string; // Main app URL
   farcasterUrl?: string; // Farcaster mini app URL
   baseMiniAppUrl?: string; // Base mini app URL
@@ -29,6 +31,7 @@ export function MiniAppListItem({
   description,
   ratingAverage = 0,
   ratingCount = 0,
+  verified = false,
   url,
   farcasterUrl,
   baseMiniAppUrl,
@@ -59,7 +62,17 @@ export function MiniAppListItem({
       <div className="flex items-center gap-4 w-[70%] min-w-0">
         <div className="relative flex-shrink-0">
           <Image
-            src={icon}
+            src={optimizeDevImage(icon)}
+            data-original={icon}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              const originalUrl = target.getAttribute("data-original");
+              if (originalUrl) {
+                target.src = originalUrl;
+              } else {
+                target.src = "/placeholder.svg";
+              }
+            }}
             alt={name}
             width={48}
             height={48}
@@ -67,9 +80,22 @@ export function MiniAppListItem({
           />
         </div>
         <div className="flex flex-col flex-1 min-w-0">
-          <h3 className="text-white font-semibold text-[16px] leading-tight truncate">
-            {name}
-          </h3>
+          <div className="flex items-center gap-1">
+            <h3 className="text-white font-semibold text-[16px] leading-tight truncate">
+              {name}
+            </h3>
+            {verified && (
+              <Image
+                src="/verify.svg"
+                alt="Verified"
+                width={18}
+                height={18}
+                className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
+                title="Verified App"
+                unoptimized
+              />
+            )}
+          </div>
           {categoryText && (
             <span className="text-xs text-white/40">{categoryText}</span>
           )}

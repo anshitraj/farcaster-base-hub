@@ -419,7 +419,33 @@ export default function UserProfile() {
   };
 
   const authenticateWallet = async (walletAddress: string) => {
+    // Check global authentication lock to prevent multiple components from authenticating simultaneously
+    const authLockKey = `auth_lock_${walletAddress.toLowerCase()}`;
+    const authLock = sessionStorage.getItem(authLockKey);
+    if (authLock === "true") {
+      // Another component is already authenticating, wait and check again
+      return;
+    }
+    
+    // Set global lock
+    sessionStorage.setItem(authLockKey, "true");
+    
     try {
+      // Check if already authenticated by checking session
+      const sessionCheck = await fetch("/api/auth/wallet", {
+        method: "GET",
+        credentials: "include",
+      });
+      if (sessionCheck.ok) {
+        const sessionData = await sessionCheck.json();
+        if (sessionData.wallet && sessionData.wallet.toLowerCase() === walletAddress.toLowerCase()) {
+          // Already authenticated, just refresh profile
+          sessionStorage.removeItem(authLockKey);
+          checkAuth();
+          return;
+        }
+      }
+      
       const message = "Login to Mini App Store";
       let signature = "";
 
@@ -428,7 +454,9 @@ export default function UserProfile() {
         signature = await signMessageAsync({ message });
       } catch (signError: any) {
         console.warn("Message signing failed (non-critical):", signError.message);
-        // Continue without signature - backend will accept it
+        // Remove lock on error
+        sessionStorage.removeItem(authLockKey);
+        return;
       }
 
       const res = await fetch("/api/auth/wallet", {
@@ -459,6 +487,9 @@ export default function UserProfile() {
         description: error.message || "Failed to authenticate wallet",
         variant: "destructive",
       });
+    } finally {
+      // Always remove lock after authentication attempt completes
+      sessionStorage.removeItem(authLockKey);
     }
   };
 

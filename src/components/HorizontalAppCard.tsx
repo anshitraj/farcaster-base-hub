@@ -14,6 +14,7 @@ interface HorizontalAppCardProps {
     installs?: number;
     ratingAverage?: number;
     ratingCount?: number;
+    verified?: boolean;
     url?: string;
     farcasterUrl?: string;
     baseMiniAppUrl?: string;
@@ -34,6 +35,7 @@ export default function HorizontalAppCard({ app, showPrice = false, price }: Hor
         description={app.description}
         ratingAverage={app.ratingAverage}
         ratingCount={app.ratingCount}
+        verified={app.verified}
         url={app.url}
         farcasterUrl={app.farcasterUrl}
         baseMiniAppUrl={app.baseMiniAppUrl}

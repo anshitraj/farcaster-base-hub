@@ -12,8 +12,9 @@ import PageLoader from "@/components/PageLoader";
 import DeleteAppButton from "@/components/DeleteAppButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Users, ExternalLink, Play, CheckCircle2, Zap, Clock, Shield } from "lucide-react";
+import { Star, Users, ExternalLink, Play, CheckCircle2, Zap, Clock, Shield, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion } from "framer-motion";
+import useEmblaCarousel from "embla-carousel-react";
 import { getBaseDeepLink, getFarcasterDeepLink } from "@/lib/baseDeepLink";
 import RatingStars from "@/components/RatingStars";
 import VerifiedBadge from "@/components/VerifiedBadge";
@@ -24,6 +25,7 @@ import FavoriteButton from "@/components/FavoriteButton";
 import AppHeader from "@/components/AppHeader";
 import { trackPageView, trackAppInteraction } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
+import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -35,12 +37,48 @@ export default function AppDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
   const [recommendedApps, setRecommendedApps] = useState<any[]>([]);
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    loop: false, 
+    align: "start",
+    duration: 15, // Fast animation like Play Store
+    dragFree: true,
+    containScroll: "trimSnaps"
+  });
+  const [prevBtnDisabled, setPrevBtnDisabled] = useState(true);
+  const [nextBtnDisabled, setNextBtnDisabled] = useState(true);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
     if (id) {
       trackPageView(`/apps/${id}`);
     }
   }, [id]);
+
+  // Handle carousel navigation buttons and active slide
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap());
+      setPrevBtnDisabled(!emblaApi.canScrollPrev());
+      setNextBtnDisabled(!emblaApi.canScrollNext());
+    };
+
+    emblaApi.on("select", onSelect);
+    onSelect(); // Initial check
+
+    return () => {
+      emblaApi.off("select", onSelect);
+    };
+  }, [emblaApi]);
+
+  const scrollPrev = useCallback(() => {
+    if (emblaApi) emblaApi.scrollPrev();
+  }, [emblaApi]);
+
+  const scrollNext = useCallback(() => {
+    if (emblaApi) emblaApi.scrollNext();
+  }, [emblaApi]);
 
   useEffect(() => {
     async function fetchApp() {
@@ -222,13 +260,23 @@ export default function AppDetailPage() {
       {app.headerImageUrl && (
         <div className="w-full h-48 md:h-64 lg:h-80 relative overflow-hidden">
           <Image
-            src={app.headerImageUrl}
+            src={optimizeBannerImage(app.headerImageUrl)}
             alt={`${app.name} header`}
             width={1920}
             height={800}
             className="w-full h-full object-cover"
             priority
             quality={90}
+            data-original={app.headerImageUrl}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              const originalUrl = target.getAttribute("data-original");
+              if (originalUrl) {
+                target.src = originalUrl;
+              } else {
+                target.src = "/placeholder.svg";
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-[#0B0F19]/50 to-transparent" />
         </div>
@@ -253,7 +301,17 @@ export default function AppDetailPage() {
                   {/* App Icon - Smaller on mobile */}
                   {app.iconUrl && (
                     <Image
-                      src={app.iconUrl}
+                      src={optimizeDevImage(app.iconUrl)}
+                      data-original={app.iconUrl}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        const originalUrl = target.getAttribute("data-original");
+                        if (originalUrl) {
+                          target.src = originalUrl;
+                        } else {
+                          target.src = "/placeholder.svg";
+                        }
+                      }}
                       alt={app.name}
                       width={64}
                       height={64}
@@ -264,12 +322,20 @@ export default function AppDetailPage() {
                   {/* App Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1 flex-wrap">
-                      <h1 className="text-base md:text-lg lg:text-xl font-bold">{app.name}</h1>
-                      {app.verified ? (
-                        <VerifiedBadge type="app" />
-                      ) : (
-                        <UnverifiedBadge />
-                      )}
+                      <div className="flex items-center gap-1">
+                        <h1 className="text-base md:text-lg lg:text-xl font-bold">{app.name}</h1>
+                        {app.verified && (
+                          <Image
+                            src="/verify.svg"
+                            alt="Verified"
+                            width={20}
+                            height={20}
+                            className="w-5 h-5 md:w-6 md:h-6 flex-shrink-0 ml-0.5 inline-block"
+                            title="Verified App"
+                            unoptimized
+                          />
+                        )}
+                      </div>
                     </div>
                     {app.developer && (
                       <Link
@@ -345,37 +411,82 @@ export default function AppDetailPage() {
             </Card>
           </motion.div>
 
-          {/* Screenshots Section */}
+          {/* Screenshots Section - Play Store Style Carousel */}
           {app.screenshots && app.screenshots.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.08 }}
-              className="mb-6"
+              className="mb-6 relative"
             >
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
-                {app.screenshots.map((screenshot: string, index: number) => (
-                  <div
-                    key={index}
-                    className="flex-shrink-0 relative group cursor-pointer snap-center"
-                    onClick={() => {
-                      // Open screenshot in lightbox or new tab
-                      window.open(screenshot, '_blank');
-                    }}
-                  >
-                    <div className="relative w-48 h-80 md:w-64 md:h-96 rounded-2xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-sm shadow-xl group-hover:border-white/40 transition-all group-hover:shadow-2xl">
-                      <Image
-                        src={screenshot}
-                        alt={`${app.name} screenshot ${index + 1}`}
-                        fill
-                        className="object-cover transition-transform group-hover:scale-105"
-                        sizes="(max-width: 768px) 192px, 256px"
-                        unoptimized
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                    </div>
+              <div className="relative">
+                {/* Navigation Buttons */}
+                {app.screenshots.length > 1 && (
+                  <>
+                    <button
+                      onClick={scrollPrev}
+                      disabled={prevBtnDisabled}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Previous screenshot"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-white" />
+                    </button>
+                    <button
+                      onClick={scrollNext}
+                      disabled={nextBtnDisabled}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Next screenshot"
+                    >
+                      <ChevronRight className="w-5 h-5 text-white" />
+                    </button>
+                  </>
+                )}
+
+                {/* Carousel Container */}
+                <div className="overflow-hidden" ref={emblaRef}>
+                  <div className="flex gap-4">
+                    {app.screenshots.map((screenshot: string, index: number) => (
+                      <div
+                        key={index}
+                        className="flex-[0_0_auto] min-w-0 w-48 md:w-64 relative group cursor-pointer"
+                        onClick={() => {
+                          // Open screenshot in lightbox or new tab
+                          window.open(screenshot, '_blank');
+                        }}
+                      >
+                        <div className="relative w-48 h-80 md:w-64 md:h-96 rounded-2xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-sm shadow-xl group-hover:border-white/40 transition-all group-hover:shadow-2xl">
+                          <Image
+                            src={screenshot}
+                            alt={`${app.name} screenshot ${index + 1}`}
+                            fill
+                            className="object-cover transition-transform group-hover:scale-105"
+                            sizes="(max-width: 768px) 192px, 256px"
+                            unoptimized
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* Pagination Dots */}
+                {app.screenshots.length > 1 && (
+                  <div className="flex justify-center gap-1.5 mt-4">
+                    {app.screenshots.map((_, index: number) => (
+                      <button
+                        key={index}
+                        onClick={() => emblaApi?.scrollTo(index)}
+                        className={`w-1.5 h-1.5 rounded-full transition-all ${
+                          index === selectedIndex 
+                            ? "bg-white w-6" 
+                            : "bg-white/30 hover:bg-white/50"
+                        }`}
+                        aria-label={`Go to screenshot ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

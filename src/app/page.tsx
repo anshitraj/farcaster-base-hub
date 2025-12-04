@@ -9,12 +9,15 @@ import { motion } from "framer-motion";
 import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare, TrendingDown, Briefcase, AlertTriangle, X } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import NotificationSidebar from "@/components/NotificationSidebar";
-import TopBanner from "@/components/TopBanner";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
+
+// Lazy load heavy components (only load when needed)
+const TopBanner = lazy(() => import("@/components/TopBanner"));
 import { useMiniApp } from "@/components/MiniAppProvider";
 import { useToast } from "@/hooks/use-toast";
+import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
 
 // Lazy load heavy components
 const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremiumSection"));
@@ -159,6 +162,64 @@ function HomePageContent() {
     }
   }, [searchParams]);
 
+  // Aggressively preload images for visible apps (above the fold) using link preload
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    const preloadAppImages = (apps: any[]) => {
+      // Preload first 8 visible apps (above the fold) using both link preload and Image objects
+      apps.slice(0, 8).forEach((app) => {
+        if (app.iconUrl) {
+          const optimizedUrl = optimizeDevImage(app.iconUrl);
+          
+          // Use link preload for highest priority
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = optimizedUrl;
+          link.setAttribute("fetchpriority", "high");
+          document.head.appendChild(link);
+          
+          // Also preload via Image object for browser cache
+          const img = new window.Image();
+          img.src = optimizedUrl;
+          img.fetchPriority = "high";
+          
+          // Preload original as fallback
+          const originalImg = new window.Image();
+          originalImg.src = app.iconUrl;
+        }
+        if (app.headerImageUrl) {
+          const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
+          
+          // Use link preload for highest priority
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = optimizedUrl;
+          link.setAttribute("fetchpriority", "high");
+          document.head.appendChild(link);
+          
+          // Also preload via Image object for browser cache
+          const img = new window.Image();
+          img.src = optimizedUrl;
+          img.fetchPriority = "high";
+          
+          // Preload original as fallback
+          const originalImg = new window.Image();
+          originalImg.src = app.headerImageUrl;
+        }
+      });
+    };
+
+    if (topApps.length > 0) {
+      preloadAppImages(topApps);
+    }
+    if (trendingApps.length > 0) {
+      preloadAppImages(trendingApps);
+    }
+  }, [topApps, trendingApps]);
+
   useEffect(() => {
     // Don't wait for Mini App - fetch data immediately
     // API calls will work with or without Mini App context
@@ -279,7 +340,9 @@ function HomePageContent() {
           {loading ? (
             <div className="h-64 bg-gray-900 rounded-3xl animate-pulse mb-8" />
           ) : topApps.length > 0 ? (
-            <TopBanner apps={topApps} />
+            <Suspense fallback={<div className="h-64 bg-gray-900 rounded-3xl animate-pulse mb-8" />}>
+              <TopBanner apps={topApps} />
+            </Suspense>
           ) : null}
 
           {/* Trending Section */}

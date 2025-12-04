@@ -26,6 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { getInjectedProvider } from "@/lib/wallet";
 import { MiniAppListItem } from "@/components/MiniAppListItem";
 import { Switch } from "@/components/ui/switch";
+import { useMiniApp } from "@/components/MiniAppProvider";
+import { useAccount } from "wagmi";
 
 // Monetization Toggle Component
 function MonetizationToggle({ appId, enabled, onToggle }: { appId: string; enabled: boolean; onToggle: () => void }) {
@@ -105,6 +107,8 @@ function DashboardPageContent() {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
+  const { user: miniAppUser } = useMiniApp();
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
 
   // On desktop, sidebar should always be visible (isOpen = true)
   // On mobile, it starts closed
@@ -212,8 +216,10 @@ function DashboardPageContent() {
                   const baseAvatar = await fetchBaseAvatar(data.wallet, baseName);
                   
                   if (mounted) {
-                    // Priority: Farcaster name > developer profile name > Base name
-                    if (farcasterData?.farcaster?.name) {
+                    // Priority: MiniApp user name (Base/Farcaster) > Farcaster API name > developer profile name > Base name
+                    if (miniAppUser?.displayName || miniAppUser?.username) {
+                      setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
+                    } else if (farcasterData?.farcaster?.name) {
                       setDisplayName(farcasterData.farcaster.name);
                     } else if (profileData?.developer?.name) {
                       setDisplayName(profileData.developer.name);
@@ -221,8 +227,10 @@ function DashboardPageContent() {
                       setDisplayName(baseName);
                     }
                     
-                    // Priority: Farcaster avatar > developer avatar > Base avatar
-                    if (farcasterData?.farcaster?.avatar) {
+                    // Priority: MiniApp user avatar (Base/Farcaster) > Farcaster avatar > developer avatar > Base avatar
+                    if (miniAppUser?.pfpUrl) {
+                      setDisplayAvatar(miniAppUser.pfpUrl);
+                    } else if (farcasterData?.farcaster?.avatar) {
                       setDisplayAvatar(farcasterData.farcaster.avatar);
                     } else if (profileData?.developer?.avatar) {
                       setDisplayAvatar(profileData.developer.avatar);
@@ -231,14 +239,19 @@ function DashboardPageContent() {
                     }
                   }
                 } else if (mounted) {
-                  // Not a Base wallet, check Farcaster first, then developer profile
-                  if (farcasterData?.farcaster?.name) {
+                  // Not a Base wallet, check MiniApp user first, then Farcaster API, then developer profile
+                  if (miniAppUser?.displayName || miniAppUser?.username) {
+                    setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
+                  } else if (farcasterData?.farcaster?.name) {
                     setDisplayName(farcasterData.farcaster.name);
                   } else if (profileData?.developer?.name) {
                     setDisplayName(profileData.developer.name);
                   }
                   
-                  if (farcasterData?.farcaster?.avatar) {
+                  // Priority: MiniApp user avatar (Base/Farcaster) > Farcaster avatar > developer avatar
+                  if (miniAppUser?.pfpUrl) {
+                    setDisplayAvatar(miniAppUser.pfpUrl);
+                  } else if (farcasterData?.farcaster?.avatar) {
                     setDisplayAvatar(farcasterData.farcaster.avatar);
                   } else if (profileData?.developer?.avatar) {
                     setDisplayAvatar(profileData.developer.avatar);
@@ -248,10 +261,16 @@ function DashboardPageContent() {
                 console.error("Error fetching wallet info:", e);
                 // Fallback to developer profile data
                 if (mounted && profileData?.developer) {
-                  if (profileData.developer.name) {
+                  // Priority: MiniApp user name > developer name
+                  if (miniAppUser?.displayName || miniAppUser?.username) {
+                    setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
+                  } else if (profileData.developer.name) {
                     setDisplayName(profileData.developer.name);
                   }
-                  if (profileData.developer.avatar) {
+                  // Priority: MiniApp user avatar > developer avatar
+                  if (miniAppUser?.pfpUrl) {
+                    setDisplayAvatar(miniAppUser.pfpUrl);
+                  } else if (profileData.developer.avatar) {
                     setDisplayAvatar(profileData.developer.avatar);
                   }
                 }
@@ -304,6 +323,22 @@ function DashboardPageContent() {
     
     window.addEventListener("walletConnected", handleWalletConnect);
     
+    // Listen for wallet disconnect event
+    const handleWalletDisconnect = () => {
+      if (mounted) {
+        setWallet(null);
+        setDashboard(null);
+        setDeveloperStatus(null);
+        setXpData(null);
+        setProfile(null);
+        setDisplayName(null);
+        setDisplayAvatar(null);
+        setLoading(false);
+      }
+    };
+    
+    window.addEventListener("walletDisconnected", handleWalletDisconnect);
+    
     // Dashboard doesn't need frequent polling - event listeners handle updates
     // Only poll occasionally as a fallback
     const interval = setInterval(() => {
@@ -317,8 +352,43 @@ function DashboardPageContent() {
       clearInterval(interval);
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("walletConnected", handleWalletConnect);
+      window.removeEventListener("walletDisconnected", handleWalletDisconnect);
     };
   }, []); // Empty deps - only run once on mount
+
+  // Refresh dashboard when Wagmi account changes (after logout/login)
+  useEffect(() => {
+    if (wagmiAddress && wagmiConnected && !wallet) {
+      // Wallet reconnected but dashboard hasn't loaded - trigger auth check
+      const timer = setTimeout(() => {
+        // Trigger a storage event to refresh auth
+        window.dispatchEvent(new Event('storage'));
+        // Also trigger wallet connected event
+        window.dispatchEvent(new CustomEvent('walletConnected'));
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (!wagmiConnected && wallet) {
+      // Wallet disconnected but we still have wallet state - clear it
+      setWallet(null);
+      setDashboard(null);
+      setDeveloperStatus(null);
+      setXpData(null);
+      setProfile(null);
+      setDisplayName(null);
+      setDisplayAvatar(null);
+      setLoading(false);
+    }
+  }, [wagmiAddress, wagmiConnected, wallet]);
+
+  // Update avatar when MiniApp user changes (same priority as BottomNav)
+  useEffect(() => {
+    if (miniAppUser?.pfpUrl) {
+      setDisplayAvatar(miniAppUser.pfpUrl);
+    }
+    if (miniAppUser?.displayName || miniAppUser?.username) {
+      setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
+    }
+  }, [miniAppUser]);
 
   if (loading) {
     return <PageLoader message="Loading dashboard..." />;
@@ -422,9 +492,9 @@ function DashboardPageContent() {
         <div className="max-w-screen-md mx-auto px-4 md:px-6">
           {/* User Header */}
           {wallet && (() => {
-            // Use the same avatar logic as UserProfile component
-            // Priority: displayAvatar > developer avatar > Base/Farcaster avatar > fallback dicebear
-            let finalAvatar = displayAvatar || developerStatus?.developer?.avatar || null;
+            // Use the same avatar logic as BottomNav - prioritize MiniApp user avatar
+            // Priority: MiniApp user avatar > displayAvatar > developer avatar > Base/Farcaster avatar > fallback dicebear
+            let finalAvatar = miniAppUser?.pfpUrl || displayAvatar || developerStatus?.developer?.avatar || null;
             
             // If no avatar, use dicebear fallback (same as UserProfile)
             if (!finalAvatar) {
@@ -441,7 +511,7 @@ function DashboardPageContent() {
             
             return (
               <DashboardHeader
-                name={displayName || developerStatus?.developer?.name || null}
+                name={miniAppUser?.displayName || miniAppUser?.username || displayName || developerStatus?.developer?.name || null}
                 avatar={finalAvatar}
                 wallet={wallet}
                 developerLevel={xpData?.developerLevel || dashboard?.developerLevel || 1}

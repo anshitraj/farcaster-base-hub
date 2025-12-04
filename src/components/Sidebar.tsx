@@ -58,7 +58,7 @@ const collapsibleSections: CollapsibleSection[] = [
     label: "Rankings",
     icon: Trophy,
     items: [
-      { href: "/developers", label: "Top Developers" },
+      { href: "/ranking", label: "User Rankings" },
       { href: "/apps/trending", label: "Top Rated" },
     ],
   },

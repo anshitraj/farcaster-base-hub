@@ -8,6 +8,7 @@ import { Play, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
 import RatingStars from "./RatingStars";
+import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
 
 interface TopBannerProps {
   apps: {
@@ -36,6 +37,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [preloadedImages, setPreloadedImages] = useState<Set<number>>(new Set([0]));
 
   // Detect mobile device
   useEffect(() => {
@@ -46,6 +48,76 @@ export default function TopBanner({ apps }: TopBannerProps) {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Aggressively preload ALL carousel images immediately on mount
+  useEffect(() => {
+    if (typeof window === "undefined" || apps.length === 0) return;
+
+    // Preload all images in parallel for instant carousel switching
+    const preloadAllImages = () => {
+      apps.forEach((app) => {
+        // Preload banner images
+        if (app.headerImageUrl) {
+          const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = optimizedUrl;
+          link.setAttribute("fetchpriority", "high");
+          document.head.appendChild(link);
+          
+          // Also preload via Image object for browser cache
+          const img = new window.Image();
+          img.src = optimizedUrl;
+          
+          // Preload original as fallback
+          const originalImg = new window.Image();
+          originalImg.src = app.headerImageUrl;
+        }
+
+        // Preload icons
+        if (app.iconUrl) {
+          const optimizedUrl = optimizeDevImage(app.iconUrl);
+          const link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = optimizedUrl;
+          link.setAttribute("fetchpriority", "high");
+          document.head.appendChild(link);
+          
+          // Also preload via Image object for browser cache
+          const img = new window.Image();
+          img.src = optimizedUrl;
+          
+          // Preload original as fallback
+          const originalImg = new window.Image();
+          originalImg.src = app.iconUrl;
+        }
+      });
+    };
+
+    preloadAllImages();
+  }, [apps]); // Only run once when apps are loaded
+
+  // Additional preload for current slide (redundant but ensures immediate availability)
+  useEffect(() => {
+    if (!apps[currentIndex]) return;
+
+    const current = apps[currentIndex];
+    
+    // Force immediate load of current slide images
+    if (current.headerImageUrl) {
+      const img = new window.Image();
+      img.src = optimizeBannerImage(current.headerImageUrl);
+      img.fetchPriority = "high";
+    }
+    
+    if (current.iconUrl) {
+      const img = new window.Image();
+      img.src = optimizeDevImage(current.iconUrl);
+      img.fetchPriority = "high";
+    }
+  }, [currentIndex, apps]);
 
   // Auto-slide every 5 seconds
   useEffect(() => {
@@ -109,10 +181,10 @@ export default function TopBanner({ apps }: TopBannerProps) {
       <AnimatePresence mode="wait">
         <motion.div
           key={currentIndex}
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.5 }}
+          exit={{ opacity: 0, x: -50 }}
+          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
           className="relative rounded-3xl overflow-hidden backdrop-blur-[2px] bg-white/2 shadow-[0_0_40px_rgba(80,100,255,0.15)]"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -125,12 +197,29 @@ export default function TopBanner({ apps }: TopBannerProps) {
           {currentApp.headerImageUrl ? (
             <>
               <Image
-                src={currentApp.headerImageUrl}
+                src={optimizeBannerImage(currentApp.headerImageUrl)}
                 alt={currentApp.name}
                 fill
                 className="object-cover z-0"
                 priority
-                quality={90}
+                quality={85}
+                loading="eager"
+                fetchPriority="high"
+                sizes="100vw"
+                decoding="async"
+                data-original={currentApp.headerImageUrl}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const originalUrl = target.getAttribute("data-original");
+                  if (originalUrl) {
+                    target.src = originalUrl;
+                  } else {
+                    target.src = "/placeholder.svg";
+                  }
+                }}
+                onLoad={() => {
+                  // Image loaded successfully
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 z-[1]" />
             </>
@@ -149,18 +238,35 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 key={`icon-${currentIndex}`}
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
                 whileHover={{ rotate: [0, -5, 5, -5, 0], scale: 1.1 }}
                 className="w-[104px] h-[104px] md:w-[136px] md:h-[136px] rounded-3xl bg-white/20 backdrop-blur-md p-4 shadow-2xl border border-white/30 flex-shrink-0"
               >
                 {currentApp.iconUrl ? (
                   <Image
-                    src={currentApp.iconUrl}
+                    src={optimizeDevImage(currentApp.iconUrl)}
                     alt={currentApp.name}
                     width={136}
                     height={136}
                     className="w-full h-full object-contain rounded-2xl"
-                    quality={90}
+                    quality={85}
+                    priority
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    data-original={currentApp.iconUrl}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      const originalUrl = target.getAttribute("data-original");
+                      if (originalUrl) {
+                        target.src = originalUrl;
+                      } else {
+                        target.src = "/placeholder.svg";
+                      }
+                    }}
+                    onLoad={() => {
+                      // Image loaded successfully
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full rounded-2xl bg-white/20 flex items-center justify-center">
@@ -179,7 +285,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                       key={`title-${currentIndex}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 }}
+                      transition={{ duration: 0.3, delay: 0.15 }}
                       className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-2 drop-shadow-lg"
                     >
                       {currentApp.name}
@@ -189,7 +295,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                       key={`tags-${currentIndex}`}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.15 }}
+                      transition={{ duration: 0.3, delay: 0.2 }}
                       className="flex items-center gap-2 flex-wrap mb-3"
                     >
                       {currentApp.category && (
@@ -224,7 +330,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                         key={`desc-${currentIndex}`}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
+                        transition={{ duration: 0.3, delay: 0.25 }}
                         className="text-base md:text-lg text-white/90 max-w-2xl leading-relaxed drop-shadow-md"
                       >
                         {shortenDescription(currentApp.description)}
@@ -239,7 +345,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                   key={`stats-${currentIndex}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ duration: 0.3, delay: 0.3 }}
                   className="flex items-center gap-6 flex-wrap"
                 >
                   <div className="flex items-center gap-2">

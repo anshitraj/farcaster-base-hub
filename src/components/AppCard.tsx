@@ -13,6 +13,7 @@ import UnverifiedBadge from "./UnverifiedBadge";
 import Top30Badge from "./Top30Badge";
 import AutoUpdateBadge from "./AutoUpdateBadge";
 import RankBadge from "./RankBadge";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface AppCardProps {
   id: string;
@@ -88,14 +89,25 @@ const AppCard = ({
                 {iconUrl && (
                   <div className="flex-shrink-0">
                     <Image
-                      src={iconUrl}
+                      src={optimizeDevImage(iconUrl)}
                       alt={name}
                       width={64}
                       height={64}
                       className="w-16 h-16 rounded-xl bg-background-secondary p-2 shadow-lg"
-                      loading="lazy"
+                      loading={featured ? "eager" : "lazy"}
+                      fetchPriority={featured ? "high" : "auto"}
                       placeholder="blur"
                       blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMTExODI3Ii8+PC9zdmc+"
+                      data-original={iconUrl}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        const originalUrl = target.getAttribute("data-original");
+                        if (originalUrl) {
+                          target.src = originalUrl;
+                        } else {
+                          target.src = "/placeholder.svg";
+                        }
+                      }}
                     />
                   </div>
                 )}
@@ -103,16 +115,24 @@ const AppCard = ({
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="font-semibold text-base truncate">
-                      {name}
-                    </h3>
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-semibold text-base truncate">
+                        {name}
+                      </h3>
+                      {verified && (
+                        <Image
+                          src="/verify.svg"
+                          alt="Verified"
+                          width={18}
+                          height={18}
+                          className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
+                          title="Verified App"
+                          unoptimized
+                        />
+                      )}
+                    </div>
                     {rank && (
                       <RankBadge rank={rank} size="sm" className="flex-shrink-0" />
-                    )}
-                    {verified ? (
-                      <VerifiedBadge type="app" className="flex-shrink-0" />
-                    ) : (
-                      <UnverifiedBadge className="flex-shrink-0" />
                     )}
                     {topBaseRank && (
                       <Top30Badge rank={topBaseRank} className="flex-shrink-0 text-[10px]" />
@@ -183,12 +203,23 @@ const AppCard = ({
                   <div className="w-full h-40 bg-gradient-to-br from-base-blue/30 via-base-cyan/20 to-purple-500/20 flex items-center justify-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-transparent to-transparent z-10" />
                     <Image
-                      src={iconUrl}
+                      src={optimizeDevImage(iconUrl)}
                       alt={name}
                       width={100}
                       height={100}
                       className="w-24 h-24 rounded-2xl shadow-2xl z-20 relative"
-                      loading="lazy"
+                      loading="eager"
+                      fetchPriority="high"
+                      data-original={iconUrl}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        const originalUrl = target.getAttribute("data-original");
+                        if (originalUrl) {
+                          target.src = originalUrl;
+                        } else {
+                          target.src = "/placeholder.svg";
+                        }
+                      }}
                     />
                   </div>
                 )}
@@ -198,14 +229,21 @@ const AppCard = ({
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <h3 className="font-bold text-xl truncate">{name}</h3>
+                        <div className="flex items-center gap-1">
+                          <h3 className="font-bold text-xl truncate">{name}</h3>
+                          {verified && (
+                            <Image
+                              src="/verify.webp"
+                              alt="Verified"
+                              width={20}
+                              height={20}
+                              className="w-5 h-5 flex-shrink-0 ml-0.5"
+                              title="Verified App"
+                            />
+                          )}
+                        </div>
                         {rank && (
                           <RankBadge rank={rank} size="md" className="flex-shrink-0" />
-                        )}
-                        {verified ? (
-                          <VerifiedBadge type="app" className="flex-shrink-0" />
-                        ) : (
-                          <UnverifiedBadge className="flex-shrink-0" />
                         )}
                         {topBaseRank && (
                           <Top30Badge rank={topBaseRank} className="flex-shrink-0" />
@@ -292,16 +330,37 @@ const AppCard = ({
             <div className="flex flex-col items-center text-center mb-4">
               {iconUrl && (
                 <Image
-                  src={iconUrl}
+                  src={optimizeDevImage(iconUrl)}
                   alt={name}
                   width={80}
                   height={80}
                   className="w-20 h-20 rounded-xl bg-background-secondary p-2 shadow-lg mb-3"
+                  data-original={iconUrl}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    const originalUrl = target.getAttribute("data-original");
+                    if (originalUrl) {
+                      target.src = originalUrl;
+                    } else {
+                      target.src = "/placeholder.svg";
+                    }
+                  }}
                 />
               )}
               <div className="flex items-center gap-2 mb-1 flex-wrap justify-center">
-                <h3 className="font-semibold text-base">{name}</h3>
-                {verified && <VerifiedBadge type="app" className="text-[10px]" />}
+                <div className="flex items-center gap-1">
+                  <h3 className="font-semibold text-base">{name}</h3>
+                  {verified && (
+                    <Image
+                      src="/verify.webp"
+                      alt="Verified"
+                      width={18}
+                      height={18}
+                      className="w-[18px] h-[18px] flex-shrink-0 ml-0.5"
+                      title="Verified App"
+                    />
+                  )}
+                </div>
               </div>
               <p className="text-xs text-muted-foreground mb-2">{category}</p>
             </div>

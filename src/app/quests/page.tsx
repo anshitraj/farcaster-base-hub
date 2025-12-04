@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import AppHeader from "@/components/AppHeader";
 import PageLoader from "@/components/PageLoader";
-import { Coins, Star, Rocket, CheckCircle2, ExternalLink, MessageSquare, Plus } from "lucide-react";
+import { Coins, Star, Rocket, CheckCircle2, ExternalLink, MessageSquare, Plus, Trophy } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 
@@ -137,6 +137,26 @@ export default function QuestsPage() {
                 </div>
               )}
             </div>
+            
+            {/* View Your Ranking Bar */}
+            <Link href="/ranking">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-base-blue/20 to-base-cyan/20 border border-base-blue/30 hover:border-base-blue/50 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Trophy className="w-5 h-5 text-base-blue group-hover:text-base-cyan transition-colors" />
+                    <span className="font-semibold text-white group-hover:text-base-cyan transition-colors">
+                      View Your Ranking
+                    </span>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-base-blue group-hover:text-base-cyan transition-colors" />
+                </div>
+              </motion.div>
+            </Link>
           </motion.div>
 
           {/* Quests List */}
