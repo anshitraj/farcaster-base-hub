@@ -43,6 +43,17 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   const { signMessageAsync } = useSignMessage();
   const { disconnect } = useDisconnect();
   const { toast } = useToast();
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
   
   // Detect if we're in Base app specifically
   useEffect(() => {
@@ -404,9 +415,10 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             {/* List a Project Button - Show on mobile instead of profile */}
             <Link href="/submit">
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] transition-all duration-300 text-xs md:text-sm font-semibold"
+                whileHover={isMobile ? {} : { scale: 1.05 }}
+                whileTap={isMobile ? {} : { scale: 0.95 }}
+                className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] active:bg-[#3A5F9F] transition-all duration-100 text-xs md:text-sm font-semibold touch-manipulation"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 <Plus className="w-3 h-3 md:w-4 md:h-4" />
                 <span className="hidden sm:inline">List your mini app</span>
@@ -416,21 +428,23 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
 
             {/* Mobile Search Button */}
             <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="md:hidden p-1.5 sm:p-2 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              whileHover={isMobile ? {} : { scale: 1.1 }}
+              whileTap={isMobile ? {} : { scale: 0.9 }}
+              className="md:hidden p-1.5 sm:p-2 hover:bg-gray-800 active:bg-gray-700 rounded-xl transition-all duration-100 touch-manipulation"
               onClick={() => router.push("/search")}
               aria-label="Search"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
             </motion.button>
 
             <motion.button 
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="relative p-1.5 sm:p-2 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              whileHover={isMobile ? {} : { scale: 1.1 }}
+              whileTap={isMobile ? {} : { scale: 0.9 }}
+              className="relative p-1.5 sm:p-2 hover:bg-gray-800 active:bg-gray-700 rounded-xl transition-all duration-100 touch-manipulation"
               onClick={() => setNotificationSidebarOpen(true)}
               aria-label="Notifications"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
               {unreadCount !== null && unreadCount > 0 && (

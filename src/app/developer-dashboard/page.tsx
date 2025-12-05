@@ -325,7 +325,7 @@ export default function DeveloperDashboardPage() {
   };
 
   if (loading) {
-    return <PageLoader message="Loading your apps..." />;
+    return <PageLoader message="Hold on, making your dashboard more smooth... Fetching dashboard details" />;
   }
 
   return (

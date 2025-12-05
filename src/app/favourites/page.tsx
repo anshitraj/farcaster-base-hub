@@ -72,7 +72,7 @@ export default function FavouritesPage() {
                 <Heart className="w-5 h-5 text-red-500 fill-red-500" />
               </div>
               <div>
-                <h1 className="text-2xl font-extrabold text-white">My Favourites</h1>
+                <h1 className="text-2xl font-extrabold text-white">Saved Apps</h1>
                 <p className="text-sm text-gray-400">Your saved apps</p>
               </div>
             </div>
@@ -154,8 +154,8 @@ export default function FavouritesPage() {
               <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center mx-auto mb-4 border border-gray-800">
                 <Heart className="w-10 h-10 text-gray-600" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">No favourites yet</h2>
-              <p className="text-gray-400 mb-6">Start adding apps to your favourites!</p>
+              <h2 className="text-xl font-bold text-white mb-2">No saved apps yet</h2>
+              <p className="text-gray-400 mb-6">Start saving apps to your list!</p>
               <Link
                 href="/apps"
                 className="inline-block px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"

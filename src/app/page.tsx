@@ -199,72 +199,38 @@ function HomePageContent() {
     }
   }, [searchParams]);
 
-  // Aggressively preload images for visible apps (above the fold) using link preload
+  // Lightweight preload - only first banner image (LCP optimization)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || topApps.length === 0) return;
     
-    const preloadAppImages = (apps: any[]) => {
-      // Preload first 8 visible apps (above the fold) using both link preload and Image objects
-      apps.slice(0, 8).forEach((app) => {
-        if (app.iconUrl) {
-          const optimizedUrl = optimizeDevImage(app.iconUrl);
-          
-          // Use link preload for highest priority
-          const link = document.createElement("link");
-          link.rel = "preload";
-          link.as = "image";
-          link.href = optimizedUrl;
-          link.setAttribute("fetchpriority", "high");
-          document.head.appendChild(link);
-          
-          // Also preload via Image object for browser cache
-          const img = new window.Image();
-          img.src = optimizedUrl;
-          img.fetchPriority = "high";
-          
-          // Preload original as fallback
-          const originalImg = new window.Image();
-          originalImg.src = app.iconUrl;
-        }
-        if (app.headerImageUrl) {
-          const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
-          
-          // Use link preload for highest priority
-          const link = document.createElement("link");
-          link.rel = "preload";
-          link.as = "image";
-          link.href = optimizedUrl;
-          link.setAttribute("fetchpriority", "high");
-          document.head.appendChild(link);
-          
-          // Also preload via Image object for browser cache
-          const img = new window.Image();
-          img.src = optimizedUrl;
-          img.fetchPriority = "high";
-          
-          // Preload original as fallback
-          const originalImg = new window.Image();
-          originalImg.src = app.headerImageUrl;
-        }
-      });
-    };
-
-    if (topApps.length > 0) {
-      preloadAppImages(topApps);
+    // Only preload the first banner image for LCP
+    const firstApp = topApps[0];
+    if (firstApp?.headerImageUrl) {
+      const optimizedUrl = optimizeBannerImage(firstApp.headerImageUrl);
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.href = optimizedUrl;
+      link.setAttribute("fetchpriority", "high");
+      document.head.appendChild(link);
     }
-    if (trendingApps.length > 0) {
-      preloadAppImages(trendingApps);
-    }
-  }, [topApps, trendingApps]);
+  }, [topApps]);
 
   useEffect(() => {
     // Don't wait for Mini App - fetch data immediately
     // API calls will work with or without Mini App context
     async function fetchData() {
       try {
-        const fetchWithErrorHandling = async (url: string, fallback: any = []) => {
+        const fetchWithErrorHandling = async (url: string, fallback: any = [], options: RequestInit = {}) => {
           try {
-            const res = await fetch(url, { credentials: "include" });
+            const res = await fetch(url, { 
+              credentials: "include",
+              ...options,
+              headers: {
+                ...options.headers,
+                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120'
+              }
+            });
             if (res.ok) {
               return await res.json();
             }
@@ -276,23 +242,18 @@ function HomePageContent() {
         };
 
         // Fetch trending apps - top 10 for banner carousel and trending section
-        const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10");
-        let allTrendingApps = trendingData.apps || [];
-        
-        console.log("Trending API response:", { 
-          count: allTrendingApps.length, 
-          apps: allTrendingApps.map((a: any) => ({ id: a.id, name: a.name, status: a.status, featured: a.featuredInBanner }))
+        // Use cache to reduce TTFB - cache for 60 seconds
+        const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10", [], {
+          next: { revalidate: 60 }
         });
+        let allTrendingApps = trendingData.apps || [];
         
         // If no trending apps, fetch recent approved apps as fallback
         if (allTrendingApps.length === 0) {
-          console.log("No trending apps, fetching recent approved apps...");
-          const recentData = await fetchWithErrorHandling("/api/apps?limit=10&sort=newest");
-          allTrendingApps = recentData.apps || [];
-          console.log("Recent apps response:", { 
-            count: allTrendingApps.length, 
-            apps: allTrendingApps.map((a: any) => ({ id: a.id, name: a.name, status: a.status }))
+          const recentData = await fetchWithErrorHandling("/api/apps?limit=10&sort=newest", [], {
+            next: { revalidate: 60 }
           });
+          allTrendingApps = recentData.apps || [];
         }
         
         if (allTrendingApps.length > 0) {
@@ -372,12 +333,12 @@ function HomePageContent() {
         <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
         {/* Content Area */}
-        <div className="px-4 md:px-6 lg:px-8 py-6 md:py-8">
+        <div className="w-full max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Top Banner - Top 10 Trending Apps Carousel */}
           {loading ? (
-            <div className="h-64 bg-gray-900 rounded-3xl animate-pulse mb-8" />
+            <div className="h-[200px] sm:h-[220px] md:h-64 bg-gray-900 rounded-3xl animate-pulse mb-6 md:mb-8" />
           ) : topApps.length > 0 ? (
-            <Suspense fallback={<div className="h-64 bg-gray-900 rounded-3xl animate-pulse mb-8" />}>
+            <Suspense fallback={<div className="h-[200px] sm:h-[220px] md:h-64 bg-gray-900 rounded-3xl animate-pulse mb-6 md:mb-8" />}>
               <TopBanner apps={topApps} />
             </Suspense>
           ) : null}
@@ -387,7 +348,7 @@ function HomePageContent() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="mb-10"
+            className="mb-8 md:mb-12"
           >
             <div className="flex items-center justify-between mb-6">
               <Link
@@ -412,10 +373,12 @@ function HomePageContent() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 w-full">
                 {trendingApps.length > 0 ? (
                   trendingApps.map((app, index) => (
-                    <HorizontalAppCard key={app.id} app={app} />
+                    <div key={app.id} className="w-full min-w-0">
+                      <HorizontalAppCard app={app} />
+                    </div>
                   ))
                 ) : (
                   <div className="text-gray-400 text-center py-12 w-full col-span-2">
@@ -431,13 +394,13 @@ function HomePageContent() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.25 }}
-            className="mb-16 mt-10"
+            className="mb-12 md:mb-16 mt-6 md:mt-10"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl md:text-3xl font-bold text-white">Popular</h2>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white">Popular</h2>
               <Link
                 href="/apps"
-                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors text-sm md:text-base"
+                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors text-xs sm:text-sm md:text-base"
               >
                 More →
               </Link>

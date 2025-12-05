@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 
-// Cache trending apps for 60 seconds
+// Cache trending apps for 60 seconds - use ISR instead of force-dynamic
 export const revalidate = 60;
-export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

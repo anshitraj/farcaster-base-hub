@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Image as ImageIcon, Upload, X } from "lucide-react";
 import { useRef } from "react";
+import OptimizedImage from "@/components/OptimizedImage";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface ScreenshotsSectionProps {
   screenshots: string[];
@@ -89,10 +91,14 @@ export default function ScreenshotsSection({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {screenshots.map((screenshot, index) => (
               <div key={index} className="relative group">
-                <img
-                  src={screenshot}
+                <OptimizedImage
+                  src={optimizeDevImage(screenshot)}
                   alt={`Screenshot ${index + 1}`}
+                  width={200}
+                  height={96}
                   className="w-full h-24 object-cover rounded-lg border border-white/10"
+                  sizes="(max-width: 768px) 50vw, 25vw"
+                  priority={false}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x300?text=Invalid+Image";
                   }}

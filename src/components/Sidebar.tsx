@@ -72,7 +72,7 @@ const collapsibleSections: CollapsibleSection[] = [
 ];
 
 const dataItems = [
-  { href: "/favourites", icon: Heart, label: "My Favourites" },
+  { href: "/favourites", icon: Heart, label: "Saved Apps" },
 ];
 
 interface SidebarProps {

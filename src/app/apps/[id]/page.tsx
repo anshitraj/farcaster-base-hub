@@ -619,7 +619,6 @@ export default function AppDetailPage() {
                       rating={review.rating}
                       comment={review.comment || ""}
                       date={reviewDate}
-                      helpful={0}
                     />
                   );
                 })

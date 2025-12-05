@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Heart } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { ToastAction } from "@/components/ui/toast";
 
 interface FavoriteButtonProps {
   appId: string;
@@ -16,8 +18,17 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
   const [isFavorited, setIsFavorited] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isToggling, setIsToggling] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Detect mobile to reduce animations
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const sizeClasses = {
     sm: "w-4 h-4",
@@ -88,17 +99,20 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
       if (!isAuthenticated) {
         toast({
           title: "Authentication required",
-          description: "Please connect your wallet to add favorites",
+          description: "Please connect your wallet to save apps",
           variant: "destructive",
         });
       }
       return;
     }
 
+    // Optimistic update - update UI immediately
+    const previousState = isFavorited;
+    setIsFavorited(!isFavorited);
     setIsToggling(true);
 
     try {
-      if (isFavorited) {
+      if (previousState) {
         // Remove from favorites
         const res = await fetch(`/api/collections/items?miniAppId=${appId}&type=favorites`, {
           method: "DELETE",
@@ -106,18 +120,21 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
         });
 
         if (res.ok) {
-          setIsFavorited(false);
           toast({
-            title: "Removed from favorites",
-            description: "App removed from your favorites",
+            title: "Removed from saved",
+            description: "App removed from your saved list",
           });
         } else if (res.status === 401) {
+          // Revert optimistic update
+          setIsFavorited(previousState);
           toast({
             title: "Authentication required",
             description: "Please connect your wallet",
             variant: "destructive",
           });
         } else {
+          // Revert optimistic update
+          setIsFavorited(previousState);
           throw new Error("Failed to remove from favorites");
         }
       } else {
@@ -133,12 +150,20 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
         });
 
         if (res.ok) {
-          setIsFavorited(true);
           toast({
-            title: "Added to favorites",
-            description: "App added to your favorites",
+            title: "Added to saved apps",
+            description: "App saved to your list",
+            action: (
+              <ToastAction altText="View saved apps" asChild>
+                <Link href="/favourites" className="text-blue-400 hover:text-blue-300 font-medium">
+                  Saved Apps
+                </Link>
+              </ToastAction>
+            ),
           });
         } else if (res.status === 401) {
+          // Revert optimistic update
+          setIsFavorited(previousState);
           toast({
             title: "Authentication required",
             description: "Please connect your wallet",
@@ -147,17 +172,22 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
         } else {
           const errorData = await res.json().catch(() => ({}));
           if (errorData.error?.includes("already")) {
+            // Already favorited, keep optimistic state
             setIsFavorited(true);
           } else {
-            throw new Error(errorData.error || "Failed to add to favorites");
+            // Revert optimistic update
+            setIsFavorited(previousState);
+            throw new Error(errorData.error || "Failed to save app");
           }
         }
       }
     } catch (error: any) {
+      // Revert optimistic update on error
+      setIsFavorited(previousState);
       console.error("Error toggling favorite:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to update favorites",
+        description: error.message || "Failed to update saved list",
         variant: "destructive",
       });
     } finally {
@@ -165,27 +195,42 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
     }
   };
 
+  // Show button immediately with default state instead of loading spinner
+  // This prevents blocking UI while checking favorite status
   if (loading) {
     return (
-      <div className={`${sizeClasses[size]} rounded-full bg-gray-800 animate-pulse ${className}`} />
+      <button
+        onClick={toggleFavorite}
+        className={`${className} transition-all duration-100 flex items-center gap-1.5 touch-manipulation opacity-60`}
+        aria-label="Save"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+        disabled
+      >
+        <Bookmark className={`${sizeClasses[size]} text-gray-400`} />
+        <span className="text-xs text-gray-400">Save</span>
+      </button>
     );
   }
 
   return (
     <motion.button
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
+      whileHover={isMobile ? {} : { scale: 1.05 }}
+      whileTap={isMobile ? {} : { scale: 0.95 }}
       onClick={toggleFavorite}
-      className={`${className} transition-all duration-300`}
-      aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+      className={`${className} transition-all duration-100 flex items-center gap-1.5 touch-manipulation`}
+      aria-label={isFavorited ? "Remove from saved" : "Save"}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
-      <Heart
-        className={`${sizeClasses[size]} transition-all duration-300 ${
+      <Bookmark
+        className={`${sizeClasses[size]} transition-all duration-100 ${
           isFavorited
-            ? "text-red-500 fill-red-500"
-            : "text-gray-400 hover:text-red-400"
+            ? "text-yellow-400 fill-yellow-400"
+            : "text-gray-400 hover:text-yellow-400"
         }`}
       />
+      <span className="text-xs text-gray-400 hover:text-gray-300 transition-colors duration-100">
+        Save
+      </span>
     </motion.button>
   );
 }

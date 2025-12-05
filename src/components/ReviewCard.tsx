@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, ThumbsUp } from "lucide-react";
+import { Star } from "lucide-react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 
@@ -9,10 +9,9 @@ interface ReviewCardProps {
   rating: number;
   comment: string;
   date: string;
-  helpful: number;
 }
 
-const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: ReviewCardProps) => {
+const ReviewCard = ({ userName, userAvatar, rating, comment, date }: ReviewCardProps) => {
   // Generate a fallback avatar based on username if no avatar provided
   const getFallbackAvatar = (name: string) => {
     if (userAvatar && userAvatar !== "https://via.placeholder.com/48") {
@@ -70,11 +69,6 @@ const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: Re
               </div>
               
               <p className="text-sm text-muted-foreground mb-3">{comment}</p>
-              
-              <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-base-blue transition-colors">
-                <ThumbsUp className="w-4 h-4" />
-                <span>Helpful ({helpful})</span>
-              </button>
             </div>
           </div>
         </CardContent>

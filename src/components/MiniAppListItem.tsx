@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Star } from "lucide-react";
+import { Star, CheckCircle2 } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
@@ -37,102 +37,90 @@ export function MiniAppListItem({
   baseMiniAppUrl,
   onClick,
 }: MiniAppListItemProps) {
+  // Format tags for display (e.g., "Games • Spin • Win")
+  const formattedTags = tags && tags.length > 0 
+    ? tags.slice(0, 4).map(tag => tag.charAt(0).toUpperCase() + tag.slice(1)).join(" • ")
+    : category || "";
+
   const hasRating = ratingCount > 0 && ratingAverage > 0;
-  const categoryText = category 
-    ? category + (tags && tags.length > 0 ? ` • ${tags.slice(0, 2).map((tag) => {
-        const formatted = tag
-          .split(/(?=[A-Z])/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-        return formatted;
-      }).join(" • ")}` : "")
-    : tags && tags.length > 0
-    ? tags.slice(0, 2).map((tag) => {
-        const formatted = tag
-          .split(/(?=[A-Z])/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-        return formatted;
-      }).join(" • ")
-    : null;
 
   return (
-    <div className="flex items-center justify-between bg-[#0f1115] border border-white/5 rounded-2xl p-4 hover:bg-white/5 transition group">
-      {/* Left side */}
-      <div className="flex items-center gap-4 w-[70%] min-w-0">
-        <div className="relative flex-shrink-0">
-          <Image
-            src={optimizeDevImage(icon)}
-            data-original={icon}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              const originalUrl = target.getAttribute("data-original");
-              if (originalUrl) {
-                target.src = originalUrl;
-              } else {
-                target.src = "/placeholder.svg";
-              }
-            }}
-            alt={name}
-            width={48}
-            height={48}
-            className="h-12 w-12 rounded-xl object-cover"
-          />
+    <Link
+      href={`/apps/${id}`}
+      onClick={onClick}
+      className="flex items-center gap-4 bg-transparent border-none rounded-xl p-4 hover:bg-white/5 transition group overflow-hidden w-full max-w-full cursor-pointer"
+    >
+      {/* Left side - Large Logo (64px) */}
+      <div className="relative flex-shrink-0">
+        <Image
+          src={optimizeDevImage(icon)}
+          data-original={icon}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            const originalUrl = target.getAttribute("data-original");
+            if (originalUrl) {
+              target.src = originalUrl;
+            } else {
+              target.src = "/placeholder.svg";
+            }
+          }}
+          alt={name}
+          width={64}
+          height={64}
+          className="w-16 h-16 rounded-xl object-cover shadow-lg"
+          loading="lazy"
+          quality={75}
+        />
+      </div>
+      
+      {/* Middle - Text block with proper hierarchy */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden justify-center">
+        {/* Line 1: App Name + Verified Checkmark (White) */}
+        <div className="flex items-center gap-1.5 mb-1">
+          <h3 className="text-white font-bold text-base leading-tight truncate uppercase">
+            {name}
+          </h3>
+          {verified && (
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-white" />
+          )}
         </div>
-        <div className="flex flex-col flex-1 min-w-0">
-          <div className="flex items-center gap-1">
-            <h3 className="text-white font-semibold text-[16px] leading-tight truncate">
-              {name}
-            </h3>
-            {verified && (
-              <Image
-                src="/verify.svg"
-                alt="Verified"
-                width={18}
-                height={18}
-                className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
-                title="Verified App"
-                unoptimized
-              />
-            )}
-          </div>
-          {categoryText && (
-            <span className="text-xs text-white/40">{categoryText}</span>
-          )}
-          {description && (
-            <p className="text-xs text-white/50 mt-0.5 truncate max-w-[180px]">
-              {description}
-            </p>
-          )}
+
+        {/* Line 2: Category Tags - Muted color #A4A4A4 */}
+        {formattedTags && (
+          <p className="text-xs mb-1.5 truncate" style={{ color: '#A4A4A4' }}>
+            {formattedTags}
+          </p>
+        )}
+
+        {/* Line 3: Short Description - Single line with ellipsis */}
+        {description && (
+          <p className="text-sm text-gray-300 mb-1.5 truncate leading-snug">
+            {description}
+          </p>
+        )}
+
+        {/* Line 4: Rating Row - Yellow star BEFORE number */}
+        <div className="flex items-center justify-between">
           {hasRating ? (
-            <div className="flex items-center gap-1 mt-0.5">
-              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-              <span className="text-xs text-white/60">
+            <div className="flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+              <span className="text-sm text-white font-medium">
                 {(ratingAverage % 1 === 0) ? ratingAverage.toString() : ratingAverage.toFixed(1)}
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-white/40">Not rated yet</span>
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30">
-                New
-              </span>
-            </div>
+            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30 w-fit">
+              New
+            </span>
           )}
+          
+          {/* Save button - Below rating, aligned right */}
+          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <FavoriteButton appId={id} size="sm" />
+          </div>
         </div>
       </div>
-      {/* Right side */}
-      <div className="flex flex-col items-end gap-2 flex-shrink-0">
-        <FavoriteButton appId={id} size="sm" />
-        <Link
-          href={`/apps/${id}`}
-          onClick={onClick}
-          className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition shadow-md"
-        >
-          Open
-        </Link>
-      </div>
-    </div>
+    </Link>
   );
 }
 

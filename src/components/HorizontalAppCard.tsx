@@ -25,7 +25,7 @@ interface HorizontalAppCardProps {
 
 export default function HorizontalAppCard({ app, showPrice = false, price }: HorizontalAppCardProps) {
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0 overflow-hidden">
       <MiniAppListItem
         id={app.id}
         icon={app.iconUrl}

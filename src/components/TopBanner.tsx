@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
 import { Play, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
@@ -50,75 +49,34 @@ export default function TopBanner({ apps }: TopBannerProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Aggressively preload ALL carousel images immediately on mount
+  // Preload only next slide for smoother transitions (reduce initial load)
   useEffect(() => {
     if (typeof window === "undefined" || apps.length === 0) return;
 
-    // Preload all images in parallel for instant carousel switching
-    const preloadAllImages = () => {
-      apps.forEach((app) => {
-        // Preload banner images
-        if (app.headerImageUrl) {
-          const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
-          const link = document.createElement("link");
-          link.rel = "preload";
-          link.as = "image";
-          link.href = optimizedUrl;
-          link.setAttribute("fetchpriority", "high");
-          document.head.appendChild(link);
-          
-          // Also preload via Image object for browser cache
-          const img = new window.Image();
-          img.src = optimizedUrl;
-          
-          // Preload original as fallback
-          const originalImg = new window.Image();
-          originalImg.src = app.headerImageUrl;
-        }
-
-        // Preload icons
-        if (app.iconUrl) {
-          const optimizedUrl = optimizeDevImage(app.iconUrl);
-          const link = document.createElement("link");
-          link.rel = "preload";
-          link.as = "image";
-          link.href = optimizedUrl;
-          link.setAttribute("fetchpriority", "high");
-          document.head.appendChild(link);
-          
-          // Also preload via Image object for browser cache
-          const img = new window.Image();
-          img.src = optimizedUrl;
-          
-          // Preload original as fallback
-          const originalImg = new window.Image();
-          originalImg.src = app.iconUrl;
-        }
-      });
-    };
-
-    preloadAllImages();
-  }, [apps]); // Only run once when apps are loaded
-
-  // Additional preload for current slide (redundant but ensures immediate availability)
-  useEffect(() => {
-    if (!apps[currentIndex]) return;
-
-    const current = apps[currentIndex];
+    // Only preload current and next slide
+    const nextIndex = (currentIndex + 1) % apps.length;
+    const slidesToPreload = [currentIndex, nextIndex];
     
-    // Force immediate load of current slide images
-    if (current.headerImageUrl) {
-      const img = new window.Image();
-      img.src = optimizeBannerImage(current.headerImageUrl);
-      img.fetchPriority = "high";
-    }
-    
-    if (current.iconUrl) {
-      const img = new window.Image();
-      img.src = optimizeDevImage(current.iconUrl);
-      img.fetchPriority = "high";
-    }
-  }, [currentIndex, apps]);
+    slidesToPreload.forEach((index) => {
+      const app = apps[index];
+      if (!app) return;
+      
+      // Preload next banner image
+      if (app.headerImageUrl && index === nextIndex) {
+        const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
+        const img = new window.Image();
+        img.src = optimizedUrl;
+      }
+      
+      // Preload next icon
+      if (app.iconUrl && index === nextIndex) {
+        const optimizedUrl = optimizeDevImage(app.iconUrl);
+        const img = new window.Image();
+        img.src = optimizedUrl;
+      }
+    });
+  }, [apps, currentIndex]);
+
 
   // Auto-slide every 5 seconds
   useEffect(() => {
@@ -162,31 +120,34 @@ export default function TopBanner({ apps }: TopBannerProps) {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart || !touchEnd) return;
     
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
 
-    if (isLeftSwipe) {
-      goToNext();
-    } else if (isRightSwipe) {
-      goToPrevious();
+    if (isLeftSwipe || isRightSwipe) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isLeftSwipe) {
+        goToNext();
+      } else {
+        goToPrevious();
+      }
     }
   };
 
 
   return (
-    <div className="relative mb-8 group">
-      <AnimatePresence mode="wait">
-        <motion.div
+    <div className="relative mb-6 md:mb-8 group">
+      <Link
+        href={`/apps/${currentApp.id}`}
+        className="block"
+      >
+        <div
           key={currentIndex}
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -50 }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-          className="relative rounded-3xl overflow-hidden backdrop-blur-[2px] bg-white/2 shadow-[0_0_40px_rgba(80,100,255,0.15)]"
+          className="relative h-[200px] sm:h-[220px] md:h-[320px] lg:h-[400px] rounded-3xl overflow-hidden backdrop-blur-[2px] bg-white/2 shadow-xl cursor-pointer"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
@@ -201,11 +162,11 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 src={optimizeBannerImage(currentApp.headerImageUrl)}
                 alt={currentApp.name}
                 fill
-                className="object-cover z-0"
-                priority
-                quality={85}
-                loading="eager"
-                fetchPriority="high"
+                className="object-cover object-center z-0"
+                priority={currentIndex === 0}
+                quality={75}
+                loading={currentIndex === 0 ? "eager" : "lazy"}
+                fetchPriority={currentIndex === 0 ? "high" : "auto"}
                 sizes="100vw"
                 decoding="async"
                 data-original={currentApp.headerImageUrl}
@@ -218,9 +179,6 @@ export default function TopBanner({ apps }: TopBannerProps) {
                     target.src = "/placeholder.svg";
                   }
                 }}
-                onLoad={() => {
-                  // Image loaded successfully
-                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 z-[1]" />
             </>
@@ -232,28 +190,23 @@ export default function TopBanner({ apps }: TopBannerProps) {
           )}
           
           {/* Content */}
-          <div className="relative p-8 md:p-12 lg:p-16 z-10">
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 md:gap-8">
-              {/* App Icon - Enlarged by 6-8px */}
-              <motion.div
-                key={`icon-${currentIndex}`}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3, delay: 0.1 }}
-                whileHover={{ rotate: [0, -5, 5, -5, 0], scale: 1.1 }}
-                className="w-[104px] h-[104px] md:w-[136px] md:h-[136px] rounded-3xl bg-white/20 backdrop-blur-md p-4 shadow-2xl border border-white/30 flex-shrink-0"
+          <div className="relative p-4 sm:p-6 md:p-8 lg:p-12 z-10 h-full flex items-start sm:items-center justify-center overflow-visible">
+            <div className="flex flex-col sm:flex-row items-start sm:items-start gap-3 sm:gap-4 md:gap-6 lg:gap-8 w-full min-w-0 h-full">
+              {/* App Icon - Smaller on mobile */}
+              <div
+                className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-32 lg:h-32 rounded-2xl sm:rounded-3xl bg-white/20 backdrop-blur-md p-2 sm:p-3 md:p-4 shadow-2xl border border-white/30 flex-shrink-0 self-start sm:self-start"
               >
                 {currentApp.iconUrl ? (
                   <Image
                     src={optimizeDevImage(currentApp.iconUrl)}
                     alt={currentApp.name}
-                    width={136}
-                    height={136}
-                    className="w-full h-full object-contain rounded-2xl"
-                    quality={85}
-                    priority
-                    loading="eager"
-                    fetchPriority="high"
+                    priority={currentIndex === 0}
+                    loading={currentIndex === 0 ? "eager" : "lazy"}
+                    fetchPriority={currentIndex === 0 ? "high" : "auto"}
+                    width={128}
+                    height={128}
+                    className="w-full h-full object-contain rounded-xl sm:rounded-2xl"
+                    quality={75}
                     decoding="async"
                     data-original={currentApp.iconUrl}
                     onError={(e) => {
@@ -276,63 +229,55 @@ export default function TopBanner({ apps }: TopBannerProps) {
                     </span>
                   </div>
                 )}
-              </motion.div>
+              </div>
 
               {/* App Info */}
-              <div className="flex-1">
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex-1">
-                    <motion.div
-                      key={`title-${currentIndex}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: 0.15 }}
-                      className="flex items-center gap-2 mb-2"
-                    >
-                      <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white drop-shadow-lg">
-                        {currentApp.name}
-                      </h1>
-                      {currentApp.verified ? (
-                        <Image
-                          src="/verify.svg"
-                          alt="Verified"
-                          width={28}
-                          height={28}
-                          className="w-7 h-7 md:w-8 md:h-8 flex-shrink-0"
-                          title="Verified App"
-                          unoptimized
-                        />
-                      ) : (
-                        <Image
-                          src="/Warning.svg"
-                          alt="Unverified"
-                          width={28}
-                          height={28}
-                          className="w-7 h-7 md:w-8 md:h-8 flex-shrink-0"
-                          title="Unverified App"
-                          unoptimized
-                        />
-                      )}
-                    </motion.div>
-                    {/* Category tags and Verified Developer badge */}
-                    <motion.div
-                      key={`tags-${currentIndex}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: 0.2 }}
-                      className="flex items-center gap-2 flex-wrap mb-3"
-                    >
+              <div className="flex-1 min-w-0 overflow-visible w-full flex flex-col justify-start h-full relative">
+                <div className="flex-1 min-w-0 overflow-visible pb-16 sm:pb-20">
+                  <div
+                    className="flex items-center gap-1.5 sm:gap-2 mb-2 min-w-0"
+                  >
+                    <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-white drop-shadow-lg leading-tight truncate min-w-0 text-left">
+                      {currentApp.name}
+                    </h1>
+                    {currentApp.verified ? (
+                      <Image
+                        src="/verify.svg"
+                        alt="Verified"
+                        width={20}
+                        height={20}
+                        className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 flex-shrink-0"
+                        title="Verified App"
+                        unoptimized
+                      />
+                    ) : (
+                      <Image
+                        src="/Warning.svg"
+                        alt="Unverified"
+                        width={20}
+                        height={20}
+                        className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 flex-shrink-0"
+                        title="Unverified App"
+                        unoptimized
+                      />
+                    )}
+                  </div>
+                  {/* Category tags, Verified Developer badge, and Rating */}
+                  <div
+                    className="flex items-center gap-1.5 sm:gap-2 mb-2 overflow-visible min-w-0 flex-wrap"
+                  >
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                       {currentApp.category && (
-                        <span className="text-xs md:text-sm text-white/70 font-medium">
+                        <span className="text-[10px] sm:text-xs md:text-sm text-white/70 font-medium truncate whitespace-nowrap">
                           {currentApp.category}
                         </span>
                       )}
                       {currentApp.tags && currentApp.tags.length > 0 && (
                         <>
                           {currentApp.category && (
-                            <span className="text-white/40">•</span>
+                            <span className="text-white/40 flex-shrink-0">•</span>
                           )}
-                          <span className="text-xs md:text-sm text-white/70 font-medium">
+                          <span className="text-[10px] sm:text-xs md:text-sm text-white/70 font-medium truncate whitespace-nowrap">
                             {currentApp.tags.slice(0, 2).join(" • ")}
                           </span>
                         </>
@@ -340,90 +285,90 @@ export default function TopBanner({ apps }: TopBannerProps) {
                       {currentApp.developer?.verified && (
                         <>
                           {(currentApp.category || (currentApp.tags && currentApp.tags.length > 0)) && (
-                            <span className="text-white/40">|</span>
+                            <span className="text-white/40 flex-shrink-0">|</span>
                           )}
-                          <span className="text-xs md:text-sm text-green-400 font-medium flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-                            Verified Developer
+                          <span className="text-[10px] sm:text-xs md:text-sm text-green-400 font-medium flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
+                            <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-green-400"></span>
+                            <span className="hidden sm:inline">Verified Developer</span>
+                            <span className="sm:hidden">Verified</span>
                           </span>
                         </>
                       )}
-                    </motion.div>
-                    {currentApp.description && (
-                      <motion.p
-                        key={`desc-${currentIndex}`}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: 0.25 }}
-                        className="text-base md:text-lg text-white/90 max-w-2xl leading-relaxed drop-shadow-md"
-                      >
-                        {shortenDescription(currentApp.description)}
-                      </motion.p>
-                    )}
+                    </div>
+                    {/* Rating - Right after Verified */}
+                    <div
+                      className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0"
+                    >
+                      <RatingStars
+                        rating={currentApp.ratingAverage || 0}
+                        ratingCount={currentApp.ratingCount || 0}
+                        size={14}
+                        showNumber
+                        className="text-white"
+                      />
+                      {currentApp.ratingCount && currentApp.ratingCount > 0 && (
+                        <span className="text-white/80 text-xs sm:text-sm">
+                          ({currentApp.ratingCount})
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <FavoriteButton appId={currentApp.id} size="lg" className="bg-white/20 backdrop-blur-md rounded-full p-3 flex-shrink-0" />
+                  {currentApp.description && (
+                    <p
+                      className="text-xs sm:text-sm md:text-base lg:text-lg text-white/90 leading-snug drop-shadow-md overflow-visible min-w-0 text-left mb-1"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {shortenDescription(currentApp.description)}
+                    </p>
+                  )}
                 </div>
 
-                {/* Stats and Button */}
-                <motion.div
-                  key={`stats-${currentIndex}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.3 }}
-                  className="flex items-center gap-6 flex-wrap"
-                >
-                  <div className="flex items-center gap-2">
-                    <RatingStars
-                      rating={currentApp.ratingAverage || 0}
-                      ratingCount={currentApp.ratingCount || 0}
-                      size={20}
-                      showNumber
-                      className="text-white"
-                    />
-                    {currentApp.ratingCount && currentApp.ratingCount > 0 && (
-                      <span className="text-white/80 text-sm">
-                        ({currentApp.ratingCount})
-                      </span>
-                    )}
-                  </div>
-                  {currentApp.installs && currentApp.installs > 0 && (
-                    <div className="text-white/80 text-sm">
-                      {currentApp.installs.toLocaleString()} installs
-                    </div>
-                  )}
-                  <Link
-                    href={`/apps/${currentApp.id}`}
-                    className="ml-auto px-8 py-3 bg-white text-purple-600 rounded-full font-bold text-lg flex items-center gap-2 hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-105"
-                  >
-                    <Play className="w-5 h-5" />
-                    Open App
-                  </Link>
-                </motion.div>
               </div>
             </div>
           </div>
 
+          {/* Save Button - Top Right */}
+          <div className="absolute top-4 right-4 z-30" onClick={(e) => e.stopPropagation()}>
+            <FavoriteButton appId={currentApp.id} size="sm" className="bg-white/20 backdrop-blur-md rounded-full p-2 sm:p-3 flex-shrink-0" />
+          </div>
+
           {/* Decorative elements */}
-          <div className="absolute top-4 right-4 opacity-20">
+          <div className="absolute top-8 right-8 opacity-20 z-0">
             <div className="w-32 h-32 rounded-full bg-white/10 blur-3xl" />
           </div>
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </Link>
 
       {/* Navigation Arrows - Only show on desktop */}
       {apps.length > 1 && !isMobile && (
         <>
           <button
-            onClick={goToPrevious}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-black/50 hover:bg-black/70 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all duration-300 opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              goToPrevious();
+            }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-black/50 hover:bg-black/70 active:bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all duration-100 opacity-0 group-hover:opacity-100 touch-manipulation"
             aria-label="Previous app"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
           <button
-            onClick={goToNext}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-black/50 hover:bg-black/70 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all duration-300 opacity-0 group-hover:opacity-100"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              goToNext();
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-black/50 hover:bg-black/70 active:bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-all duration-100 opacity-0 group-hover:opacity-100 touch-manipulation"
             aria-label="Next app"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <ChevronRight className="w-6 h-6" />
           </button>
@@ -436,12 +381,17 @@ export default function TopBanner({ apps }: TopBannerProps) {
           {apps.map((_, index) => (
             <button
               key={index}
-              onClick={() => goToSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                goToSlide(index);
+              }}
+              className={`w-2 h-2 rounded-full transition-all duration-100 ${
                 index === currentIndex
                   ? "bg-white w-8"
-                  : "bg-white/50 hover:bg-white/75"
-              }`}
+                  : "bg-white/50 hover:bg-white/75 active:bg-white/90"
+              } touch-manipulation`}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}

@@ -98,7 +98,6 @@ export default function FeatureCard({
                   width={80}
                   height={80}
                   className="w-full h-full object-contain rounded-xl"
-                  unoptimized
                   data-original={iconUrl}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -127,7 +126,6 @@ export default function FeatureCard({
                   height={24}
                   className="w-6 h-6 flex-shrink-0 ml-0.5 inline-block"
                   title="Verified App"
-                  unoptimized
                 />
               )}
             </motion.div>

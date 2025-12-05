@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 
-// Cache for 60 seconds, revalidate on demand
+// Cache for 60 seconds using ISR
 export const revalidate = 60;
-export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   // Extract params first so they're available in catch block

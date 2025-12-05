@@ -249,7 +249,7 @@ export async function POST(request: NextRequest) {
       developer = await prisma.developer.create({
         data: {
           wallet: defaultDeveloperWallet,
-          name: "System",
+          name: "MiniCast Admin",
           verified: true,
         },
       });
