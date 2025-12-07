@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Developer, MiniApp } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { fetchFarcasterMetadata } from "@/lib/farcaster-metadata";
-import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
+import { convertAndSaveImage, shouldConvertToWebP } from "@/lib/image-optimization";
 
 const submitSchema = z.object({
   name: z.string().min(1, "App name is required").max(100, "App name must be less than 100 characters"),
@@ -20,6 +22,8 @@ const submitSchema = z.object({
   contractAddress: z.union([z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address"), z.literal("")]).optional(),
   notesToAdmin: z.union([z.string().max(1000), z.literal("")]).optional(),
   screenshots: z.array(z.string().url("Screenshot URL must be a valid URL")).optional().default([]), // Screenshot URLs
+  supportEmail: z.union([z.string().email("Invalid email address"), z.literal("")]).optional(),
+  twitterUrl: z.union([z.string(), z.literal("")]).optional(), // Can be URL or username
 });
 
 export async function POST(request: NextRequest) {
@@ -180,27 +184,30 @@ export async function POST(request: NextRequest) {
     // Find or create developer
     let developer;
     try {
-      developer = await prisma.developer.findUnique({
-        where: { wallet: wallet.toLowerCase() },
-      });
+      const walletLower = wallet.toLowerCase();
+      let developerResult = await db.select().from(Developer)
+        .where(eq(Developer.wallet, walletLower))
+        .limit(1);
+      developer = developerResult[0];
 
       if (!developer) {
-        developer = await prisma.developer.create({
-          data: {
-            wallet: wallet.toLowerCase(),
-          },
-        });
+        const [newDeveloper] = await db.insert(Developer).values({
+          wallet: walletLower,
+        }).returning();
+        developer = newDeveloper;
       }
 
-      // Check if developer is verified OR if they own the domain via farcaster.json
-      // Wallet verification is required (proves identity)
-      // Domain ownership via farcaster.json allows auto-approval (proves domain ownership)
+      // Check if developer is verified (wallet verification)
       const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
       
-      // Require wallet verification (not domain verification)
-      // Admins and moderators can bypass verification
+      // All apps must go through admin approval - no auto-approval
+      // Exception: If owner address from farcaster.json matches verified address, 
+      // they can list but app will be unverified (verified=false) and pending admin approval
       const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
-      if (!walletVerified && !hasAdminAccess && !hasReviewMessage) {
+      
+      // Only require wallet verification if they're not the owner from farcaster.json
+      // If they're the owner, they can list but it will be unverified
+      if (!isDomainOwner && !walletVerified && !hasAdminAccess && !hasReviewMessage) {
         return NextResponse.json(
           { 
             error: "You must verify your wallet before submitting apps, or request manual review.",
@@ -212,7 +219,7 @@ export async function POST(request: NextRequest) {
       }
     } catch (dbError: any) {
       // If database is unavailable, return error
-      if (dbError?.code === 'P1001' || dbError?.message?.includes('Can\'t reach database')) {
+      if (dbError?.message?.includes('connection') || dbError?.message?.includes('database')) {
         return NextResponse.json(
           { error: "Database temporarily unavailable. Please try again later." },
           { status: 503 }
@@ -224,19 +231,23 @@ export async function POST(request: NextRequest) {
     // Check if URL already exists
     let existingApp;
     try {
-      existingApp = await prisma.miniApp.findUnique({
-        where: { url: validated.url },
-        include: {
-          developer: {
-            select: {
-              id: true,
-              wallet: true,
-            },
-          },
+      const existingAppResult = await db.select({
+        app: MiniApp,
+        developer: {
+          id: Developer.id,
+          wallet: Developer.wallet,
         },
-      });
+      })
+        .from(MiniApp)
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(eq(MiniApp.url, validated.url))
+        .limit(1);
+      existingApp = existingAppResult[0] ? {
+        ...existingAppResult[0].app,
+        developer: existingAppResult[0].developer,
+      } : null;
     } catch (dbError: any) {
-      if (dbError?.code === 'P1001' || dbError?.message?.includes('Can\'t reach database')) {
+      if (dbError?.message?.includes('connection') || dbError?.message?.includes('database')) {
         return NextResponse.json(
           { error: "Database temporarily unavailable. Please try again later." },
           { status: 503 }
@@ -282,45 +293,108 @@ export async function POST(request: NextRequest) {
             updatedScreenshots = existingApp.screenshots || [];
           }
           
-          // Re-check approval status when updating (in case developer got verified or farcaster.json was updated)
+          // Re-check approval status when updating
+          // All apps must go through admin approval - no auto-approval
           let updatedStatus = existingApp.status;
           const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
           
-          // If app is not approved, check if it should be approved now
-          if (existingApp.status !== "approved") {
-            const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
-            if (developer.verified || hasAdminAccess) {
-              updatedStatus = "approved";
-            } else if (walletVerified && isDomainOwner) {
-              updatedStatus = "approved";
+          // Only admins can approve - keep existing status unless admin approved it
+          // If status was already approved, keep it (admin must have approved it)
+          // Otherwise, keep it as pending/pending_review/pending_contract
+          if (existingApp.status === "approved") {
+            // Keep approved status if it was already approved
+            updatedStatus = "approved";
+          } else {
+            // Keep the existing pending status - admin needs to approve
+            updatedStatus = existingApp.status;
+          }
+          
+          // Re-check if owner matches (in case farcaster.json was updated)
+          let updatedIsDomainOwner = false;
+          if (updatedFarcasterMetadata) {
+            try {
+              const parsedMetadata = JSON.parse(updatedFarcasterMetadata);
+              const owners = parsedMetadata.owner || parsedMetadata.owners || [];
+              const ownerList = Array.isArray(owners) ? owners : [owners];
+              const normalizedOwners = ownerList.map((owner: string) => 
+                owner.toLowerCase().trim()
+              );
+              
+              if (normalizedOwners.includes(wallet.toLowerCase())) {
+                updatedIsDomainOwner = true;
+              }
+            } catch (e) {
+              console.log("Error parsing farcaster.json for ownership:", e);
             }
           }
           
+          // Determine verified status and approval status
+          let updatedVerified = existingApp.verified;
+          const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+          
+          // If app was already approved by admin, keep it verified
+          if (existingApp.status === "approved" && existingApp.verified) {
+            // Keep verified if admin already approved
+            updatedVerified = true;
+            updatedStatus = "approved";
+          } else if (updatedIsDomainOwner && walletVerified && !hasAdminAccess) {
+            // Owner can list (status=approved) but app remains unverified until admin approves
+            updatedStatus = "approved";
+            updatedVerified = false;
+          } else if (hasAdminAccess) {
+            // Admins can approve and verify
+            updatedStatus = "approved";
+            updatedVerified = true;
+          } else {
+            // Default: keep existing status, unverified until admin approves
+            updatedVerified = false;
+          }
+          
           // Update existing app
-          const updatedApp = await prisma.miniApp.update({
-            where: { id: existingApp.id },
-            data: {
-              name: validated.name,
-              description: validated.description,
-              baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : existingApp.baseMiniAppUrl,
-              farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : existingApp.farcasterUrl,
-              iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : existingApp.iconUrl,
-              headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : existingApp.headerImageUrl,
-              category: validated.category,
-              status: updatedStatus, // Update status if it should be approved now
-              reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : existingApp.reviewMessage,
-              notesToAdmin: (validated.notesToAdmin && validated.notesToAdmin.trim() !== "") ? validated.notesToAdmin : existingApp.notesToAdmin,
-              developerTags: validated.developerTags || existingApp.developerTags || [],
-              tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : existingApp.tags || [],
-              contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : existingApp.contractAddress,
-              farcasterJson: updatedFarcasterMetadata || existingApp.farcasterJson,
-              screenshots: updatedScreenshots,
-              lastUpdatedAt: new Date(),
-            },
-            include: {
-              developer: true,
-            },
-          });
+          const updateData: any = {
+            name: validated.name,
+            description: validated.description,
+            baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : existingApp.baseMiniAppUrl,
+            farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : existingApp.farcasterUrl,
+            iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : existingApp.iconUrl,
+            headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : existingApp.headerImageUrl,
+            category: validated.category,
+            status: updatedStatus, // Update status (approved if owner matches, otherwise keep existing)
+            verified: updatedVerified, // Update verified status
+            reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : existingApp.reviewMessage,
+            notesToAdmin: (validated.notesToAdmin && validated.notesToAdmin.trim() !== "") ? validated.notesToAdmin : existingApp.notesToAdmin,
+            developerTags: validated.developerTags || existingApp.developerTags || [],
+            tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : existingApp.tags || [],
+            contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : existingApp.contractAddress,
+            farcasterJson: updatedFarcasterMetadata || existingApp.farcasterJson,
+            screenshots: updatedScreenshots || existingApp.screenshots || [],
+            lastUpdatedAt: new Date(),
+          };
+          
+          // Add supportEmail and twitterUrl if provided
+          if (validated.supportEmail && validated.supportEmail.trim() !== "") {
+            updateData.supportEmail = validated.supportEmail.trim();
+          } else if (existingApp.supportEmail) {
+            updateData.supportEmail = existingApp.supportEmail;
+          }
+          
+          if (validated.twitterUrl && validated.twitterUrl.trim() !== "") {
+            updateData.twitterUrl = validated.twitterUrl.trim();
+          } else if (existingApp.twitterUrl) {
+            updateData.twitterUrl = existingApp.twitterUrl;
+          }
+          
+          const [updatedAppData] = await db.update(MiniApp)
+            .set(updateData)
+            .where(eq(MiniApp.id, existingApp.id))
+            .returning();
+          
+          // Fetch developer for response
+          const devResult = await db.select().from(Developer).where(eq(Developer.id, developer.id)).limit(1);
+          const updatedApp = {
+            ...updatedAppData,
+            developer: devResult[0],
+          };
 
           return NextResponse.json({ 
             app: updatedApp,
@@ -353,63 +427,118 @@ export async function POST(request: NextRequest) {
 
     // Create mini app
     let app;
-    // Determine app status
-    // Auto-approve if:
-    // - Developer is fully verified/admin, OR
-    // - Wallet is verified AND domain ownership is proven via farcaster.json
-    // If contract address provided, set to pending_contract
-    // If reviewMessage provided, set to pending_review for manual review
-    // Otherwise, set to pending
+    // Determine app status - ALL apps must go through admin approval
+    // Exception: If owner address from farcaster.json matches verified address,
+    // they can list (status=approved) but app will be unverified (verified=false)
     let appStatus = "pending";
-    const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
+    let appVerified = false; // Default to unverified - admin must approve
     
+    const walletVerified = developer.verificationStatus === "wallet_verified" || developer.verificationStatus === "verified" || developer.verified;
     const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
-    if (developer.verified || hasAdminAccess) {
+    
+    // If owner address from farcaster.json matches verified address, allow listing but mark as unverified
+    if (isDomainOwner && walletVerified) {
+      // Owner can list (status=approved so it's visible), but app is unverified (verified=false)
       appStatus = "approved";
-    } else if (walletVerified && isDomainOwner) {
-      // Wallet verified + domain ownership via farcaster.json = auto-approve
+      appVerified = false; // Unverified badge will be shown
+    } else if (hasAdminAccess) {
+      // Admins can auto-approve and verify
       appStatus = "approved";
+      appVerified = true;
     } else if (validated.contractAddress && validated.contractAddress.trim() !== "") {
       appStatus = "pending_contract";
+      appVerified = false;
     } else if (hasReviewMessage) {
       appStatus = "pending_review"; // Manual review requested
+      appVerified = false;
+    } else {
+      // Default: pending admin approval, unverified
+      appStatus = "pending";
+      appVerified = false;
+    }
+    
+    // Convert PNG/JPG images to WebP before saving
+    let finalIconUrl = (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : "/placeholder-icon.png";
+    let finalHeaderImageUrl = (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : null;
+    let finalScreenshots = (validated.screenshots && validated.screenshots.length > 0) ? validated.screenshots : metadataScreenshots;
+
+    // Generate a temporary ID for filename prefix (we'll use a UUID-like string)
+    const tempId = `temp-${Date.now()}`;
+
+    // Convert icon if PNG/JPG
+    if (finalIconUrl && shouldConvertToWebP(finalIconUrl)) {
+      const convertedIcon = await convertAndSaveImage(finalIconUrl, "icons", tempId);
+      if (convertedIcon) finalIconUrl = convertedIcon;
+    }
+
+    // Convert header if PNG/JPG
+    if (finalHeaderImageUrl && shouldConvertToWebP(finalHeaderImageUrl)) {
+      const convertedHeader = await convertAndSaveImage(finalHeaderImageUrl, "headers", tempId);
+      if (convertedHeader) finalHeaderImageUrl = convertedHeader;
+    }
+
+    // Convert screenshots if PNG/JPG
+    if (finalScreenshots && finalScreenshots.length > 0) {
+      finalScreenshots = await Promise.all(
+        finalScreenshots.map(async (url) => {
+          if (shouldConvertToWebP(url)) {
+            const converted = await convertAndSaveImage(url, "screenshots", tempId);
+            return converted || url;
+          }
+          return url;
+        })
+      );
     }
     
     try {
-      app = await prisma.miniApp.create({
-        data: {
-          name: validated.name,
-          description: validated.description,
-          url: validated.url,
-          baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : null,
-          farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : null,
-          iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? optimizeDevImage(validated.iconUrl) : "https://via.placeholder.com/512?text=App+Icon",
-          headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? optimizeBannerImage(validated.headerImageUrl) : null,
-          category: validated.category,
-          status: appStatus,
-          reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : null,
-          notesToAdmin: (validated.notesToAdmin && validated.notesToAdmin.trim() !== "") ? validated.notesToAdmin : null,
-          developerTags: validated.developerTags || [],
-          tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : [],
-          contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : null,
-          contractVerified: false,
-          farcasterJson: farcasterMetadata,
-          screenshots: (validated.screenshots && validated.screenshots.length > 0) ? validated.screenshots : metadataScreenshots,
-          developerId: developer.id,
-          clicks: 0,
-          installs: 0,
-          launchCount: 0,
-          uniqueUsers: 0,
-          popularityScore: 0,
-          ratingAverage: 0,
-          ratingCount: 0,
-        },
-        include: {
-          developer: true,
-        },
-      });
+      const insertData: any = {
+        name: validated.name,
+        description: validated.description,
+        url: validated.url,
+        baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : null,
+        farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : null,
+        iconUrl: finalIconUrl,
+        headerImageUrl: finalHeaderImageUrl,
+        category: validated.category,
+        status: appStatus,
+        verified: appVerified, // Set verified status (false for unverified apps)
+        reviewMessage: (validated.reviewMessage && validated.reviewMessage.trim() !== "") ? validated.reviewMessage : null,
+        notesToAdmin: (validated.notesToAdmin && validated.notesToAdmin.trim() !== "") ? validated.notesToAdmin : null,
+        developerTags: validated.developerTags || [],
+        tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : [],
+        contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : null,
+        contractVerified: false,
+        farcasterJson: farcasterMetadata,
+        screenshots: finalScreenshots,
+        developerId: developer.id,
+        clicks: 0,
+        installs: 0,
+        launchCount: 0,
+        uniqueUsers: 0,
+        popularityScore: 0,
+        ratingAverage: 0,
+        ratingCount: 0,
+      };
+      
+      // Add supportEmail and twitterUrl if provided
+      if (validated.supportEmail && validated.supportEmail.trim() !== "") {
+        insertData.supportEmail = validated.supportEmail.trim();
+      }
+      
+      if (validated.twitterUrl && validated.twitterUrl.trim() !== "") {
+        insertData.twitterUrl = validated.twitterUrl.trim();
+      }
+      
+      const [newApp] = await db.insert(MiniApp).values(insertData).returning();
+      
+      // Fetch developer for response
+      const devResult = await db.select().from(Developer).where(eq(Developer.id, developer.id)).limit(1);
+      app = {
+        ...newApp,
+        developer: devResult[0],
+      };
     } catch (dbError: any) {
-      if (dbError?.code === 'P1001' || dbError?.message?.includes('Can\'t reach database')) {
+      if (dbError?.message?.includes('connection') || dbError?.message?.includes('database')) {
         return NextResponse.json(
           { error: "Database temporarily unavailable. Please try again later." },
           { status: 503 }
@@ -431,40 +560,39 @@ export async function POST(request: NextRequest) {
 
     // Award 1000 points to developer for listing their app
     try {
+      const { UserPoints, PointsTransaction } = await import("@/db/schema");
+      const devWalletLower = developer.wallet.toLowerCase();
       // Find or create developer's user points record
-      let developerPoints = await prisma.userPoints.findUnique({
-        where: { wallet: developer.wallet.toLowerCase() },
-      });
+      let developerPointsResult = await db.select().from(UserPoints)
+        .where(eq(UserPoints.wallet, devWalletLower))
+        .limit(1);
+      let developerPoints = developerPointsResult[0];
 
       const APP_SUBMISSION_POINTS = 1000;
 
       if (!developerPoints) {
-        developerPoints = await prisma.userPoints.create({
-          data: {
-            wallet: developer.wallet.toLowerCase(),
-            totalPoints: APP_SUBMISSION_POINTS,
-          },
-        });
+        const [newPoints] = await db.insert(UserPoints).values({
+          wallet: devWalletLower,
+          totalPoints: APP_SUBMISSION_POINTS,
+        }).returning();
+        developerPoints = newPoints;
       } else {
-        developerPoints = await prisma.userPoints.update({
-          where: { wallet: developer.wallet.toLowerCase() },
-          data: {
-            totalPoints: {
-              increment: APP_SUBMISSION_POINTS,
-            },
-          },
-        });
+        const [updatedPoints] = await db.update(UserPoints)
+          .set({
+            totalPoints: developerPoints.totalPoints + APP_SUBMISSION_POINTS,
+          })
+          .where(eq(UserPoints.wallet, devWalletLower))
+          .returning();
+        developerPoints = updatedPoints;
       }
 
       // Create transaction record for developer
-      await prisma.pointsTransaction.create({
-        data: {
-          wallet: developer.wallet.toLowerCase(),
-          points: APP_SUBMISSION_POINTS,
-          type: "submit",
-          description: `Earned ${APP_SUBMISSION_POINTS} points for listing "${validated.name}"`,
-          referenceId: app.id,
-        },
+      await db.insert(PointsTransaction).values({
+        wallet: devWalletLower,
+        points: APP_SUBMISSION_POINTS,
+        type: "submit",
+        description: `Earned ${APP_SUBMISSION_POINTS} points for listing "${validated.name}"`,
+        referenceId: app.id,
       });
     } catch (pointsError) {
       // Don't fail the submission if points system has an error
@@ -474,8 +602,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       app,
       status: appStatus,
+      verified: appVerified,
       message: appStatus === "approved" 
         ? "App submitted and approved!" 
+        : isDomainOwner && walletVerified
+        ? "App submitted successfully! Since you're the owner from farcaster.json, your app is listed but marked as unverified. An admin will review and verify it shortly."
         : "App submitted for review. An admin will review it shortly.",
     }, { status: 201 });
   } catch (error) {

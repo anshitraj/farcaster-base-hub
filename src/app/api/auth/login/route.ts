@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic';
  * Warpcast OAuth Login Route
  * Redirects user to Warpcast OAuth authorization page
  */
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const clientId = process.env.NEXT_PUBLIC_WARPCAST_CLIENT_ID;

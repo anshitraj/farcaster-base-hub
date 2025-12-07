@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { mintSBTWithCoinbase } from "./coinbase-api";
+import { mintSBTWithPaymaster } from "./coinbase-api";
 
 const CONTRACT_ADDRESS = process.env.BADGE_CONTRACT_ADDRESS!;
 const PRIVATE_KEY = process.env.BADGE_ADMIN_PRIVATE_KEY!;
@@ -24,10 +24,10 @@ export function getBadgeContract() {
 }
 
 export async function mintBadge(to: string, metadataUri: string) {
-  // Use Coinbase API if configured, otherwise use ethers
+  // Use Coinbase Paymaster if configured, otherwise use ethers
   if (USE_COINBASE && CONTRACT_ADDRESS) {
     try {
-      return await mintSBTWithCoinbase(to, metadataUri, CONTRACT_ADDRESS);
+      return await mintSBTWithPaymaster(to, metadataUri, CONTRACT_ADDRESS);
     } catch (coinbaseError) {
       console.warn("Coinbase minting failed, falling back to ethers:", coinbaseError);
       // Fall through to ethers

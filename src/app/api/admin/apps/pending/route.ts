@@ -1,35 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireModerator } from "@/lib/admin";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq, and, inArray, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
     await requireModerator(); // Moderators can review pending apps
 
-    const apps = await prisma.miniApp.findMany({
-      where: {
-        status: {
-          in: ["pending", "pending_review", "pending_contract"], // Include all pending statuses
-        },
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
+        verificationStatus: Developer.verificationStatus,
       },
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-            verificationStatus: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(inArray(MiniApp.status, ["pending", "pending_review", "pending_contract"]))
+      .orderBy(desc(MiniApp.createdAt));
+    
+    const apps = appsData.map(({ app, developer }) => ({ ...app, developer }));
 
     return NextResponse.json({ apps });
   } catch (error: any) {
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

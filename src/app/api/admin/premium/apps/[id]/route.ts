@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getCurrentWallet } from "@/lib/auth";
+import { Developer, PremiumApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
+
+export const runtime = "edge";
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -22,11 +26,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    const walletLower = wallet.toLowerCase();
     // Check if admin (premium features are admin-only)
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-      select: { adminRole: true },
-    });
+    const developerResult = await db.select({ adminRole: Developer.adminRole })
+      .from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer || developer.adminRole !== "ADMIN") {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
@@ -35,9 +41,7 @@ export async function DELETE(
     const appId = params.id;
 
     // Delete premium app
-    await prisma.premiumApp.delete({
-      where: { miniAppId: appId },
-    });
+    await db.delete(PremiumApp).where(eq(PremiumApp.miniAppId, appId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

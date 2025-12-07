@@ -1,6 +1,7 @@
-import { MiniApp, AppEvent } from "@prisma/client";
+import { InferSelectModel } from "drizzle-orm";
+import { MiniApp, AppEvent } from "@/db/schema";
 
-export type MiniAppWithEvents = MiniApp & { events: AppEvent[] };
+export type MiniAppWithEvents = InferSelectModel<typeof MiniApp> & { events: InferSelectModel<typeof AppEvent>[] };
 
 export function computeTrendingScore(app: MiniAppWithEvents): number {
   const now = Date.now();

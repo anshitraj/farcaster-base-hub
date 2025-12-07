@@ -29,6 +29,7 @@ interface AppGridProps {
   viewAllHref?: string;
   variant?: "horizontal" | "grid" | "featured";
   showHorizontal?: boolean;
+  hideSaveButton?: boolean; // Hide the save/favorite button
 }
 
 const AppGrid = ({
@@ -37,6 +38,7 @@ const AppGrid = ({
   viewAllHref,
   variant = "horizontal",
   showHorizontal = true,
+  hideSaveButton = false,
 }: AppGridProps) => {
   // Filter out apps without IDs
   const validApps = apps.filter((app) => app.id);
@@ -67,6 +69,7 @@ const AppGrid = ({
             variant="horizontal"
             topBaseRank={app.topBaseRank}
             autoUpdated={app.autoUpdated}
+            hideSaveButton={hideSaveButton}
           />
         ))}
       </HorizontalScroller>
@@ -99,6 +102,7 @@ const AppGrid = ({
             variant={variant}
             topBaseRank={app.topBaseRank}
             autoUpdated={app.autoUpdated}
+            hideSaveButton={hideSaveButton}
           />
         ))}
       </div>

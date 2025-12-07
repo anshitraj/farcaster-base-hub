@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireAdminOnly } from "@/lib/admin";
+import { Developer, Notification } from "@/db/schema";
 import { z } from "zod";
 
 const broadcastSchema = z.object({
@@ -17,10 +18,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = broadcastSchema.parse(body);
 
-    // Get all unique wallets from developers and user profiles
-    const developers = await prisma.developer.findMany({
-      select: { wallet: true },
-    });
+    // Get all unique wallets from developers
+    const developers = await db.select({ wallet: Developer.wallet }).from(Developer);
 
     const wallets = developers.map(d => d.wallet.toLowerCase());
     
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create notifications for all users
+    // Create notifications for all users (Drizzle doesn't have createMany, so we batch insert)
     const notifications = uniqueWallets.map(wallet => ({
       wallet,
       type: validated.type,
@@ -44,10 +43,10 @@ export async function POST(request: NextRequest) {
       read: false,
     }));
 
-    // Batch create notifications (Prisma supports createMany)
-    await prisma.notification.createMany({
-      data: notifications,
-    });
+    // Insert notifications in batches
+    await Promise.all(
+      notifications.map(notif => db.insert(Notification).values(notif))
+    );
 
     return NextResponse.json({
       success: true,

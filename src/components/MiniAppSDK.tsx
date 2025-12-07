@@ -16,9 +16,12 @@ export default function MiniAppSDK() {
         } else {
           console.log("Not in Mini App context, skipping sdk.actions.ready()");
         }
-      } catch (error) {
+      } catch (error: any) {
         // Silently fail if SDK is not available (e.g., in regular browser)
-        console.log("Farcaster Mini App SDK not available:", error);
+        // Only log in development mode to avoid console spam
+        if (process.env.NODE_ENV === 'development') {
+          console.debug("Farcaster Mini App SDK not available (expected in regular browser):", error?.message || error);
+        }
       }
     }
 

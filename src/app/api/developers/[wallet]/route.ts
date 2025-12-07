@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Developer, MiniApp, Badge } from "@/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 
-export const dynamic = 'force-dynamic'; // Prevent caching
+export const runtime = "edge";
+export const revalidate = 60; // Cache for 60 seconds
 
 export async function GET(
   request: NextRequest,
@@ -21,37 +24,8 @@ export async function GET(
       );
     }
 
-    let developer = await prisma.developer.findUnique({
-      where: { wallet },
-      include: {
-        apps: {
-          where: {
-            status: "approved", // Only show approved apps
-          },
-          select: {
-            id: true,
-            name: true,
-            iconUrl: true,
-            category: true,
-            clicks: true,
-            installs: true,
-            ratingAverage: true,
-            ratingCount: true,
-            verified: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        badges: {
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-      // adminRole is included by default when using include (all Developer fields are returned)
-    });
+    let developerResult = await db.select().from(Developer).where(eq(Developer.wallet, wallet)).limit(1);
+    let developer = developerResult[0];
     
     // Debug: Log adminRole to help troubleshoot
     if (developer) {
@@ -60,46 +34,61 @@ export async function GET(
 
     // Auto-create developer if they don't exist (for valid wallet addresses)
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet,
-          name: null,
-          verified: false,
-        },
-        include: {
-          apps: {
-            where: {
-              status: "approved",
-            },
-            select: {
-              id: true,
-              name: true,
-              iconUrl: true,
-              category: true,
-              clicks: true,
-              installs: true,
-              ratingAverage: true,
-              ratingCount: true,
-              verified: true,
-              createdAt: true,
-            },
-            orderBy: {
-              createdAt: "desc",
-            },
-          },
-          badges: {
-            orderBy: {
-              createdAt: "desc",
-            },
-          },
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet,
+        name: null,
+        verified: false,
+      }).returning();
+      developer = newDeveloper;
     }
+
+    // Fetch related apps and badges
+    const apps = await db.select({
+      id: MiniApp.id,
+      name: MiniApp.name,
+      iconUrl: MiniApp.iconUrl,
+      category: MiniApp.category,
+      clicks: MiniApp.clicks,
+      installs: MiniApp.installs,
+      ratingAverage: MiniApp.ratingAverage,
+      ratingCount: MiniApp.ratingCount,
+      verified: MiniApp.verified,
+      createdAt: MiniApp.createdAt,
+    })
+      .from(MiniApp)
+      .where(and(
+        eq(MiniApp.developerId, developer.id),
+        eq(MiniApp.status, "approved")
+      ))
+      .orderBy(desc(MiniApp.createdAt));
+
+    // Select only columns that exist in the database (badgeType may not exist yet)
+    const badges = await db.select({
+      id: Badge.id,
+      name: Badge.name,
+      imageUrl: Badge.imageUrl,
+      appName: Badge.appName,
+      appId: Badge.appId,
+      developerId: Badge.developerId,
+      txHash: Badge.txHash,
+      claimed: Badge.claimed,
+      metadataUri: Badge.metadataUri,
+      tokenId: Badge.tokenId,
+      createdAt: Badge.createdAt,
+      claimedAt: Badge.claimedAt,
+      // badgeType is optional - only include if column exists in DB
+      // badgeType: Badge.badgeType,
+    })
+      .from(Badge)
+      .where(eq(Badge.developerId, developer.id))
+      .orderBy(desc(Badge.createdAt));
 
     // Ensure adminRole is in the response (it should be, but let's be explicit)
     const response = {
       developer: {
         ...developer,
+        apps,
+        badges,
         adminRole: developer?.adminRole || null, // Explicitly include adminRole
       }
     };
@@ -114,10 +103,8 @@ export async function GET(
     });
   } catch (error: any) {
     // Handle database connection errors gracefully
-    if (error?.code === 'P1001' || 
-        error?.message?.includes("Can't reach database") ||
-        error?.message?.includes("P1001") ||
-        error?.message?.includes("connection") ||
+    if (error?.message?.includes("connection") ||
+        error?.message?.includes("database") ||
         !process.env.DATABASE_URL) {
       console.error("Database connection error:", error.message);
       console.error("DATABASE_URL present:", !!process.env.DATABASE_URL);

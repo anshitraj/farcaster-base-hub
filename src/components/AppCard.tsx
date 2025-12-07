@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Star, Users, ExternalLink } from "lucide-react";
+import { Star, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import RatingStars from "./RatingStars";
@@ -13,7 +13,9 @@ import UnverifiedBadge from "./UnverifiedBadge";
 import Top30Badge from "./Top30Badge";
 import AutoUpdateBadge from "./AutoUpdateBadge";
 import RankBadge from "./RankBadge";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import SecuredBadge from "./SecuredBadge";
+import FavoriteButton from "./FavoriteButton";
+// ImageKit optimization removed - Next.js Image handles WebP conversion automatically
 
 interface AppCardProps {
   id: string;
@@ -39,6 +41,8 @@ interface AppCardProps {
   url?: string; // Main app URL
   farcasterUrl?: string; // Farcaster mini app URL
   baseMiniAppUrl?: string; // Base mini app URL
+  tags?: string[]; // App tags for display
+  hideSaveButton?: boolean; // Hide the save/favorite button
 }
 
 const AppCard = ({
@@ -60,8 +64,26 @@ const AppCard = ({
   url,
   farcasterUrl,
   baseMiniAppUrl,
+  tags = [],
+  hideSaveButton = false,
 }: AppCardProps) => {
   const router = useRouter();
+  const [isMobile, setIsMobile] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+    const checkMobile = () => {
+      if (typeof window !== "undefined") {
+        setIsMobile(window.innerWidth < 768);
+      }
+    };
+    checkMobile();
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+    }
+  }, []);
 
   if (!id) {
     return null;
@@ -71,112 +93,112 @@ const AppCard = ({
     router.push(`/apps/${id}`);
   }, [router, id]);
 
-  // Mobile horizontal card (default)
+  // Mobile horizontal card (default) - Play Store style
   if (variant === "horizontal") {
+    // Format tags for display (e.g., "Games • Spin • Win")
+    const formattedTags = tags && tags.length > 0 
+      ? tags.slice(0, 4).map(tag => tag.charAt(0).toUpperCase() + tag.slice(1)).join(" • ")
+      : category;
+
     return (
       <div className="block min-w-[280px]">
         <motion.div
-          whileTap={{ scale: 0.98 }}
-          transition={{ duration: 0.2 }}
+          whileTap={isMobile ? {} : { scale: 0.98 }}
+          transition={{ duration: 0.1 }}
         >
           <Card 
-            className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))] cursor-pointer"
+            className="bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover-glow transition-all duration-100 cursor-pointer rounded-lg touch-manipulation h-[90px]"
             onClick={handleCardClick}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                {/* Icon */}
+            <CardContent className="p-2 relative">
+              <div className="flex items-center gap-2 pr-14">
+                {/* Logo - Small 44px × 44px on left */}
                 {iconUrl && (
                   <div className="flex-shrink-0">
                     <Image
-                      src={optimizeDevImage(iconUrl)}
+                      src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                       alt={name}
-                      width={64}
-                      height={64}
-                      className="w-16 h-16 rounded-xl bg-background-secondary p-2 shadow-lg"
+                      width={44}
+                      height={44}
+                      className="w-11 h-11 rounded-lg bg-background-secondary"
                       loading={featured ? "eager" : "lazy"}
                       fetchPriority={featured ? "high" : "auto"}
+                      priority={featured}
+                      quality={70}
+                      sizes="44px"
                       placeholder="blur"
-                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMTExODI3Ii8+PC9zdmc+"
-                      data-original={iconUrl}
+                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
+                      unoptimized={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        const originalUrl = target.getAttribute("data-original");
-                        if (originalUrl) {
-                          target.src = originalUrl;
-                        } else {
-                          target.src = "/placeholder.svg";
-                        }
+                        target.src = '/placeholder.svg';
                       }}
                     />
                   </div>
                 )}
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <h3 className="font-semibold text-base truncate">
-                        {name}
-                      </h3>
-                      {verified && (
-                        <Image
-                          src="/verify.svg"
-                          alt="Verified"
-                          width={18}
-                          height={18}
-                          className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
-                          title="Verified App"
-                          unoptimized
-                        />
-                      )}
-                    </div>
-                    {rank && (
-                      <RankBadge rank={rank} size="sm" className="flex-shrink-0" />
+                {/* Content - Right side (Play Store style) */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  {/* Line 1: App Name + Verified Badge + Rating */}
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <h3 className="font-semibold text-sm text-white truncate">
+                      {name}
+                    </h3>
+                    {verified ? (
+                      <Image
+                        src="/verify.svg"
+                        alt="Verified"
+                        width={12}
+                        height={12}
+                        className="w-3 h-3 flex-shrink-0"
+                        title="Verified App"
+                      />
+                    ) : (
+                      <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0" />
                     )}
-                    {topBaseRank && (
-                      <Top30Badge rank={topBaseRank} className="flex-shrink-0 text-[10px]" />
-                    )}
-                    {autoUpdated && (
-                      <AutoUpdateBadge className="flex-shrink-0 text-[10px]" />
-                    )}
-                  </div>
-                  {developer && (
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <p className="text-xs text-muted-foreground">
-                        {developer.name || "Anonymous Developer"}
-                      </p>
-                      {developer.verified && (
-                        <VerifiedBadge type="developer" iconOnly size="sm" />
-                      )}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 mt-2">
-                    <RatingStars rating={ratingAverage} ratingCount={ratingCount} size={12} showNumber />
-                    {ratingCount === 0 && (
-                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30">
+                    {ratingCount > 0 && ratingAverage > 0 ? (
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
+                        <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-[10px] text-gray-300">
+                          {ratingAverage % 1 === 0 ? ratingAverage.toString() : ratingAverage.toFixed(1)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-green-400 font-medium flex-shrink-0">
                         New
                       </span>
                     )}
-                    {ratingCount > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {installs > 0 ? `${installs.toLocaleString()}` : ""}
-                      </span>
-                    )}
                   </div>
-                </div>
 
-                {/* Open Button */}
-                <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <Link
-                    href={`/apps/${id}`}
-                    className="bg-base-blue/20 hover:bg-base-blue/30 text-base-blue px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1 transition-all hover:glow-base-blue border border-base-blue/30"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    Open
-                  </Link>
+                  {/* Line 2: Category Tags - Medium gray */}
+                  <p className="text-[10px] mb-0.5 truncate" style={{ color: '#9CA3AF' }}>
+                    {formattedTags}
+                  </p>
+
+                  {/* Line 3: Description - Muted, single line with ellipsis */}
+                  <p className="text-[10px] truncate leading-tight" style={{ color: '#9CA3AF' }}>
+                    {description}
+                  </p>
                 </div>
               </div>
+
+              {/* Save button - Top right */}
+              {!hideSaveButton && (
+                <div className="absolute top-1 right-1 flex-shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
+                  <FavoriteButton appId={id} size="sm" />
+                </div>
+              )}
+
+              {/* Open button - Bottom right */}
+              <Link
+                href={`/apps/${id}`}
+                className="absolute right-2 bottom-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors flex-shrink-0 z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+                Open
+              </Link>
             </CardContent>
           </Card>
         </motion.div>
@@ -189,11 +211,12 @@ const AppCard = ({
     return (
       <div className="block">
         <motion.div
-          whileTap={{ scale: 0.98 }}
-          transition={{ duration: 0.2 }}
+          whileTap={isMobile ? {} : { scale: 0.98 }}
+          transition={{ duration: 0.1 }}
         >
           <Card 
-            className="card-surface hover-glow transition-all duration-300 overflow-hidden border-base-blue/30 cursor-pointer"
+            className="bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover-glow transition-all duration-100 overflow-hidden cursor-pointer touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
             onClick={handleCardClick}
           >
             <CardContent className="p-0">
@@ -203,22 +226,22 @@ const AppCard = ({
                   <div className="w-full h-40 bg-gradient-to-br from-base-blue/30 via-base-cyan/20 to-purple-500/20 flex items-center justify-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-transparent to-transparent z-10" />
                     <Image
-                      src={optimizeDevImage(iconUrl)}
+                      src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                       alt={name}
                       width={100}
                       height={100}
                       className="w-24 h-24 rounded-2xl shadow-2xl z-20 relative"
                       loading="eager"
                       fetchPriority="high"
-                      data-original={iconUrl}
+                      priority
+                      quality={70}
+                      sizes="96px"
+                      placeholder="blur"
+                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzEyMTIxMiIvPjwvc3ZnPg=="
+                      unoptimized={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        const originalUrl = target.getAttribute("data-original");
-                        if (originalUrl) {
-                          target.src = originalUrl;
-                        } else {
-                          target.src = "/placeholder.svg";
-                        }
+                        target.src = "/placeholder.svg";
                       }}
                     />
                   </div>
@@ -231,15 +254,17 @@ const AppCard = ({
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <div className="flex items-center gap-1">
                           <h3 className="font-bold text-xl truncate">{name}</h3>
-                          {verified && (
+                          {verified ? (
                             <Image
-                              src="/verify.webp"
+                              src="/verify.svg"
                               alt="Verified"
                               width={20}
                               height={20}
                               className="w-5 h-5 flex-shrink-0 ml-0.5"
                               title="Verified App"
                             />
+                          ) : (
+                            <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0 ml-0.5" />
                           )}
                         </div>
                         {rank && (
@@ -255,7 +280,7 @@ const AppCard = ({
                       {developer && (
                         <div className="flex items-center gap-1.5 mb-2">
                           <p className="text-sm text-muted-foreground">
-                            by {developer.name || "Anonymous Developer"}
+                            by {(developer.name === "System" ? "Mini Cast Admin" : developer.name) || "Anonymous Developer"}
                           </p>
                           {developer.verified && (
                             <VerifiedBadge type="developer" iconOnly size="sm" />
@@ -318,47 +343,50 @@ const AppCard = ({
   return (
     <div className="block">
       <motion.div
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        transition={{ duration: 0.2 }}
+        whileHover={isMobile ? {} : { scale: 1.02 }}
+        whileTap={isMobile ? {} : { scale: 0.98 }}
+        transition={{ duration: 0.1 }}
       >
-          <Card 
-            className="card-surface hover-glow transition-all duration-300 h-full border-[hsl(var(--border))] cursor-pointer"
+        <Card 
+            className="bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover-glow transition-all duration-100 h-full cursor-pointer touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
             onClick={handleCardClick}
           >
           <CardContent className="p-4">
             <div className="flex flex-col items-center text-center mb-4">
               {iconUrl && (
                 <Image
-                  src={optimizeDevImage(iconUrl)}
+                  src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                   alt={name}
                   width={80}
                   height={80}
                   className="w-20 h-20 rounded-xl bg-background-secondary p-2 shadow-lg mb-3"
-                  data-original={iconUrl}
+                  quality={70}
+                  loading="lazy"
+                  sizes="80px"
+                  placeholder="blur"
+                  blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
+                  unoptimized={false}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    const originalUrl = target.getAttribute("data-original");
-                    if (originalUrl) {
-                      target.src = originalUrl;
-                    } else {
-                      target.src = "/placeholder.svg";
-                    }
+                    target.src = "/placeholder.svg";
                   }}
                 />
               )}
               <div className="flex items-center gap-2 mb-1 flex-wrap justify-center">
                 <div className="flex items-center gap-1">
                   <h3 className="font-semibold text-base">{name}</h3>
-                  {verified && (
+                  {verified ? (
                     <Image
-                      src="/verify.webp"
+                      src="/verify.svg"
                       alt="Verified"
                       width={18}
                       height={18}
                       className="w-[18px] h-[18px] flex-shrink-0 ml-0.5"
                       title="Verified App"
                     />
+                  ) : (
+                    <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0 ml-0.5" />
                   )}
                 </div>
               </div>

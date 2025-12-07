@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { MiniApp } from "@/db/schema";
+import { eq, and, count } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET() {
   try {
@@ -9,20 +12,20 @@ export async function GET() {
     
     const counts = await Promise.all(
       categories.map(async (category) => {
-        const count = await prisma.miniApp.count({
-          where: {
-            category,
-            status: "approved",
-          },
-        });
-        return { category, count };
+        const countResult = await db.select({ count: count(MiniApp.id) })
+          .from(MiniApp)
+          .where(and(
+            eq(MiniApp.category, category),
+            eq(MiniApp.status, "approved")
+          ));
+        return { category, count: Number(countResult[0]?.count || 0) };
       })
     );
 
     return NextResponse.json({ counts });
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Error fetching category counts:", error.message);
       return NextResponse.json({ counts: [] }, { status: 200 });
     }

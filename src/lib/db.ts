@@ -1,23 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import * as schema from "@/db/schema";
 
-const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+if (!process.env.DATABASE_URL) {
+  console.error("⚠️ DATABASE_URL is not set! Database operations will fail.");
+}
 
-// For serverless environments (Vercel), use connection pooling
-// Use DIRECT_URL for migrations, DATABASE_URL for queries (with pooler)
-const databaseUrl = process.env.DATABASE_URL || process.env.DIRECT_URL;
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" 
-      ? ["error"] // Only log actual errors, not connection issues
-      : ["error"],
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-  });
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
-
+const sql = neon(process.env.DATABASE_URL!);
+export const db = drizzle(sql, { schema });

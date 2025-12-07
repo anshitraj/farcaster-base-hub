@@ -1,13 +1,17 @@
 /**
- * Optimizes developer-provided images (icons + banners) using ImageKit CDN
- * Converts PNG/JPG to WebP format for faster loading
+ * Optimizes developer-provided images (icons + banners)
  * 
- * IMPORTANT: ImageKit needs an origin configured to fetch external images.
- * If ImageKit returns 404, the onError handler will fall back to the original URL.
+ * NOTE: ImageKit optimization is disabled. Next.js Image component automatically:
+ * - Converts PNG/JPG to WebP format when browser supports it
+ * - Serves optimized images via /_next/image endpoint
+ * - Caches optimized images for 1 year
+ * 
+ * This function now returns the URL as-is for compatibility with existing code.
+ * All Image components should use Next.js Image with proper optimization props.
  * 
  * @param url - The original image URL from developer
- * @param quality - WebP quality (1-100), default 80
- * @returns Optimized ImageKit URL or original URL if already optimized/static
+ * @param quality - Quality parameter (unused, kept for compatibility)
+ * @returns Original URL (Next.js handles optimization automatically)
  */
 export function optimizeDevImage(url?: string | null, quality: number = 80): string {
   if (!url) return "/placeholder.svg";
@@ -28,19 +32,15 @@ export function optimizeDevImage(url?: string | null, quality: number = 80): str
     return url;
   }
 
-  // ImageKit optimization enabled
-  // Using your ImageKit endpoint: https://ik.imagekit.io/95ygcdrwvh/
-  // NOTE: ImageKit needs an origin configured to fetch external images
-  // If you see 404 errors, configure an origin in ImageKit dashboard:
-  // Settings > Origins > Add origin (or use "External URL" origin type)
-  const imageKitId = "95ygcdrwvh";
+  // ImageKit optimization DISABLED - causing 403/404 errors and slow loads
+  // Using direct URLs for better performance and reliability
+  // Next.js Image component will handle optimization automatically
+  return url;
   
-  // Encode the URL to handle special characters
-  const encoded = encodeURIComponent(url);
-  
-  // ImageKit transformation: convert to WebP with specified quality
-  // Format: https://ik.imagekit.io/{imageKitId}/tr:f-webp,q-{quality}/{encoded_url}
-  return `https://ik.imagekit.io/${imageKitId}/tr:f-webp,q-${quality}/${encoded}`;
+  // OLD ImageKit code (disabled due to reliability issues):
+  // const imageKitId = "95ygcdrwvh";
+  // const encoded = encodeURIComponent(url);
+  // return `https://ik.imagekit.io/${imageKitId}/tr:f-webp,q-${quality}/${encoded}`;
 }
 
 /**

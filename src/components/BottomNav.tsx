@@ -23,6 +23,23 @@ export default function BottomNav() {
   const [profileData, setProfileData] = useState<{ avatar: string | null; name: string | null } | null>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
+  // Prefetch routes when component mounts or user hovers
+  useEffect(() => {
+    // Prefetch all navigation routes in the background
+    navItems.forEach((item) => {
+      if (item.href && !item.isProfile) {
+        router.prefetch(item.href);
+      }
+    });
+  }, [router]);
+
+  // Prefetch on hover/touch for better UX
+  const handleNavItemHover = (href: string) => {
+    if (href && !navItems.find((item) => item.href === href && item.isProfile)) {
+      router.prefetch(href);
+    }
+  };
+
   // Fetch profile data for bottom nav - prioritize MiniApp user (Base/Farcaster)
   useEffect(() => {
     async function fetchProfile() {
@@ -123,11 +140,12 @@ export default function BottomNav() {
                 <button
                   key={item.href}
                   onClick={() => setProfileModalOpen(true)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-100 touch-manipulation active:bg-white/5 ${
                     isActive
                       ? "text-base-blue"
                       : "text-[#A0A4AA] hover:text-white"
                   }`}
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
                   {/* Always render both, but show/hide to avoid hydration mismatch */}
                   <div className="relative">
@@ -156,11 +174,14 @@ export default function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+              onMouseEnter={() => handleNavItemHover(item.href)}
+              onTouchStart={() => handleNavItemHover(item.href)}
+              className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors duration-100 touch-manipulation active:bg-white/5 ${
                 isActive
                   ? "text-base-blue"
                   : "text-[#A0A4AA] hover:text-white"
               }`}
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <Icon className={`w-5 h-5 ${isActive ? "text-base-blue" : ""}`} />
               <span className={`text-[10px] font-medium ${isActive ? "text-base-blue" : ""}`}>

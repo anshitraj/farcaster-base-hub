@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
-import crypto from "crypto";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,30 +55,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: wallet.toLowerCase(),
-        },
-      });
+      const [created] = await db.insert(Developer).values({
+        wallet: walletLower,
+      }).returning();
+      developer = created;
     }
 
-    // Generate nonce
-    const nonce = crypto.randomBytes(16).toString("hex");
+    // Generate nonce using Web Crypto API for Edge Runtime
+    const randomBytes = new Uint8Array(16);
+    crypto.getRandomValues(randomBytes);
+    const nonce = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
     // Update developer with nonce and domain
-    await prisma.developer.update({
-      where: { id: developer.id },
-      data: {
+    await db.update(Developer)
+      .set({
         verificationNonce: nonce,
         verificationDomain: domainUrl.origin,
-      },
-    });
+      })
+      .where(eq(Developer.id, developer.id));
 
     // Generate verification file content
     const verificationContent = `wallet: ${wallet.toLowerCase()}\nnonce: ${nonce}`;
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

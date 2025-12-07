@@ -11,12 +11,28 @@ import { Button } from "@/components/ui/button";
 import AppDetailsSection from "./submit-form/AppDetailsSection";
 import AppMediaSection from "./submit-form/AppMediaSection";
 import AppUrlsSection from "./submit-form/AppUrlsSection";
-import CategoryTagsSection from "./submit-form/CategoryTagsSection";
+import dynamic from "next/dynamic";
 import DescriptionSection from "./submit-form/DescriptionSection";
 import ScreenshotsSection from "./submit-form/ScreenshotsSection";
 import DeveloperNotesSection from "./submit-form/DeveloperNotesSection";
 import AdditionalMetadataSection from "./submit-form/AdditionalMetadataSection";
 import SuccessModal from "./submit-form/SuccessModal";
+
+// Dynamically import CategoryTagsSection to avoid SSR issues with Select component
+const CategoryTagsSection = dynamic(() => import("./submit-form/CategoryTagsSection"), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+          <span>🏷️</span> CATEGORIES & TAGS
+        </h3>
+        <p className="text-xs text-white/50 mb-4">Help users discover your app</p>
+      </div>
+      <div className="h-32 bg-[#0f0f15] rounded-xl animate-pulse" />
+    </div>
+  ),
+});
 
 const SubmitForm = () => {
   const { toast } = useToast();
@@ -51,34 +67,53 @@ const SubmitForm = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedAppId, setSubmittedAppId] = useState<string | undefined>();
 
-  useEffect(() => {
-    async function checkVerification() {
-      try {
-        const authRes = await fetch("/api/auth/wallet", {
-          method: "GET",
-          credentials: "include",
-        });
+  const checkVerification = async () => {
+    try {
+      const authRes = await fetch("/api/auth/wallet", {
+        method: "GET",
+        credentials: "include",
+      });
 
-        if (authRes.ok) {
-          const authData = await authRes.json();
-          if (authData.wallet) {
-            const devRes = await fetch(`/api/developers/${authData.wallet}`, {
-              credentials: "include",
-            });
-            if (devRes.ok) {
-              const devData = await devRes.json();
-              setVerificationStatus(devData.developer);
-            }
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        if (authData.wallet) {
+          const devRes = await fetch(`/api/developers/${authData.wallet}`, {
+            credentials: "include",
+            cache: 'no-store', // Ensure fresh data
+          });
+          if (devRes.ok) {
+            const devData = await devRes.json();
+            setVerificationStatus(devData.developer);
           }
         }
-      } catch (error) {
-        console.error("Error checking verification:", error);
-      } finally {
-        setLoadingVerification(false);
       }
+    } catch (error) {
+      console.error("Error checking verification:", error);
+    } finally {
+      setLoadingVerification(false);
     }
+  };
 
+  useEffect(() => {
     checkVerification();
+    
+    // Refresh verification status when page gains focus (user might have verified in another tab)
+    const handleFocus = () => {
+      checkVerification();
+    };
+    
+    // Listen for verification completion events
+    const handleVerificationComplete = () => {
+      checkVerification();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('verificationComplete', handleVerificationComplete);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('verificationComplete', handleVerificationComplete);
+    };
   }, []);
 
   const handleFetchDetails = async () => {
@@ -295,9 +330,9 @@ const SubmitForm = () => {
               <div>
                 <h3 className="font-semibold text-sm text-white">Developer Verification</h3>
                 {verificationStatus?.verified ? (
-                  <p className="text-xs text-green-400 mt-0.5">✓ Verified • Apps auto-approved</p>
+                  <p className="text-xs text-green-400 mt-0.5">✓ Verified • All apps require admin approval</p>
                 ) : (
-                  <p className="text-xs text-yellow-400 mt-0.5">Not verified</p>
+                  <p className="text-xs text-yellow-400 mt-0.5">Not verified • Verify wallet to submit apps</p>
                 )}
               </div>
             </div>

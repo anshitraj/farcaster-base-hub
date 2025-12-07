@@ -1,38 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { TopBaseApps, MiniApp, Developer } from "@/db/schema";
+import { eq, asc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
     // Fetch Top 30 from database
-    const top30 = await prisma.topBaseApps.findMany({
-      orderBy: {
-        rank: "asc",
-      },
-      take: 30,
-    });
+    const top30 = await db.select().from(TopBaseApps)
+      .orderBy(asc(TopBaseApps.rank))
+      .limit(30);
 
     // Try to match with existing MiniApps
     const appsWithMatches = await Promise.all(
       top30.map(async (topApp) => {
-        const matchingApp = await prisma.miniApp.findUnique({
-          where: { url: topApp.url },
-          include: {
-            developer: {
-              select: {
-                id: true,
-                wallet: true,
-                name: true,
-                verified: true,
-              },
-            },
+        const matchingAppResult = await db.select({
+          app: MiniApp,
+          developer: {
+            id: Developer.id,
+            wallet: Developer.wallet,
+            name: Developer.name,
+            verified: Developer.verified,
           },
-        });
+        })
+          .from(MiniApp)
+          .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+          .where(eq(MiniApp.url, topApp.url))
+          .limit(1);
+        const matchingApp = matchingAppResult[0] ? {
+          ...matchingAppResult[0].app,
+          developer: matchingAppResult[0].developer,
+        } : null;
 
         return {
           ...topApp,
-          app: matchingApp || null,
+          app: matchingApp,
         };
       })
     );
@@ -43,7 +47,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get Top 30 error:", error.message);
       return NextResponse.json({ apps: [], total: 0 }, { status: 200 });
     }

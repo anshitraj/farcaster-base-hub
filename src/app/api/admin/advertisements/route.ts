@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireModerator, requireAdminOnly } from "@/lib/admin";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Advertisement } from "@/db/schema";
+import { eq, and, asc, desc, SQL } from "drizzle-orm";
 import { z } from "zod";
 
 // Schema for creating/updating advertisements
@@ -15,6 +17,8 @@ const advertisementSchema = z.object({
 });
 
 // GET - Fetch all advertisements
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     await requireModerator();
@@ -23,21 +27,20 @@ export async function GET(request: NextRequest) {
     const position = searchParams.get("position");
     const activeOnly = searchParams.get("activeOnly") === "true";
 
-    const where: any = {};
+    const conditions: SQL[] = [];
     if (position) {
-      where.position = position;
+      conditions.push(eq(Advertisement.position, position));
     }
     if (activeOnly) {
-      where.isActive = true;
+      conditions.push(eq(Advertisement.isActive, true));
     }
 
-    const advertisements = await prisma.advertisement.findMany({
-      where,
-      orderBy: [
-        { order: "asc" },
-        { createdAt: "desc" },
-      ],
-    });
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const advertisements = await db.select()
+      .from(Advertisement)
+      .where(whereClause)
+      .orderBy(asc(Advertisement.order), desc(Advertisement.createdAt));
 
     return NextResponse.json({ advertisements });
   } catch (error: any) {
@@ -67,13 +70,11 @@ export async function POST(request: NextRequest) {
     const session = await getSessionFromCookies();
     const wallet = session?.wallet || null;
 
-    const advertisement = await prisma.advertisement.create({
-      data: {
-        ...validated,
-        linkUrl: validated.linkUrl || null,
-        createdBy: wallet,
-      },
-    });
+    const [advertisement] = await db.insert(Advertisement).values({
+      ...validated,
+      linkUrl: validated.linkUrl || null,
+      createdBy: wallet,
+    }).returning();
 
     return NextResponse.json({ advertisement }, { status: 201 });
   } catch (error: any) {
@@ -111,13 +112,13 @@ export async function PATCH(request: NextRequest) {
 
     const validated = advertisementSchema.partial().parse(updateData);
 
-    const advertisement = await prisma.advertisement.update({
-      where: { id },
-      data: {
+    const [advertisement] = await db.update(Advertisement)
+      .set({
         ...validated,
         linkUrl: validated.linkUrl === "" ? null : validated.linkUrl,
-      },
-    });
+      })
+      .where(eq(Advertisement.id, id))
+      .returning();
 
     return NextResponse.json({ advertisement });
   } catch (error: any) {
@@ -153,9 +154,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Advertisement ID is required" }, { status: 400 });
     }
 
-    await prisma.advertisement.delete({
-      where: { id },
-    });
+    await db.delete(Advertisement).where(eq(Advertisement.id, id));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

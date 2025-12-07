@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireAdminOnly } from "@/lib/admin";
+import { Developer, MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const importJsonSchema = z.object({
@@ -100,24 +102,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const walletLower = validated.developerWallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: validated.developerWallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: validated.developerWallet.toLowerCase(),
-          name: metadata.developer?.name || null,
-        },
-      });
+      const [created] = await db.insert(Developer).values({
+        wallet: walletLower,
+        name: metadata.developer?.name || null,
+      }).returning();
+      developer = created;
     }
 
     // Check if app already exists
-    const existingApp = await prisma.miniApp.findUnique({
-      where: { url: appUrl },
-    });
+    const existingAppResult = await db.select().from(MiniApp)
+      .where(eq(MiniApp.url, appUrl))
+      .limit(1);
+    const existingApp = existingAppResult[0];
 
     if (existingApp) {
       return NextResponse.json(
@@ -127,39 +131,40 @@ export async function POST(request: NextRequest) {
     }
 
     // Create app from metadata
-    const app = await prisma.miniApp.create({
-      data: {
-        name: metadata.name || "Untitled App",
-        description: metadata.description || "", // Allow empty description - can be edited later
-        url: appUrl,
-        iconUrl: iconUrl || "https://via.placeholder.com/512?text=App+Icon",
-        category: metadata.category || "Utilities",
-        developerTags: [],
-        screenshots: Array.isArray(metadata.screenshots) ? metadata.screenshots : [],
-        farcasterJson: JSON.stringify(metadataWithOwner),
-        autoUpdated: true,
-        status: "approved", // Admin-imported apps are auto-approved
-        verified: true,
-        developerId: developer.id,
-        clicks: 0,
-        installs: 0,
-        launchCount: 0,
-        uniqueUsers: 0,
-        popularityScore: 0,
-        ratingAverage: 0,
-        ratingCount: 0,
-        // Extract deep links if available
-        baseMiniAppUrl: metadata.baseMiniAppUrl || metadata.deepLink?.base || null,
-        farcasterUrl: metadata.farcasterUrl || metadata.deepLink?.farcaster || null,
-      },
-      include: {
-        developer: true,
-      },
-    });
+    const [app] = await db.insert(MiniApp).values({
+      name: metadata.name || "Untitled App",
+      description: metadata.description || "", // Allow empty description - can be edited later
+      url: appUrl,
+      iconUrl: iconUrl || "https://via.placeholder.com/512?text=App+Icon",
+      category: metadata.category || "Utilities",
+      developerTags: [],
+      screenshots: Array.isArray(metadata.screenshots) ? metadata.screenshots : [],
+      farcasterJson: JSON.stringify(metadataWithOwner),
+      autoUpdated: true,
+      status: "approved", // Admin-imported apps are auto-approved
+      verified: true,
+      developerId: developer.id,
+      clicks: 0,
+      installs: 0,
+      launchCount: 0,
+      uniqueUsers: 0,
+      popularityScore: 0,
+      ratingAverage: 0,
+      ratingCount: 0,
+      // Extract deep links if available
+      baseMiniAppUrl: metadata.baseMiniAppUrl || metadata.deepLink?.base || null,
+      farcasterUrl: metadata.farcasterUrl || metadata.deepLink?.farcaster || null,
+    }).returning();
+    
+    // Fetch developer for response
+    const developerData = await db.select().from(Developer)
+      .where(eq(Developer.id, developer.id))
+      .limit(1);
+    const appWithDeveloper = { ...app, developer: developerData[0] };
 
     return NextResponse.json({
       success: true,
-      app,
+      app: appWithDeveloper,
       message: "App imported successfully from farcaster.json URL",
     });
   } catch (error: any) {

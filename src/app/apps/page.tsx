@@ -6,7 +6,13 @@ import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import AppHeader from "@/components/AppHeader";
 import CategoryChips from "@/components/CategoryChips";
-import { motion } from "framer-motion";
+import nextDynamic from "next/dynamic";
+
+// Dynamically import framer-motion to reduce initial bundle size
+const MotionDiv = nextDynamic(
+  () => import("framer-motion").then((mod) => mod.motion.div),
+  { ssr: false }
+);
 import { trackPageView, trackEvent } from "@/lib/analytics";
 import { Star, X, CheckCircle2, Flame, Sparkles } from "lucide-react";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -14,7 +20,10 @@ import VerifiedBadge from "@/components/VerifiedBadge";
 import RatingStars from "@/components/RatingStars";
 import { shortenDescription } from "@/lib/description-utils";
 import Image from "next/image";
+import OptimizedImage from "@/components/OptimizedImage";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
+// Keep dynamic for search/filter functionality
 export const dynamic = 'force-dynamic';
 
 const ITEMS_PER_PAGE = 20;
@@ -33,6 +42,20 @@ function AppsPageContent() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    // Check for reduced motion preference client-side
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mediaQuery.matches);
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     trackPageView("/apps");
@@ -141,12 +164,7 @@ function AppsPageContent() {
       <AppHeader />
       <div className="pt-8 pb-8">
         <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-8"
-          >
+          <div className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
               {searchQuery ? `Search Results for "${searchQuery}"` : selectedCategory ? `${selectedCategory} Apps` : "All Applications"}
             </h1>
@@ -157,30 +175,20 @@ function AppsPageContent() {
                 ? `Browse all ${selectedCategory.toLowerCase()} mini apps`
                 : "Browse all available mini apps"}
             </p>
-          </motion.div>
+          </div>
 
           {/* Category Chips */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="mb-6"
-          >
+          <div className="mb-6">
             <CategoryChips
               categories={categories}
               selected={selectedCategory}
               onSelect={handleCategorySelect}
             />
-          </motion.div>
+          </div>
 
           {/* Tag Filters */}
           {availableTags.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="mb-6"
-            >
+            <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-semibold text-gray-300">Tags:</span>
                 {selectedTag && (
@@ -216,27 +224,34 @@ function AppsPageContent() {
                   </button>
                 )}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+                <div key={i} className="h-[90px] bg-gray-900 rounded-lg animate-pulse" />
               ))}
             </div>
           ) : apps.length > 0 ? (
             <>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {apps.map((app, index) => {
                   const rating = app.ratingAverage || 0;
                   
+                  const AppCard = prefersReducedMotion ? "div" : MotionDiv;
+                  const cardProps = prefersReducedMotion
+                    ? {}
+                    : {
+                        initial: { opacity: 0, x: -20 },
+                        animate: { opacity: 1, x: 0 },
+                        transition: { duration: 0.4, delay: index * 0.03 },
+                      };
+
                   return (
-                    <motion.div
+                    <AppCard
                       key={app.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.4, delay: index * 0.03 }}
+                      {...cardProps}
                       className="group relative bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-all duration-300"
                     >
                       <div className="flex items-center gap-4">
@@ -244,10 +259,14 @@ function AppsPageContent() {
                         <div className="flex-shrink-0">
                           {app.iconUrl ? (
                             <div className="w-20 h-20 rounded-xl bg-gray-800 p-2 border border-gray-700">
-                              <img
-                                src={app.iconUrl}
+                              <OptimizedImage
+                                src={optimizeDevImage(app.iconUrl)}
                                 alt={app.name}
+                                width={80}
+                                height={80}
                                 className="w-full h-full object-contain rounded-lg"
+                                sizes="(max-width: 640px) 80px, 80px"
+                                priority={false}
                               />
                             </div>
                           ) : (
@@ -284,7 +303,6 @@ function AppsPageContent() {
                                       height={18}
                                       className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
                                       title="Verified App"
-                                      unoptimized
                                     />
                                   )}
                                 </div>
@@ -315,7 +333,7 @@ function AppsPageContent() {
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </AppCard>
                   );
                 })}
               </div>
@@ -331,14 +349,9 @@ function AppsPageContent() {
               )}
             </>
           ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-              className="text-center py-20"
-            >
+            <div className="text-center py-20">
               <p className="text-gray-400">No apps found</p>
-            </motion.div>
+            </div>
           )}
         </div>
       </div>
@@ -353,9 +366,9 @@ export default function AppsPage() {
         <AppHeader />
         <div className="pt-8 pb-8">
           <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+                <div key={i} className="h-[90px] bg-gray-900 rounded-lg animate-pulse" />
               ))}
             </div>
           </div>

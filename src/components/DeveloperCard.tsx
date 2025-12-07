@@ -43,10 +43,13 @@ const DeveloperCard = ({
               {avatar ? (
                 <Image
                   src={avatar}
-                  alt={name || "Developer"}
+                  alt={(name === "System" ? "Mini Cast Admin" : name) || "Developer"}
                   width={80}
                   height={80}
                   className="w-20 h-20 rounded-full bg-background-secondary p-1 ring-2 ring-base-blue/50"
+                  quality={75}
+                  loading="lazy"
+                  sizes="80px"
                 />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-background-secondary p-1 ring-2 ring-base-blue/50 flex items-center justify-center">
@@ -62,7 +65,7 @@ const DeveloperCard = ({
 
             <div className="mb-1">
               <div className="flex items-center justify-center gap-1.5">
-                <h3 className="font-semibold text-base">{name || `Developer ${wallet.slice(0, 6)}`}</h3>
+                <h3 className="font-semibold text-base">{(name === "System" ? "Mini Cast Admin" : name) || `Developer ${wallet.slice(0, 6)}`}</h3>
                 {verified && (
                   <VerifiedBadge type="developer" iconOnly size="md" />
                 )}
@@ -74,9 +77,9 @@ const DeveloperCard = ({
             </p>
 
             <div className="flex items-center justify-center gap-2 text-sm">
-              <span className="text-muted-foreground">{appCount}</span>
+              <span className="text-muted-foreground">{appCount || 0}</span>
               <span className="text-muted-foreground">
-                {appCount === 1 ? "app" : "apps"}
+                {(appCount || 0) === 1 ? "app" : "apps"}
               </span>
             </div>
           </CardContent>

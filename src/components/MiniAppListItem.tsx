@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Star } from "lucide-react";
+import { Star, ExternalLink } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
@@ -37,29 +37,29 @@ export function MiniAppListItem({
   baseMiniAppUrl,
   onClick,
 }: MiniAppListItemProps) {
+  // Format tags for display (e.g., "Games • Spin • Win")
+  const formattedTags = tags && tags.length > 0 
+    ? tags.slice(0, 4).map(tag => tag.charAt(0).toUpperCase() + tag.slice(1)).join(" • ")
+    : category || "";
+
   const hasRating = ratingCount > 0 && ratingAverage > 0;
-  const categoryText = category 
-    ? category + (tags && tags.length > 0 ? ` • ${tags.slice(0, 2).map((tag) => {
-        const formatted = tag
-          .split(/(?=[A-Z])/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-        return formatted;
-      }).join(" • ")}` : "")
-    : tags && tags.length > 0
-    ? tags.slice(0, 2).map((tag) => {
-        const formatted = tag
-          .split(/(?=[A-Z])/)
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ");
-        return formatted;
-      }).join(" • ")
-    : null;
+
+  // No longer needed - Open button now navigates to detail page
+  // Removed handleOpenApp function that directly opened the app
 
   return (
-    <div className="flex items-center justify-between bg-[#0f1115] border border-white/5 rounded-2xl p-4 hover:bg-white/5 transition group">
-      {/* Left side */}
-      <div className="flex items-center gap-4 w-[70%] min-w-0">
+    <div className="relative flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 hover:bg-white/10 hover:border-white/20 transition-all group overflow-hidden w-full h-[90px]">
+      {/* Save button - Top right */}
+      <div className="absolute top-1 right-1 flex-shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
+        <FavoriteButton appId={id} size="sm" />
+      </div>
+
+      <Link
+        href={`/apps/${id}`}
+        onClick={onClick}
+        className="flex items-center gap-2 w-full cursor-pointer pr-14"
+      >
+        {/* Left side - Small Logo (44px × 44px) */}
         <div className="relative flex-shrink-0">
           <Image
             src={optimizeDevImage(icon)}
@@ -74,64 +74,71 @@ export function MiniAppListItem({
               }
             }}
             alt={name}
-            width={48}
-            height={48}
-            className="h-12 w-12 rounded-xl object-cover"
+            width={44}
+            height={44}
+            className="w-11 h-11 rounded-lg object-cover"
+            loading="lazy"
+            quality={75}
+            sizes="44px"
           />
         </div>
-        <div className="flex flex-col flex-1 min-w-0">
-          <div className="flex items-center gap-1">
-            <h3 className="text-white font-semibold text-[16px] leading-tight truncate">
+        
+        {/* Middle - Text block (Play Store style) */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden justify-center">
+          {/* Line 1: App Name + Verified Badge + Rating */}
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <h3 className="text-white font-semibold text-sm leading-tight truncate">
               {name}
             </h3>
             {verified && (
               <Image
                 src="/verify.svg"
                 alt="Verified"
-                width={18}
-                height={18}
-                className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
+                width={12}
+                height={12}
+                className="w-3 h-3 flex-shrink-0"
                 title="Verified App"
-                unoptimized
               />
             )}
+            {hasRating ? (
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
+                <span className="text-[10px] text-gray-300">
+                  {(ratingAverage % 1 === 0) ? ratingAverage.toString() : ratingAverage.toFixed(1)}
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-green-400 font-medium flex-shrink-0">
+                New
+              </span>
+            )}
           </div>
-          {categoryText && (
-            <span className="text-xs text-white/40">{categoryText}</span>
+
+          {/* Line 2: Categories/Tags - Medium gray */}
+          {formattedTags && (
+            <p className="text-[10px] mb-0.5 truncate" style={{ color: '#9CA3AF' }}>
+              {formattedTags}
+            </p>
           )}
+
+          {/* Line 3: Description - Muted, single line with ellipsis */}
           {description && (
-            <p className="text-xs text-white/50 mt-0.5 truncate max-w-[180px]">
+            <p className="text-[10px] text-gray-400 truncate leading-tight" style={{ color: '#9CA3AF' }}>
               {description}
             </p>
           )}
-          {hasRating ? (
-            <div className="flex items-center gap-1 mt-0.5">
-              <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-              <span className="text-xs text-white/60">
-                {(ratingAverage % 1 === 0) ? ratingAverage.toString() : ratingAverage.toFixed(1)}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-white/40">Not rated yet</span>
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full text-[10px] font-medium border border-green-500/30">
-                New
-              </span>
-            </div>
-          )}
         </div>
-      </div>
-      {/* Right side */}
-      <div className="flex flex-col items-end gap-2 flex-shrink-0">
-        <FavoriteButton appId={id} size="sm" />
-        <Link
-          href={`/apps/${id}`}
-          onClick={onClick}
-          className="px-4 py-1.5 rounded-full bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 transition shadow-md"
-        >
-          Open
-        </Link>
-      </div>
+      </Link>
+
+      {/* Open button - Bottom right */}
+      <Link
+        href={`/apps/${id}`}
+        className="absolute right-2 bottom-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors flex-shrink-0 z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExternalLink className="w-2.5 h-2.5" />
+        Open
+      </Link>
     </div>
   );
 }

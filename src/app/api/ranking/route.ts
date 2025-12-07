@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { UserPoints, Developer, UserProfile } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,26 +12,24 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "100", 10);
 
     // Fetch all users with points, sorted by totalPoints descending
-    const users = await prisma.userPoints.findMany({
-      orderBy: {
-        totalPoints: "desc",
-      },
-      take: limit,
-    });
+    const users = await db.select().from(UserPoints)
+      .orderBy(desc(UserPoints.totalPoints))
+      .limit(limit);
 
     // Fetch developer info for each user to get name, avatar, Base name, etc.
     const usersWithInfo = await Promise.all(
       users.map(async (user) => {
-        const developer = await prisma.developer.findUnique({
-          where: { wallet: user.wallet },
-          select: {
-            name: true,
-            avatar: true,
-            verified: true,
-            totalXP: true,
-            developerLevel: true,
-          },
-        });
+        const developerResult = await db.select({
+          name: Developer.name,
+          avatar: Developer.avatar,
+          verified: Developer.verified,
+          totalXP: Developer.totalXP,
+          developerLevel: Developer.developerLevel,
+        })
+          .from(Developer)
+          .where(eq(Developer.wallet, user.wallet))
+          .limit(1);
+        const developer = developerResult[0];
 
         // Try to get Base name from developer profile or UserProfile
         let baseName: string | null = null;
@@ -50,13 +51,14 @@ export async function GET(request: NextRequest) {
         // If no Base name found, try UserProfile for Farcaster handle or Base name
         if (!baseName) {
           try {
-            const userProfile = await prisma.userProfile.findUnique({
-              where: { wallet: user.wallet },
-              select: {
-                farcasterHandle: true,
-                farcasterFid: true,
-              },
-            });
+            const userProfileResult = await db.select({
+              farcasterHandle: UserProfile.farcasterHandle,
+              farcasterFid: UserProfile.farcasterFid,
+            })
+              .from(UserProfile)
+              .where(eq(UserProfile.wallet, user.wallet))
+              .limit(1);
+            const userProfile = userProfileResult[0];
             
             // If we have a Farcaster handle, we could use it, but Base name takes priority
             // For now, we'll keep checking developer name

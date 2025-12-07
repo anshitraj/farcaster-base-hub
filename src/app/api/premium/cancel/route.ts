@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getCurrentWallet } from "@/lib/auth";
+import { PremiumSubscription } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,13 +14,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Find active subscription
-    const subscription = await prisma.premiumSubscription.findFirst({
-      where: {
-        wallet: wallet.toLowerCase(),
-        status: "active",
-      },
-    });
+    const subscriptionResult = await db.select().from(PremiumSubscription)
+      .where(and(
+        eq(PremiumSubscription.wallet, walletLower),
+        eq(PremiumSubscription.status, "active")
+      ))
+      .limit(1);
+    const subscription = subscriptionResult[0];
 
     if (!subscription) {
       return NextResponse.json(
@@ -28,14 +32,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Cancel subscription (don't delete, mark as canceled)
-    const canceled = await prisma.premiumSubscription.update({
-      where: {
-        id: subscription.id,
-      },
-      data: {
-        status: "canceled",
-      },
-    });
+    const [canceled] = await db.update(PremiumSubscription)
+      .set({ status: "canceled" })
+      .where(eq(PremiumSubscription.id, subscription.id))
+      .returning();
 
     return NextResponse.json({
       success: true,

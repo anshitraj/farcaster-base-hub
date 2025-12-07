@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Advertisement } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // POST - Track advertisement click
 export async function POST(
@@ -9,12 +11,13 @@ export async function POST(
   try {
     const { id } = params;
 
-    await prisma.advertisement.update({
-      where: { id },
-      data: {
-        clickCount: { increment: 1 },
-      },
-    });
+    const adResult = await db.select().from(Advertisement).where(eq(Advertisement.id, id)).limit(1);
+    const ad = adResult[0];
+    if (ad) {
+      await db.update(Advertisement)
+        .set({ clickCount: ad.clickCount + 1 })
+        .where(eq(Advertisement.id, id));
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

@@ -1,142 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { PremiumApp, MiniApp, Developer } from "@/db/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
     // Fetch premium apps from different categories
-    const [premiumApps, gamesPlaying, getStarted, onSale] = await Promise.all([
+    const [premiumAppsData, gamesPlayingData, getStartedData, onSaleData] = await Promise.all([
       // All premium apps
-      prisma.premiumApp.findMany({
-        where: {
-          miniApp: {
-            status: "approved",
-          },
+      db.select({
+        premiumApp: PremiumApp,
+        app: MiniApp,
+        developer: {
+          id: Developer.id,
+          wallet: Developer.wallet,
+          name: Developer.name,
+          avatar: Developer.avatar,
+          verified: Developer.verified,
         },
-        include: {
-          miniApp: {
-            include: {
-              developer: {
-                select: {
-                  id: true,
-                  wallet: true,
-                  name: true,
-                  avatar: true,
-                  verified: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          addedAt: "desc",
-        },
-        take: 20,
-      }),
+      })
+        .from(PremiumApp)
+        .leftJoin(MiniApp, eq(PremiumApp.miniAppId, MiniApp.id))
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(eq(MiniApp.status, "approved"))
+        .orderBy(desc(PremiumApp.addedAt))
+        .limit(20),
       // Games We're Playing (featured in games_playing)
-      prisma.premiumApp.findMany({
-        where: {
-          featuredIn: {
-            has: "games_playing",
-          },
-          miniApp: {
-            status: "approved",
-          },
+      db.select({
+        premiumApp: PremiumApp,
+        app: MiniApp,
+        developer: {
+          id: Developer.id,
+          wallet: Developer.wallet,
+          name: Developer.name,
+          avatar: Developer.avatar,
+          verified: Developer.verified,
         },
-        include: {
-          miniApp: {
-            include: {
-              developer: {
-                select: {
-                  id: true,
-                  wallet: true,
-                  name: true,
-                  avatar: true,
-                  verified: true,
-                },
-              },
-            },
-          },
-        },
-        take: 10,
-      }),
+      })
+        .from(PremiumApp)
+        .leftJoin(MiniApp, eq(PremiumApp.miniAppId, MiniApp.id))
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(and(
+          sql`'games_playing' = ANY(${PremiumApp.featuredIn})`,
+          eq(MiniApp.status, "approved")
+        ))
+        .limit(10),
       // Get Started (featured in get_started)
-      prisma.premiumApp.findMany({
-        where: {
-          featuredIn: {
-            has: "get_started",
-          },
-          miniApp: {
-            status: "approved",
-          },
+      db.select({
+        premiumApp: PremiumApp,
+        app: MiniApp,
+        developer: {
+          id: Developer.id,
+          wallet: Developer.wallet,
+          name: Developer.name,
+          avatar: Developer.avatar,
+          verified: Developer.verified,
         },
-        include: {
-          miniApp: {
-            include: {
-              developer: {
-                select: {
-                  id: true,
-                  wallet: true,
-                  name: true,
-                  avatar: true,
-                  verified: true,
-                },
-              },
-            },
-          },
-        },
-        take: 6,
-      }),
+      })
+        .from(PremiumApp)
+        .leftJoin(MiniApp, eq(PremiumApp.miniAppId, MiniApp.id))
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(and(
+          sql`'get_started' = ANY(${PremiumApp.featuredIn})`,
+          eq(MiniApp.status, "approved")
+        ))
+        .limit(6),
       // On Sale
-      prisma.premiumApp.findMany({
-        where: {
-          onSale: true,
-          miniApp: {
-            status: "approved",
-          },
+      db.select({
+        premiumApp: PremiumApp,
+        app: MiniApp,
+        developer: {
+          id: Developer.id,
+          wallet: Developer.wallet,
+          name: Developer.name,
+          avatar: Developer.avatar,
+          verified: Developer.verified,
         },
-        include: {
-          miniApp: {
-            include: {
-              developer: {
-                select: {
-                  id: true,
-                  wallet: true,
-                  name: true,
-                  avatar: true,
-                  verified: true,
-                },
-              },
-            },
-          },
-        },
-        take: 10,
-      }),
+      })
+        .from(PremiumApp)
+        .leftJoin(MiniApp, eq(PremiumApp.miniAppId, MiniApp.id))
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(and(
+          eq(PremiumApp.onSale, true),
+          eq(MiniApp.status, "approved")
+        ))
+        .limit(10),
     ]);
 
+    const premiumApps = premiumAppsData.map(({ app, developer }) => ({ ...app, developer }));
+    const gamesPlaying = gamesPlayingData.map(({ app, developer }) => ({ ...app, developer }));
+    const getStarted = getStartedData.map(({ app, developer }) => ({ ...app, developer }));
+    const onSale = onSaleData.map(({ premiumApp, app, developer }) => ({
+      ...app,
+      developer,
+      salePrice: premiumApp.salePrice,
+    }));
+
     return NextResponse.json({
-      premiumApps: premiumApps.map((pa) => ({
-        ...pa.miniApp,
-        developer: pa.miniApp.developer,
-      })),
-      gamesPlaying: gamesPlaying.map((pa) => ({
-        ...pa.miniApp,
-        developer: pa.miniApp.developer,
-      })),
-      getStarted: getStarted.map((pa) => ({
-        ...pa.miniApp,
-        developer: pa.miniApp.developer,
-      })),
-      onSale: onSale.map((pa) => ({
-        ...pa.miniApp,
-        developer: pa.miniApp.developer,
-        salePrice: pa.salePrice,
-      })),
+      premiumApps,
+      gamesPlaying,
+      getStarted,
+      onSale,
     });
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get premium apps error:", error.message);
       return NextResponse.json(
         {

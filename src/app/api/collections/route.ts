@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Developer, Collection, CollectionItem, MiniApp } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const createCollectionSchema = z.object({
@@ -11,6 +13,8 @@ const createCollectionSchema = z.object({
   isPublic: z.boolean().default(true),
 });
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
@@ -26,35 +30,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    const walletLower = wallet.toLowerCase();
+    const developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json({ collections: [] });
     }
 
-    const collections = await prisma.collection.findMany({
-      where: { developerId: developer.id },
-      include: {
-        items: {
-          include: {
-            miniApp: {
-              select: {
-                id: true,
-                name: true,
-                iconUrl: true,
-                category: true,
-                description: true,
-                clicks: true,
-                installs: true,
-              },
-            },
+    const collectionsData = await db.select().from(Collection)
+      .where(eq(Collection.developerId, developer.id))
+      .orderBy(desc(Collection.createdAt));
+
+    // Fetch items for each collection
+    const collections = await Promise.all(
+      collectionsData.map(async (collection) => {
+        const itemsData = await db.select({
+          item: CollectionItem,
+          app: {
+            id: MiniApp.id,
+            name: MiniApp.name,
+            iconUrl: MiniApp.iconUrl,
+            category: MiniApp.category,
+            description: MiniApp.description,
+            clicks: MiniApp.clicks,
+            installs: MiniApp.installs,
           },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        })
+          .from(CollectionItem)
+          .leftJoin(MiniApp, eq(CollectionItem.appId, MiniApp.id))
+          .where(eq(CollectionItem.collectionId, collection.id));
+
+        return {
+          ...collection,
+          items: itemsData.map(d => ({
+            id: d.item.id,
+            addedAt: d.item.addedAt,
+            miniApp: d.app,
+          })),
+        };
+      })
+    );
 
     return NextResponse.json({ collections });
   } catch (error) {
@@ -84,9 +102,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createCollectionSchema.parse(body);
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    const walletLower = wallet.toLowerCase();
+    const developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json(
@@ -95,18 +115,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const collection = await prisma.collection.create({
-      data: {
-        name: validated.name,
-        description: validated.description,
-        type: validated.type,
-        isPublic: validated.isPublic,
-        developerId: developer.id,
-      },
-      include: {
-        items: true,
-      },
-    });
+    const [collection] = await db.insert(Collection).values({
+      name: validated.name,
+      description: validated.description,
+      type: validated.type,
+      isPublic: validated.isPublic,
+      developerId: developer.id,
+    }).returning();
+    
+    // Fetch empty items array
+    const items = await db.select().from(CollectionItem)
+      .where(eq(CollectionItem.collectionId, collection.id));
+    
+    const collectionWithItems = {
+      ...collection,
+      items,
+    };
 
     return NextResponse.json({ collection }, { status: 201 });
   } catch (error) {

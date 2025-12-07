@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,9 +28,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    const walletLower = wallet.toLowerCase();
+    const developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json(
@@ -107,13 +111,12 @@ export async function POST(request: NextRequest) {
     const hasAdminAccess = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
     const isFullyVerified = walletVerified || hasAdminAccess;
 
-    await prisma.developer.update({
-      where: { id: developer.id },
-      data: {
+    await db.update(Developer)
+      .set({
         verificationStatus: newStatus,
         verified: isFullyVerified,
-      },
-    });
+      })
+      .where(eq(Developer.id, developer.id));
 
     return NextResponse.json({
       success: true,
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
         : "Domain verified! Please also verify your wallet to complete verification.",
     });
   } catch (error: any) {
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

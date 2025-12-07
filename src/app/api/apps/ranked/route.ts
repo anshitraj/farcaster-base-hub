@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
+import { MiniApp, Developer, AppEvent } from "@/db/schema";
+import { eq, and, gte, inArray } from "drizzle-orm";
 
 /**
  * Calculate overall rank score for an app
@@ -63,36 +65,49 @@ function calculateRankScore(app: any, events: any[]): number {
 }
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET() {
   try {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // Fetch all approved apps with their events
-    const apps = await prisma.miniApp.findMany({
-      where: {
-        status: "approved",
+    // Fetch all approved apps
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      include: {
-        events: {
-          where: {
-            createdAt: {
-              gte: thirtyDaysAgo,
-            },
-          },
-        },
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
-      },
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.status, "approved"));
+
+    // Fetch events for all apps
+    const appIds = appsData.map(a => a.app.id);
+    const eventsMap: Record<string, any[]> = {};
+    if (appIds.length > 0) {
+      const events = await db.select().from(AppEvent)
+        .where(and(
+          inArray(AppEvent.miniAppId, appIds),
+          gte(AppEvent.createdAt, thirtyDaysAgo)
+        ));
+      events.forEach(event => {
+        if (!eventsMap[event.miniAppId]) eventsMap[event.miniAppId] = [];
+        eventsMap[event.miniAppId].push(event);
+      });
+    }
+
+    // Transform to match expected format
+    const apps = appsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+      events: eventsMap[app.id] || [],
+    }));
 
     if (apps.length === 0) {
       return NextResponse.json({ apps: [], ranks: {} });
@@ -141,7 +156,7 @@ export async function GET() {
     });
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get ranked apps error:", error.message);
       return NextResponse.json({ apps: [], ranks: {} }, { status: 200 });
     }

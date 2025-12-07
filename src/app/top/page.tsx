@@ -161,7 +161,7 @@ export default function TopAppsPage() {
                             </div>
                             {app.developer && (
                               <p className="text-xs text-muted-foreground truncate mb-1">
-                                {app.developer.name || "Unknown Developer"}
+                                {(app.developer.name === "System" ? "Mini Cast Admin" : app.developer.name) || "Unknown Developer"}
                               </p>
                             )}
                             <div className="flex items-center gap-3 mt-2">

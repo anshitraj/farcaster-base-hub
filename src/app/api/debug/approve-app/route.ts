@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // Quick debug endpoint to approve an app by ID
 export async function POST(request: NextRequest) {
@@ -15,18 +17,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Update app to approved status
-    const app = await prisma.miniApp.update({
-      where: { id: appId },
-      data: {
-        status: "approved",
-      },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        featuredInBanner: true,
-      },
-    });
+    const [app] = await db.update(MiniApp)
+      .set({ status: "approved" })
+      .where(eq(MiniApp.id, appId))
+      .returning({
+        id: MiniApp.id,
+        name: MiniApp.name,
+        status: MiniApp.status,
+        featuredInBanner: MiniApp.featuredInBanner,
+      });
 
     return NextResponse.json({
       success: true,

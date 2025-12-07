@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Referral, UserProfile } from "@/db/schema";
+import { eq, and, count } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 // Get referral count for current user
 export async function GET(request: NextRequest) {
@@ -33,9 +36,10 @@ export async function GET(request: NextRequest) {
 
       if (wallet) {
         // Try to get FID from user profile
-        const userProfile = await prisma.userProfile.findUnique({
-          where: { wallet: wallet.toLowerCase() },
-        });
+        const userProfileResult = await db.select().from(UserProfile)
+          .where(eq(UserProfile.wallet, wallet.toLowerCase()))
+          .limit(1);
+        const userProfile = userProfileResult[0];
         if (userProfile?.farcasterFid) {
           referrerFid = userProfile.farcasterFid;
         }
@@ -50,28 +54,30 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const referrerFidStr = String(referrerFid);
     // Count total referrals
-    const totalCount = await prisma.referral.count({
-      where: {
-        referrerFid: String(referrerFid),
-      },
-    });
+    const totalCountResult = await db.select({ count: count() })
+      .from(Referral)
+      .where(eq(Referral.referrerFid, referrerFidStr));
+    const totalCount = Number(totalCountResult[0]?.count || 0);
 
     // Count clicked referrals
-    const clickedCount = await prisma.referral.count({
-      where: {
-        referrerFid: String(referrerFid),
-        clicked: true,
-      },
-    });
+    const clickedCountResult = await db.select({ count: count() })
+      .from(Referral)
+      .where(and(
+        eq(Referral.referrerFid, referrerFidStr),
+        eq(Referral.clicked, true)
+      ));
+    const clickedCount = Number(clickedCountResult[0]?.count || 0);
 
     // Count converted referrals (completed quests)
-    const convertedCount = await prisma.referral.count({
-      where: {
-        referrerFid: String(referrerFid),
-        converted: true,
-      },
-    });
+    const convertedCountResult = await db.select({ count: count() })
+      .from(Referral)
+      .where(and(
+        eq(Referral.referrerFid, referrerFidStr),
+        eq(Referral.converted, true)
+      ));
+    const convertedCount = Number(convertedCountResult[0]?.count || 0);
 
     return NextResponse.json({
       count: totalCount,

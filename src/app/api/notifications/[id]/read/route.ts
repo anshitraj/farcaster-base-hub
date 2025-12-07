@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Notification } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function PATCH(
   request: NextRequest,
@@ -21,9 +23,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const notification = await prisma.notification.findUnique({
-      where: { id: params.id },
-    });
+    const notificationResult = await db.select().from(Notification)
+      .where(eq(Notification.id, params.id))
+      .limit(1);
+    const notification = notificationResult[0];
 
     if (!notification) {
       return NextResponse.json({ error: "Notification not found" }, { status: 404 });
@@ -33,13 +36,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updated = await prisma.notification.update({
-      where: { id: params.id },
-      data: {
+    const [updated] = await db.update(Notification)
+      .set({
         read: true,
         readAt: new Date(),
-      },
-    });
+      })
+      .where(eq(Notification.id, params.id))
+      .returning();
 
     return NextResponse.json({ notification: updated });
   } catch (error) {

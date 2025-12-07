@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchFarcasterMetadata } from "@/lib/farcaster-metadata";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {

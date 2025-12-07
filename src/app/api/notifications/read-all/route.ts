@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Notification } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -18,16 +20,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.notification.updateMany({
-      where: {
-        wallet: wallet.toLowerCase(),
-        read: false,
-      },
-      data: {
+    await db.update(Notification)
+      .set({
         read: true,
         readAt: new Date(),
-      },
-    });
+      })
+      .where(and(
+        eq(Notification.wallet, wallet.toLowerCase()),
+        eq(Notification.read, false)
+      ));
 
     return NextResponse.json({ success: true });
   } catch (error) {
