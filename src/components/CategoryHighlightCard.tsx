@@ -78,7 +78,7 @@ export function CategoryHighlightCard({
         <>
           <div className="absolute inset-0">
             <Image
-              src={backgroundImage}
+              src={backgroundImage.startsWith("/uploads/") ? `/api/icon?url=${encodeURIComponent(backgroundImage)}` : backgroundImage}
               alt={title}
               fill
               className="object-cover"

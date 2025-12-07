@@ -447,12 +447,12 @@ export default function AppDetailPage() {
                       >
                         <div className="relative w-48 h-80 md:w-64 md:h-96 rounded-2xl overflow-hidden border-2 border-white/20 bg-black/40 backdrop-blur-sm shadow-xl group-hover:border-white/40 transition-all group-hover:shadow-2xl">
                           <Image
-                            src={screenshot}
+                            src={optimizeDevImage(screenshot)}
                             alt={`${app.name} screenshot ${index + 1}`}
                             fill
                             className="object-cover transition-transform group-hover:scale-105"
                             sizes="(max-width: 768px) 192px, 256px"
-                            unoptimized
+                            unoptimized={false}
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                         </div>

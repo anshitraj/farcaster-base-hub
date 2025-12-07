@@ -55,7 +55,7 @@ export default function CategoryCard({
         {backgroundImage ? (
           <div className="absolute inset-0">
             <Image
-              src={backgroundImage}
+              src={backgroundImage.startsWith("/uploads/") ? `/api/icon?url=${encodeURIComponent(backgroundImage)}` : backgroundImage}
               alt={name}
               fill
               className="object-cover"
