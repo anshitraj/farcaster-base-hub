@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireModerator } from "@/lib/admin";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
     await requireModerator(); // Moderators can export CSV
 
-    const apps = await prisma.miniApp.findMany({
-      include: {
-        developer: {
-          select: {
-            name: true,
-            wallet: true,
-          },
-        },
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        name: Developer.name,
+        wallet: Developer.wallet,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .orderBy(desc(MiniApp.createdAt));
+    
+    const apps = appsData.map(({ app, developer }) => ({ ...app, developer }));
 
     // CSV Headers
     const headers = [

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireModerator } from "@/lib/admin";
+import { Developer, MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const DEFAULT_OWNER_ADDRESS = "0x0CF70E448ac98689e326bd79075a96CcBcec1665";
 
@@ -70,18 +72,18 @@ export async function POST(request: NextRequest) {
     const systemWallet = (defaultDeveloperWallet || DEFAULT_OWNER_ADDRESS).toLowerCase();
 
     // Get or create system developer
-    let systemDeveloper = await prisma.developer.findUnique({
-      where: { wallet: systemWallet },
-    });
+    let systemDeveloperResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, systemWallet))
+      .limit(1);
+    let systemDeveloper = systemDeveloperResult[0];
 
     if (!systemDeveloper) {
-      systemDeveloper = await prisma.developer.create({
-        data: {
-          wallet: systemWallet,
-          name: "MiniCast Admin",
-          verified: true,
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet: systemWallet,
+        name: "MiniCast Admin",
+        verified: true,
+      }).returning();
+      systemDeveloper = newDeveloper;
     }
 
     // Process each app
@@ -126,25 +128,25 @@ export async function POST(request: NextRequest) {
         let developer = systemDeveloper;
         if (developerWallet && /^0x[a-fA-F0-9]{40}$/i.test(developerWallet)) {
           const devWallet = developerWallet.toLowerCase();
-          let foundDev = await prisma.developer.findUnique({
-            where: { wallet: devWallet },
-          });
+          let foundDevResult = await db.select().from(Developer)
+            .where(eq(Developer.wallet, devWallet))
+            .limit(1);
+          let foundDev = foundDevResult[0];
 
           if (!foundDev) {
-            foundDev = await prisma.developer.create({
-              data: {
-                wallet: devWallet,
-                name: developerName || "Unknown",
-                verified: appVerified,
-              },
-            });
+            const [newDev] = await db.insert(Developer).values({
+              wallet: devWallet,
+              name: developerName || "Unknown",
+              verified: appVerified,
+            }).returning();
+            foundDev = newDev;
           } else {
             // Update developer name if provided and different
             if (developerName && developerName !== "Unknown" && foundDev.name !== developerName) {
-              await prisma.developer.update({
-                where: { id: foundDev.id },
-                data: { name: developerName },
-              });
+              await db.update(Developer)
+                .set({ name: developerName })
+                .where(eq(Developer.id, foundDev.id));
+              foundDev.name = developerName;
             }
           }
           developer = foundDev;
@@ -154,9 +156,10 @@ export async function POST(request: NextRequest) {
         const normalizedUrl = url.endsWith("/") ? url.slice(0, -1) : url;
 
         // Check if app exists
-        const existingApp = await prisma.miniApp.findUnique({
-          where: { url: normalizedUrl },
-        });
+        const existingAppResult = await db.select().from(MiniApp)
+          .where(eq(MiniApp.url, normalizedUrl))
+          .limit(1);
+        const existingApp = existingAppResult[0];
 
         // Create farcasterJson with owner address
         const farcasterJson = JSON.stringify({
@@ -189,24 +192,21 @@ export async function POST(request: NextRequest) {
 
         if (existingApp) {
           // Update existing app
-          await prisma.miniApp.update({
-            where: { id: existingApp.id },
-            data: appRecord,
-          });
+          await db.update(MiniApp)
+            .set(appRecord)
+            .where(eq(MiniApp.id, existingApp.id));
           updated++;
         } else {
           // Create new app
-          await prisma.miniApp.create({
-            data: {
-              ...appRecord,
-              clicks: parseInt(appData["Clicks"] || appData.clicks || "0") || 0,
-              installs: parseInt(appData["Installs"] || appData.installs || "0") || 0,
-              launchCount: parseInt(appData["Launch Count"] || appData.launchCount || "0") || 0,
-              uniqueUsers: parseInt(appData["Unique Users"] || appData.uniqueUsers || "0") || 0,
-              popularityScore: parseInt(appData["Popularity Score"] || appData.popularityScore || "0") || 0,
-              ratingAverage: parseFloat(appData["Rating Average"] || appData.ratingAverage || "0") || 0,
-              ratingCount: parseInt(appData["Rating Count"] || appData.ratingCount || "0") || 0,
-            },
+          await db.insert(MiniApp).values({
+            ...appRecord,
+            clicks: parseInt(appData["Clicks"] || appData.clicks || "0") || 0,
+            installs: parseInt(appData["Installs"] || appData.installs || "0") || 0,
+            launchCount: parseInt(appData["Launch Count"] || appData.launchCount || "0") || 0,
+            uniqueUsers: parseInt(appData["Unique Users"] || appData.uniqueUsers || "0") || 0,
+            popularityScore: parseInt(appData["Popularity Score"] || appData.popularityScore || "0") || 0,
+            ratingAverage: parseFloat(appData["Rating Average"] || appData.ratingAverage || "0") || 0,
+            ratingCount: parseInt(appData["Rating Count"] || appData.ratingCount || "0") || 0,
           });
           created++;
         }

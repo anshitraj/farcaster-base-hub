@@ -2,8 +2,7 @@
 
 import DashboardPageContent from "./DashboardPageContent";
 
-export const dynamic = 'force-dynamic';
-
+// Remove force-dynamic to allow Next.js to optimize
 export default function DashboardPage() {
   return <DashboardPageContent />;
 }

@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic';
  * Diagnostic endpoint to check Farcaster/Neynar OAuth configuration
  * This helps identify configuration issues without exposing sensitive data
  */
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const clientId = process.env.NEYNAR_CLIENT_ID;

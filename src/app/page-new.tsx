@@ -1,6 +1,8 @@
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
 import HomePageClient from "./HomePageClient";
+import { MiniApp, Developer, AppEvent } from "@/db/schema";
+import { eq, and, desc, asc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 60; // Revalidate every 60 seconds
@@ -8,26 +10,41 @@ export const revalidate = 60; // Revalidate every 60 seconds
 async function getHomeData() {
   try {
     // Fetch trending apps directly from database
-    const trendingApps = await prisma.miniApp.findMany({
-      where: { status: "approved" },
-      include: {
-        events: true,
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
+    const trendingAppsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      orderBy: [
-        { featuredInBanner: "desc" },
-        { createdAt: "desc" },
-      ],
-      take: 20,
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.status, "approved"))
+      .orderBy(desc(MiniApp.featuredInBanner), desc(MiniApp.createdAt))
+      .limit(20);
+
+    // Fetch events for trending calculation
+    const appIds = trendingAppsData.map(a => a.app.id);
+    const eventsMap: Record<string, any[]> = {};
+    if (appIds.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      const events = await db.select().from(AppEvent)
+        .where(inArray(AppEvent.miniAppId, appIds));
+      events.forEach(event => {
+        if (!eventsMap[event.miniAppId]) eventsMap[event.miniAppId] = [];
+        eventsMap[event.miniAppId].push(event);
+      });
+    }
+
+    // Transform to match expected format
+    const trendingApps = trendingAppsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+      events: eventsMap[app.id] || [],
+    }));
 
     // Compute trending scores
     const appsWithScores = trendingApps.map((app) => ({
@@ -51,22 +68,26 @@ async function getHomeData() {
     }));
 
     // Fetch new apps
-    const newApps = await prisma.miniApp.findMany({
-      where: { status: "approved" },
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
+    const newAppsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      orderBy: { createdAt: "desc" },
-      take: 6,
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.status, "approved"))
+      .orderBy(desc(MiniApp.createdAt))
+      .limit(6);
+    
+    const newApps = newAppsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+    }));
 
     return {
       trendingApps: topTrending,

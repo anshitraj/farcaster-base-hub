@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Developer, MiniApp, Badge, Review } from "@/db/schema";
+import { eq, sql, inArray, count } from "drizzle-orm";
+
+export const runtime = "edge";
+export const revalidate = 10; // Cache for 10 seconds (shorter cache for faster updates)
+export const dynamic = 'force-dynamic'; // Ensure fresh data
 
 export async function GET(
   request: NextRequest,
@@ -8,21 +14,8 @@ export async function GET(
   try {
     const wallet = params.wallet.toLowerCase();
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet },
-      include: {
-        apps: {
-          include: {
-            _count: {
-              select: {
-                reviews: true,
-              },
-            },
-          },
-        },
-        badges: true,
-      },
-    });
+    const developerResult = await db.select().from(Developer).where(eq(Developer.wallet, wallet)).limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json(
@@ -31,29 +24,72 @@ export async function GET(
       );
     }
 
-    // Calculate stats
-    const totalApps = developer.apps.length;
-    const totalClicks = developer.apps.reduce((sum, app) => sum + app.clicks, 0);
-    const totalInstalls = developer.apps.reduce((sum, app) => sum + app.installs, 0);
+    // Optimize: Only select fields we need for dashboard (faster query)
+    const apps = await db
+      .select({
+        id: MiniApp.id,
+        name: MiniApp.name,
+        clicks: MiniApp.clicks,
+        installs: MiniApp.installs,
+        ratingAverage: MiniApp.ratingAverage,
+        ratingCount: MiniApp.ratingCount,
+        status: MiniApp.status,
+        url: MiniApp.url,
+        monetizationEnabled: MiniApp.monetizationEnabled,
+      })
+      .from(MiniApp)
+      .where(eq(MiniApp.developerId, developer.id));
     
-    const appsWithRatings = developer.apps.filter((app) => app.ratingCount > 0);
+    // Get all app IDs
+    const appIds = apps.map(app => app.id);
+    
+    // Fetch review counts and badges in parallel (non-blocking)
+    const [reviewCountsResult, badgesResult] = await Promise.all([
+      appIds.length > 0
+        ? db
+            .select({
+              miniAppId: Review.miniAppId,
+              count: sql<number>`count(*)::int`.as('count'),
+            })
+            .from(Review)
+            .where(inArray(Review.miniAppId, appIds))
+            .groupBy(Review.miniAppId)
+        : Promise.resolve([]),
+      db
+        .select({ id: Badge.id })
+        .from(Badge)
+        .where(eq(Badge.developerId, developer.id)),
+    ]);
+    
+    // Build review counts map
+    const reviewCountsMap: Record<string, number> = {};
+    (reviewCountsResult || []).forEach((item: any) => {
+      reviewCountsMap[item.miniAppId] = item.count;
+    });
+
+    // Calculate stats efficiently
+    const totalApps = apps.length;
+    const totalClicks = apps.reduce((sum, app) => sum + (app.clicks || 0), 0);
+    const totalInstalls = apps.reduce((sum, app) => sum + (app.installs || 0), 0);
+    
+    const appsWithRatings = apps.filter((app) => (app.ratingCount || 0) > 0);
     const averageRating =
       appsWithRatings.length > 0
-        ? appsWithRatings.reduce((sum, app) => sum + app.ratingAverage, 0) /
+        ? appsWithRatings.reduce((sum, app) => sum + (app.ratingAverage || 0), 0) /
           appsWithRatings.length
         : 0;
 
-    const badgesCount = developer.badges.length;
+    const badgesCount = badgesResult.length;
 
-    // Format apps for dashboard
-    const apps = developer.apps.map((app) => ({
+    // Format apps for dashboard (already optimized, no need to map again)
+    const formattedApps = apps.map((app) => ({
       id: app.id,
       name: app.name,
-      clicks: app.clicks,
-      installs: app.installs,
-      ratingAverage: app.ratingAverage,
-      ratingCount: app.ratingCount,
-      status: app.status, // Include status so users can see if app is approved
+      clicks: app.clicks || 0,
+      installs: app.installs || 0,
+      ratingAverage: app.ratingAverage || 0,
+      ratingCount: app.ratingCount || 0,
+      status: app.status,
       url: app.url,
       monetizationEnabled: app.monetizationEnabled || false,
     }));
@@ -64,7 +100,7 @@ export async function GET(
       totalInstalls,
       averageRating,
       badgesCount,
-      apps,
+      apps: formattedApps,
       // XP & Streak data
       streakCount: developer.streakCount || 0,
       lastClaimDate: developer.lastClaimDate,

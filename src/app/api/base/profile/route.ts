@@ -13,6 +13,8 @@ const BASE_REVERSE_REGISTRAR = "0x4f3a120e72c76c22ae802d129f599bfdbc31cb81"; // 
  * Fetch Base profile (name and avatar) for a wallet address
  * Resolves .minicast names from developer profile
  */
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -33,12 +35,13 @@ export async function GET(request: NextRequest) {
     let baseEthName: string | null = null;
     
     try {
-      const { prisma } = await import("@/lib/db");
-      const developer = await prisma.developer.findFirst({
-        where: {
-          wallet: normalizedWallet,
-        },
-      });
+      const { db } = await import("@/lib/db");
+      const { Developer } = await import("@/db/schema");
+      const { eq } = await import("drizzle-orm");
+      const developerResult = await db.select().from(Developer)
+        .where(eq(Developer.wallet, normalizedWallet))
+        .limit(1);
+      const developer = developerResult[0];
       
       if (developer?.name) {
         if (developer.name.endsWith('.minicast')) {

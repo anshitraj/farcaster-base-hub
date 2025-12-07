@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
-export const dynamic = 'force-dynamic';
+export const runtime = "edge";
+export const revalidate = 30; // Cache for 30 seconds
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,19 +51,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get developer record (includes adminRole)
-    const developer = await prisma.developer.findUnique({
-      where: { wallet },
-      select: {
-        id: true,
-        wallet: true,
-        name: true,
-        avatar: true,
-        bio: true,
-        verified: true,
-        adminRole: true, // This is the key field for admin status
-      },
-    });
+    // Optimize: Only select needed fields for faster query
+    const developerResult = await db
+      .select({
+        name: Developer.name,
+        avatar: Developer.avatar,
+        bio: Developer.bio,
+        verified: Developer.verified,
+        adminRole: Developer.adminRole,
+      })
+      .from(Developer)
+      .where(eq(Developer.wallet, wallet))
+      .limit(1);
+    const developer = developerResult[0];
 
     // Check admin status directly from developer.adminRole
     // This is the most reliable way since we're checking a specific wallet
@@ -95,10 +98,8 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     // Handle database connection errors gracefully
-    if (error?.code === 'P1001' || 
-        error?.message?.includes("Can't reach database") ||
-        error?.message?.includes("P1001") ||
-        error?.message?.includes("connection") ||
+    if (error?.message?.includes("connection") ||
+        error?.message?.includes("database") ||
         !process.env.DATABASE_URL) {
       console.error("Database connection error in /api/auth/user:", error.message);
       return NextResponse.json(

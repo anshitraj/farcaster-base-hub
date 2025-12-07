@@ -6,6 +6,7 @@ const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || ""; // Optional: Add yo
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 30; // Cache for 30 seconds
+export const runtime = "edge";
 
 export async function GET() {
   try {

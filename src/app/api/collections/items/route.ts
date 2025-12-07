@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { MiniApp, Developer, Collection, CollectionItem, Notification } from "@/db/schema";
+import { eq, and, gte } from "drizzle-orm";
 import { z } from "zod";
 
 const addItemSchema = z.object({
@@ -26,11 +28,13 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const validated = addItemSchema.parse(body);
+    const walletLower = wallet.toLowerCase();
 
     // Verify app exists
-    const app = await prisma.miniApp.findUnique({
-      where: { id: validated.miniAppId },
-    });
+    const appResult = await db.select().from(MiniApp)
+      .where(eq(MiniApp.id, validated.miniAppId))
+      .limit(1);
+    const app = appResult[0];
 
     if (!app) {
       return NextResponse.json(
@@ -40,24 +44,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
       try {
-        // Create developer if doesn't exist
-        developer = await prisma.developer.create({
-          data: {
-            wallet: wallet.toLowerCase(),
-          },
-        });
+        const [newDeveloper] = await db.insert(Developer).values({
+          wallet: walletLower,
+        }).returning();
+        developer = newDeveloper;
       } catch (error: any) {
         // Handle unique constraint violation (race condition)
-        if (error.code === 'P2002') {
-          developer = await prisma.developer.findUnique({
-            where: { wallet: wallet.toLowerCase() },
-          });
+        if (error?.message?.includes("unique") || error?.code === "23505") {
+          developerResult = await db.select().from(Developer)
+            .where(eq(Developer.wallet, walletLower))
+            .limit(1);
+          developer = developerResult[0];
         } else {
           throw error;
         }
@@ -72,53 +76,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create favorites collection
-    let collection;
-    try {
-      collection = await prisma.collection.findFirst({
-        where: {
-          developerId: developer.id,
-          type: validated.collectionType,
-        },
-      });
-    } catch (error: any) {
-      // Handle database connection errors
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        console.warn("Database connection error in /api/collections/items POST (findFirst collection)");
-        return NextResponse.json(
-          { error: "Database unavailable. Please try again later." },
-          { status: 503 }
-        );
-      }
-      // Check if prisma.collection is undefined (Prisma client not generated)
-      if (error.message?.includes("Cannot read properties of undefined") || !prisma.collection) {
-        console.error("Prisma client not properly initialized. Collection model not found.");
-        return NextResponse.json(
-          { error: "Server configuration error. Please contact support." },
-          { status: 500 }
-        );
-      }
-      throw error;
-    }
+    let collectionResult = await db.select().from(Collection)
+      .where(and(
+        eq(Collection.developerId, developer.id),
+        eq(Collection.type, validated.collectionType)
+      ))
+      .limit(1);
+    let collection = collectionResult[0];
 
     if (!collection) {
       try {
-        collection = await prisma.collection.create({
-          data: {
-            developerId: developer.id,
-            type: validated.collectionType,
-            name: validated.collectionType === "favorites" ? "Favorites" : validated.collectionType,
-            isPublic: true,
-          },
-        });
+        const [newCollection] = await db.insert(Collection).values({
+          developerId: developer.id,
+          type: validated.collectionType,
+          name: validated.collectionType === "favorites" ? "Favorites" : validated.collectionType,
+          isPublic: true,
+        }).returning();
+        collection = newCollection;
       } catch (error: any) {
         // Handle race condition where collection was created between findFirst and create
-        if (error.code === 'P2002') {
-          collection = await prisma.collection.findFirst({
-            where: {
-              developerId: developer.id,
-              type: validated.collectionType,
-            },
-          });
+        if (error?.message?.includes("unique") || error?.code === "23505") {
+          collectionResult = await db.select().from(Collection)
+            .where(and(
+              eq(Collection.developerId, developer.id),
+              eq(Collection.type, validated.collectionType)
+            ))
+            .limit(1);
+          collection = collectionResult[0];
         } else {
           throw error;
         }
@@ -133,24 +117,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if item already exists
-    let existingItem;
-    try {
-      existingItem = await prisma.collectionItem.findFirst({
-        where: {
-          collectionId: collection.id,
-          appId: validated.miniAppId,
-        },
-      });
-    } catch (error: any) {
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        console.warn("Database connection error in /api/collections/items POST (findFirst item)");
-        return NextResponse.json(
-          { error: "Database unavailable. Please try again later." },
-          { status: 503 }
-        );
-      }
-      throw error;
-    }
+    const existingItemResult = await db.select().from(CollectionItem)
+      .where(and(
+        eq(CollectionItem.collectionId, collection.id),
+        eq(CollectionItem.appId, validated.miniAppId)
+      ))
+      .limit(1);
+    const existingItem = existingItemResult[0];
 
     if (existingItem) {
       return NextResponse.json(
@@ -161,48 +134,47 @@ export async function POST(request: NextRequest) {
 
     // Add item to collection
     try {
-      const item = await prisma.collectionItem.create({
-        data: {
-          collectionId: collection.id,
-          appId: validated.miniAppId,
-        },
-        include: {
-          miniApp: {
-            include: {
-              developer: true,
-            },
-          },
-        },
-      });
+      const [item] = await db.insert(CollectionItem).values({
+        collectionId: collection.id,
+        appId: validated.miniAppId,
+      }).returning();
+
+      // Fetch app with developer for notification
+      const appWithDevResult = await db.select({
+        app: MiniApp,
+        developer: Developer,
+      })
+        .from(MiniApp)
+        .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+        .where(eq(MiniApp.id, validated.miniAppId))
+        .limit(1);
+      const appWithDev = appWithDevResult[0];
 
       // Send notification to developer when user favorites their app (only for favorites collection)
       // Rate limit: 1 notification per app per 24 hours
-      if (validated.collectionType === "favorites" && item.miniApp.developer.wallet) {
+      if (validated.collectionType === "favorites" && appWithDev?.developer?.wallet) {
         try {
           const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
           
           // Check if developer already received a notification for this app in last 24 hours
-          // Use "new_app" type (schema allows custom types with "etc.")
-          const recentNotification = await prisma.notification.findFirst({
-            where: {
-              wallet: item.miniApp.developer.wallet.toLowerCase(),
-              type: "new_app",
-              message: { contains: item.miniApp.name },
-              createdAt: { gte: twentyFourHoursAgo },
-            },
-          });
+          const recentNotificationResult = await db.select().from(Notification)
+            .where(and(
+              eq(Notification.wallet, appWithDev.developer.wallet.toLowerCase()),
+              eq(Notification.type, "new_app"),
+              gte(Notification.createdAt, twentyFourHoursAgo)
+            ))
+            .limit(1);
+          const recentNotification = recentNotificationResult[0];
 
           // Only send if no recent notification exists
           if (!recentNotification) {
-            await prisma.notification.create({
-              data: {
-                wallet: item.miniApp.developer.wallet.toLowerCase(),
-                type: "new_app",
-                title: "New Favorite! ⭐",
-                message: `Someone added "${item.miniApp.name}" to their favorites!`,
-                link: `/apps/${validated.miniAppId}`,
-                read: false,
-              },
+            await db.insert(Notification).values({
+              wallet: appWithDev.developer.wallet.toLowerCase(),
+              type: "new_app",
+              title: "New Favorite! ⭐",
+              message: `Someone added "${appWithDev.app.name}" to their favorites!`,
+              link: `/apps/${validated.miniAppId}`,
+              read: false,
             });
           }
         } catch (notifError) {
@@ -214,20 +186,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ item }, { status: 201 });
     } catch (error: any) {
       // Handle unique constraint violation (race condition)
-      if (error.code === 'P2002') {
+      if (error?.message?.includes("unique") || error?.code === "23505") {
         try {
-          const existingItem = await prisma.collectionItem.findFirst({
-            where: {
-              collectionId: collection.id,
-              appId: validated.miniAppId,
-            },
-          });
+          const existingItemResult = await db.select().from(CollectionItem)
+            .where(and(
+              eq(CollectionItem.collectionId, collection.id),
+              eq(CollectionItem.appId, validated.miniAppId)
+            ))
+            .limit(1);
+          const existingItem = existingItemResult[0];
           if (existingItem) {
             return NextResponse.json({ item: existingItem }, { status: 200 });
           }
         } catch (findError: any) {
-          // If findFirst also fails, just return success since item likely exists
-          if (findError.code === 'P1001' || findError.message?.includes("Can't reach database")) {
+          if (findError?.message?.includes("connection") || findError?.message?.includes("database")) {
             return NextResponse.json(
               { error: "Database unavailable. Please try again later." },
               { status: 503 }
@@ -236,7 +208,7 @@ export async function POST(request: NextRequest) {
         }
       }
       // Handle database connection errors
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+      if (error?.message?.includes("connection") || error?.message?.includes("database")) {
         console.warn("Database connection error in /api/collections/items POST (create item)");
         return NextResponse.json(
           { error: "Database unavailable. Please try again later." },
@@ -254,7 +226,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Handle database connection errors
-    if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.warn("Database connection error in /api/collections/items POST");
       return NextResponse.json(
         { error: "Database unavailable. Please try again later." },
@@ -288,6 +260,7 @@ export async function DELETE(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const miniAppId = searchParams.get("miniAppId");
     const collectionType = searchParams.get("type") || "favorites";
+    const walletLower = wallet.toLowerCase();
 
     if (!miniAppId) {
       return NextResponse.json(
@@ -296,21 +269,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    let developer;
-    try {
-      developer = await prisma.developer.findUnique({
-        where: { wallet: wallet.toLowerCase() },
-      });
-    } catch (error: any) {
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        console.warn("Database connection error in /api/collections/items DELETE");
-        return NextResponse.json(
-          { error: "Database unavailable. Please try again later." },
-          { status: 503 }
-        );
-      }
-      throw error;
-    }
+    const developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json(
@@ -320,32 +282,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Find the collection
-    let collection;
-    try {
-      collection = await prisma.collection.findFirst({
-        where: {
-          developerId: developer.id,
-          type: collectionType as any,
-        },
-      });
-    } catch (error: any) {
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        console.warn("Database connection error in /api/collections/items DELETE (findFirst collection)");
-        return NextResponse.json(
-          { error: "Database unavailable. Please try again later." },
-          { status: 503 }
-        );
-      }
-      // Check if prisma.collection is undefined
-      if (error.message?.includes("Cannot read properties of undefined") || !prisma.collection) {
-        console.error("Prisma client not properly initialized. Collection model not found.");
-        return NextResponse.json(
-          { error: "Server configuration error. Please contact support." },
-          { status: 500 }
-        );
-      }
-      throw error;
-    }
+    const collectionResult = await db.select().from(Collection)
+      .where(and(
+        eq(Collection.developerId, developer.id),
+        eq(Collection.type, collectionType as any)
+      ))
+      .limit(1);
+    const collection = collectionResult[0];
 
     if (!collection) {
       return NextResponse.json(
@@ -355,12 +298,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Find and delete the item
-    const item = await prisma.collectionItem.findFirst({
-      where: {
-        collectionId: collection.id,
-        appId: miniAppId,
-      },
-    });
+    const itemResult = await db.select().from(CollectionItem)
+      .where(and(
+        eq(CollectionItem.collectionId, collection.id),
+        eq(CollectionItem.appId, miniAppId)
+      ))
+      .limit(1);
+    const item = itemResult[0];
 
     if (!item) {
       return NextResponse.json(
@@ -369,9 +313,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.collectionItem.delete({
-      where: { id: item.id },
-    });
+    await db.delete(CollectionItem).where(eq(CollectionItem.id, item.id));
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -383,15 +325,20 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+
+export const runtime = "edge";
+export const revalidate = 30; // Cache for 30 seconds
+
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSessionFromCookies();
-    let wallet: string | null = null;
-    if (session?.wallet) {
-      wallet = session.wallet;
-    } else {
-      const cookieStore = await cookies();
-      wallet = cookieStore.get("walletAddress")?.value || null;
+    // OPTIMIZE: Check cookie FIRST (no DB query for session)
+    const cookieStore = await cookies();
+    let wallet: string | null = cookieStore.get("walletAddress")?.value || null;
+    
+    // Only query DB for session if cookie doesn't exist
+    if (!wallet) {
+      const session = await getSessionFromCookies();
+      wallet = session?.wallet || null;
     }
 
     if (!wallet) {
@@ -401,61 +348,35 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const miniAppId = searchParams.get("miniAppId");
     const collectionType = searchParams.get("type") || "favorites";
+    const walletLower = wallet.toLowerCase();
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
-
-    if (!developer) {
+    if (!miniAppId) {
       return NextResponse.json({ isFavorited: false });
     }
 
-    // Find the collection
-    let collection;
-    try {
-      collection = await prisma.collection.findFirst({
-        where: {
-          developerId: developer.id,
-          type: collectionType as any,
-        },
-      });
-    } catch (error: any) {
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        console.warn("Database connection error in /api/collections/items GET");
-        return NextResponse.json({ isFavorited: false });
-      }
-      // If collection model doesn't exist, return false
-      if (error.message?.includes("Cannot read properties of undefined")) {
-        console.error("Prisma client not properly initialized. Collection model not found.");
-        return NextResponse.json({ isFavorited: false });
-      }
-      throw error;
-    }
+    // Optimize: Single query with joins instead of 3 sequential queries
+    // Only select id field (smallest possible result)
+    const result = await db
+      .select({
+        itemId: CollectionItem.id,
+      })
+      .from(CollectionItem)
+      .innerJoin(Collection, eq(CollectionItem.collectionId, Collection.id))
+      .innerJoin(Developer, eq(Collection.developerId, Developer.id))
+      .where(and(
+        eq(Developer.wallet, walletLower),
+        eq(Collection.type, collectionType as any),
+        eq(CollectionItem.appId, miniAppId)
+      ))
+      .limit(1);
 
-    if (!collection || !miniAppId) {
-      return NextResponse.json({ isFavorited: false });
-    }
+    const isFavorited = result.length > 0;
 
-    // Check if item exists in collection
-    let item;
-    try {
-      item = await prisma.collectionItem.findFirst({
-        where: {
-          collectionId: collection.id,
-          appId: miniAppId,
-        },
-      });
-    } catch (error: any) {
-      if (error.code === 'P1001' || error.message?.includes("Can't reach database")) {
-        return NextResponse.json({ isFavorited: false });
-      }
-      throw error;
-    }
-
-    return NextResponse.json({ isFavorited: !!item });
+    const response = NextResponse.json({ isFavorited });
+    response.headers.set('Cache-Control', 'private, max-age=30');
+    return response;
   } catch (error) {
     console.error("Error checking favorite status:", error);
     return NextResponse.json({ isFavorited: false });
   }
 }
-

@@ -108,8 +108,31 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
 
     // Optimistic update - update UI immediately
     const previousState = isFavorited;
-    setIsFavorited(!isFavorited);
+    const newState = !isFavorited;
+    setIsFavorited(newState);
     setIsToggling(true);
+
+    // Show notification immediately (optimistic)
+    if (newState) {
+      // Adding to favorites
+      toast({
+        title: "Added to saved apps",
+        description: "App saved to your list",
+        action: (
+          <ToastAction altText="View saved apps" asChild>
+            <Link href="/favourites" className="text-blue-400 hover:text-blue-300 font-medium">
+              Saved Apps
+            </Link>
+          </ToastAction>
+        ),
+      });
+    } else {
+      // Removing from favorites
+      toast({
+        title: "Removed from saved",
+        description: "App removed from your saved list",
+      });
+    }
 
     try {
       if (previousState) {
@@ -119,11 +142,10 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
           credentials: "include",
         });
 
-        if (res.ok) {
-          toast({
-            title: "Removed from saved",
-            description: "App removed from your saved list",
-          });
+        if (!res.ok && res.status !== 401) {
+          // Revert optimistic update on error (but not on 401, as that's handled below)
+          setIsFavorited(previousState);
+          throw new Error("Failed to remove from favorites");
         } else if (res.status === 401) {
           // Revert optimistic update
           setIsFavorited(previousState);
@@ -132,10 +154,6 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
             description: "Please connect your wallet",
             variant: "destructive",
           });
-        } else {
-          // Revert optimistic update
-          setIsFavorited(previousState);
-          throw new Error("Failed to remove from favorites");
         }
       } else {
         // Add to favorites
@@ -149,27 +167,7 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
           }),
         });
 
-        if (res.ok) {
-          toast({
-            title: "Added to saved apps",
-            description: "App saved to your list",
-            action: (
-              <ToastAction altText="View saved apps" asChild>
-                <Link href="/favourites" className="text-blue-400 hover:text-blue-300 font-medium">
-                  Saved Apps
-                </Link>
-              </ToastAction>
-            ),
-          });
-        } else if (res.status === 401) {
-          // Revert optimistic update
-          setIsFavorited(previousState);
-          toast({
-            title: "Authentication required",
-            description: "Please connect your wallet",
-            variant: "destructive",
-          });
-        } else {
+        if (!res.ok && res.status !== 401) {
           const errorData = await res.json().catch(() => ({}));
           if (errorData.error?.includes("already")) {
             // Already favorited, keep optimistic state
@@ -179,6 +177,14 @@ export default function FavoriteButton({ appId, className = "", size = "md" }: F
             setIsFavorited(previousState);
             throw new Error(errorData.error || "Failed to save app");
           }
+        } else if (res.status === 401) {
+          // Revert optimistic update
+          setIsFavorited(previousState);
+          toast({
+            title: "Authentication required",
+            description: "Please connect your wallet",
+            variant: "destructive",
+          });
         }
       }
     } catch (error: any) {

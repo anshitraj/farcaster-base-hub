@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getCurrentWallet } from "@/lib/auth";
-import crypto from "crypto";
+import { PremiumSubscription, MiniApp, Developer, AccessCode } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,16 +14,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Check if user has active premium subscription
-    const subscription = await prisma.premiumSubscription.findFirst({
-      where: {
-        wallet: wallet.toLowerCase(),
-        status: "active",
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-    });
+    const subscriptionResult = await db.select().from(PremiumSubscription)
+      .where(and(
+        eq(PremiumSubscription.wallet, walletLower),
+        eq(PremiumSubscription.status, "active"),
+        sql`${PremiumSubscription.expiresAt} > NOW()`
+      ))
+      .limit(1);
+    const subscription = subscriptionResult[0];
 
     if (!subscription) {
       return NextResponse.json(
@@ -42,27 +43,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify user owns the app
-    const app = await prisma.miniApp.findUnique({
-      where: { id: appId },
-      include: { developer: true },
-    });
-
-    if (!app) {
+    const appResult = await db.select({
+      app: MiniApp,
+      developer: Developer,
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.id, appId))
+      .limit(1);
+    const appData = appResult[0];
+    
+    if (!appData) {
       return NextResponse.json(
         { error: "App not found" },
         { status: 404 }
       );
     }
+    const app = { ...appData.app, developer: appData.developer };
 
-    if (app.developer.wallet.toLowerCase() !== wallet.toLowerCase()) {
+    if (!app.developer || app.developer.wallet.toLowerCase() !== walletLower) {
       return NextResponse.json(
         { error: "You can only create access codes for your own apps" },
         { status: 403 }
       );
     }
 
-    // Generate unique code
-    const code = `PREMIUM-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
+    // Generate unique code using Web Crypto API for Edge Runtime
+    const randomBytes = new Uint8Array(8);
+    crypto.getRandomValues(randomBytes);
+    const code = `PREMIUM-${Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 
     // Calculate expiration
     const expiresAt = expiresInDays
@@ -70,14 +79,12 @@ export async function POST(request: NextRequest) {
       : null;
 
     // Create access code
-    const accessCode = await prisma.accessCode.create({
-      data: {
-        code,
-        appId,
-        ownerId: wallet.toLowerCase(),
-        expiresAt,
-      },
-    });
+    const [accessCode] = await db.insert(AccessCode).values({
+      code,
+      appId,
+      ownerId: walletLower,
+      expiresAt,
+    }).returning();
 
     return NextResponse.json({
       success: true,

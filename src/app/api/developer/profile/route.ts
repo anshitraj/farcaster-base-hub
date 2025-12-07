@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const updateProfileSchema = z.object({
@@ -35,31 +37,34 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const validated = updateProfileSchema.parse(body);
 
+    const walletLower = wallet.toLowerCase();
     // Find or create developer
     let developer;
     try {
-      developer = await prisma.developer.findUnique({
-        where: { wallet: wallet.toLowerCase() },
-      });
+      let developerResult = await db.select().from(Developer)
+        .where(eq(Developer.wallet, walletLower))
+        .limit(1);
+      developer = developerResult[0];
 
       if (!developer) {
         // Create developer if doesn't exist
-        developer = await prisma.developer.create({
-          data: {
-            wallet: wallet.toLowerCase(),
-            name: validated.name || null,
-            bio: validated.bio || null,
-          },
-        });
+        const [newDeveloper] = await db.insert(Developer).values({
+          wallet: walletLower,
+          name: validated.name || null,
+          bio: validated.bio || null,
+        }).returning();
+        developer = newDeveloper;
       } else {
         // Update existing developer
-        developer = await prisma.developer.update({
-          where: { wallet: wallet.toLowerCase() },
-          data: {
-            ...(validated.name !== undefined && { name: validated.name || null }),
-            ...(validated.bio !== undefined && { bio: validated.bio || null }),
-          },
-        });
+        const updateData: any = {};
+        if (validated.name !== undefined) updateData.name = validated.name || null;
+        if (validated.bio !== undefined) updateData.bio = validated.bio || null;
+        
+        const [updatedDeveloper] = await db.update(Developer)
+          .set(updateData)
+          .where(eq(Developer.wallet, walletLower))
+          .returning();
+        developer = updatedDeveloper;
       }
 
       return NextResponse.json({
@@ -74,7 +79,7 @@ export async function PATCH(request: NextRequest) {
       });
     } catch (dbError: any) {
       // Handle database connection errors gracefully
-      if (dbError?.code === 'P1001' || dbError?.message?.includes("Can't reach database")) {
+      if (dbError?.message?.includes("connection") || dbError?.message?.includes("database")) {
         return NextResponse.json(
           { 
             error: "Database temporarily unavailable. Please try again later.",
@@ -95,7 +100,7 @@ export async function PATCH(request: NextRequest) {
     }
     
     // Only log if it's not a database connection error (to reduce spam)
-    if (!error?.code?.includes('P1001') && !error?.message?.includes("Can't reach database")) {
+    if (!error?.message?.includes("connection") && !error?.message?.includes("database")) {
       console.error("Error updating profile:", error);
     }
     
@@ -106,6 +111,9 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+
+export const runtime = "edge";
+export const revalidate = 60; // Cache for 60 seconds
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
@@ -129,26 +137,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     try {
-      const developer = await prisma.developer.findUnique({
-        where: { wallet: wallet.toLowerCase() },
-        select: {
-          id: true,
-          wallet: true,
-          name: true,
-          bio: true,
-          avatar: true,
-          verified: true,
-          verificationStatus: true,
-        },
-      });
+      const developerResult = await db.select({
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        bio: Developer.bio,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
+        verificationStatus: Developer.verificationStatus,
+      })
+        .from(Developer)
+        .where(eq(Developer.wallet, walletLower))
+        .limit(1);
+      const developer = developerResult[0];
 
       return NextResponse.json({
         developer: developer || null,
       });
     } catch (dbError: any) {
       // Handle database connection errors gracefully
-      if (dbError?.code === 'P1001' || dbError?.message?.includes("Can't reach database")) {
+      if (dbError?.message?.includes("connection") || dbError?.message?.includes("database")) {
         // Database is unavailable - return null developer instead of error
         // This allows the app to continue working without database
         return NextResponse.json({
@@ -161,7 +171,7 @@ export async function GET(request: NextRequest) {
     }
   } catch (error: any) {
     // Only log if it's not a database connection error (to reduce spam)
-    if (!error?.code?.includes('P1001') && !error?.message?.includes("Can't reach database")) {
+    if (!error?.message?.includes("connection") && !error?.message?.includes("database")) {
       console.error("Error fetching profile:", error);
     }
     

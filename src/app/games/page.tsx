@@ -1,32 +1,34 @@
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import GamesPageClient from "./GamesPageClient";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 60; // Revalidate every 60 seconds
 
 async function getGames() {
   try {
-    const apps = await prisma.miniApp.findMany({
-      where: {
-        status: "approved",
-        category: "Games",
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(and(
+        eq(MiniApp.status, "approved"),
+        eq(MiniApp.category, "Games")
+      ))
+      .orderBy(desc(MiniApp.createdAt));
 
-    return apps.map((app) => ({
+    return appsData.map(({ app, developer }) => ({
       ...app,
+      developer,
       topBaseRank: app.topBaseRank,
       autoUpdated: app.autoUpdated,
       contractVerified: app.contractVerified,

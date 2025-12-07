@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { verifyMessage } from "ethers";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const VERIFICATION_MESSAGE = "Verify your developer account for Mini App Store";
 
@@ -56,17 +58,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: wallet.toLowerCase(),
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet: walletLower,
+      }).returning();
+      developer = newDeveloper;
     }
 
     // Update developer status - wallet verification is sufficient
@@ -74,13 +77,12 @@ export async function POST(request: NextRequest) {
     const newStatus = "verified";
     const isFullyVerified = true;
 
-    await prisma.developer.update({
-      where: { id: developer.id },
-      data: {
+    await db.update(Developer)
+      .set({
         verificationStatus: newStatus,
         verified: isFullyVerified,
-      },
-    });
+      })
+      .where(eq(Developer.id, developer.id));
 
     return NextResponse.json({
       success: true,
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
       message: "Wallet verified! Your developer account is now verified. Add your wallet to farcaster.json owners for auto-approval of apps.",
     });
   } catch (error: any) {
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

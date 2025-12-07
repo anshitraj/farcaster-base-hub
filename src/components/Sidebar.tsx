@@ -87,53 +87,32 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [advertisements, setAdvertisements] = useState<any[]>([]);
+  
+  // Ensure sidebar is visible on desktop on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsHidden(false);
+    }
+  }, []);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "Explore Web3": true, // Default to expanded
     "Trending now": true, // Default to expanded
     "Rewards": true, // Default to expanded
   });
 
-  // Detect mobile on mount and resize
+  // Detect mobile on mount and resize - hydration safe
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
+      if (typeof window !== "undefined") {
+        setIsMobile(window.innerWidth < 1024);
+      }
     };
     checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Fetch advertisements
-  useEffect(() => {
-    async function fetchAdvertisements() {
-      try {
-        const res = await fetch("/api/advertisements?position=sidebar");
-        if (res.ok) {
-          const data = await res.json();
-          setAdvertisements(data.advertisements || []);
-        }
-      } catch (error) {
-        console.error("Error fetching advertisements:", error);
-      }
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
     }
-    fetchAdvertisements();
   }, []);
-
-  const handleAdClick = async (ad: any) => {
-    if (ad.linkUrl) {
-      // Track click
-      try {
-        await fetch(`/api/advertisements/${ad.id}/click`, {
-          method: "POST",
-        });
-      } catch (error) {
-        console.error("Error tracking click:", error);
-      }
-      // Open link in new tab
-      window.open(ad.linkUrl, "_blank", "noopener,noreferrer");
-    }
-  };
 
   const toggleCollapse = () => {
     const newCollapsed = !isCollapsed;
@@ -198,7 +177,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className={`flex fixed left-0 top-0 h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] z-50 lg:z-40 transition-all duration-300 ${
           isCollapsed && !isMobile ? "w-16" : "w-64"
-        } ${isMobile ? "shadow-2xl" : ""} ${!isMobile ? "lg:translate-x-0" : ""}`}
+        } ${isMobile ? "shadow-2xl" : ""}`}
       >
       <div className="flex flex-col h-full w-full">
         {/* Enhanced Header with Gradient */}
@@ -450,48 +429,6 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                 })}
               </nav>
             </>
-          )}
-
-          {/* Ad Banner Space - Moved to bottom */}
-          {!isCollapsed && (
-            <div className="px-4 mt-6 mb-4">
-              {advertisements.length > 0 ? (
-                advertisements.map((ad) => (
-                  <div
-                    key={ad.id}
-                    className="bg-gradient-to-br from-purple-600/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center mb-4 cursor-pointer hover:border-purple-400/50 transition-colors"
-                    onClick={() => handleAdClick(ad)}
-                  >
-                    {ad.title && (
-                      <div className="text-xs font-semibold text-purple-300 mb-2">
-                        {ad.title}
-                      </div>
-                    )}
-                    <div className="h-32 rounded-xl overflow-hidden border border-gray-700">
-                      <Image
-                        src={ad.imageUrl}
-                        alt={ad.title || "Advertisement"}
-                        width={300}
-                        height={128}
-                        className="w-full h-full object-cover"
-                        unoptimized
-                      />
-                    </div>
-                    {ad.linkUrl && (
-                      <p className="text-xs text-gray-400 mt-2">Click to visit</p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="bg-gradient-to-br from-purple-600/20 to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 text-center">
-                  <div className="text-xs font-semibold text-purple-300 mb-2">Advertisement</div>
-                  <div className="h-32 bg-gray-800/50 rounded-xl flex items-center justify-center border border-gray-700">
-                    <span className="text-xs text-gray-500">Ad Space</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2">Place your ads here</p>
-                </div>
-              )}
-            </div>
           )}
 
         </div>

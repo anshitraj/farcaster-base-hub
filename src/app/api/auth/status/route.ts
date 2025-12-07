@@ -6,6 +6,8 @@ export const dynamic = 'force-dynamic';
  * FIP-11: Check Channel Status
  * Polls the channel status to check if user has authenticated
  */
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);

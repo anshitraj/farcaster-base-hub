@@ -1,5 +1,7 @@
-import { prisma } from "./db";
+import { db } from "./db";
 import { getSessionFromCookies } from "./auth";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export type AdminRole = "ADMIN" | "MODERATOR" | null;
 
@@ -27,15 +29,16 @@ export async function getAdminRole(): Promise<AdminRole> {
       return null;
     }
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-      select: { adminRole: true },
-    });
+    const developerResult = await db.select({ adminRole: Developer.adminRole })
+      .from(Developer)
+      .where(eq(Developer.wallet, wallet.toLowerCase()))
+      .limit(1);
+    const developer = developerResult[0];
 
     return developer?.adminRole || null;
   } catch (error: any) {
     // Don't log database connection errors as they're expected
-    if (!error?.code?.includes('P1001') && !error?.message?.includes('Can\'t reach database')) {
+    if (!error?.message?.includes('connection') && !error?.message?.includes('database')) {
       console.error("Error checking admin role:", error);
     }
     return null;
@@ -93,5 +96,65 @@ export async function requireAdminOnly() {
   const role = await getAdminRole();
   if (role !== "ADMIN") {
     throw new Error("Admin-only operation. Moderators cannot perform this action.");
+  }
+}
+
+/**
+ * Check if the current user is admin or has developer level 5 or higher
+ */
+export async function isAdminOrLevel5(): Promise<boolean> {
+  try {
+    const session = await getSessionFromCookies();
+    
+    // Fallback: check walletAddress cookie if DB session doesn't exist
+    let wallet: string | null = null;
+    if (session) {
+      wallet = session.wallet;
+    } else {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const walletFromCookie = cookieStore.get("walletAddress")?.value;
+      if (walletFromCookie) {
+        wallet = walletFromCookie;
+      }
+    }
+    
+    if (!wallet) {
+      return false;
+    }
+
+    const developerResult = await db.select({ 
+      adminRole: Developer.adminRole,
+      developerLevel: Developer.developerLevel 
+    })
+      .from(Developer)
+      .where(eq(Developer.wallet, wallet.toLowerCase()))
+      .limit(1);
+    const developer = developerResult[0];
+
+    if (!developer) {
+      return false;
+    }
+
+    // Check if admin or level 5+
+    const isAdmin = developer.adminRole === "ADMIN" || developer.adminRole === "MODERATOR";
+    const isLevel5 = (developer.developerLevel || 0) >= 5;
+    
+    return isAdmin || isLevel5;
+  } catch (error: any) {
+    if (!error?.message?.includes('connection') && !error?.message?.includes('database')) {
+      console.error("Error checking admin or level 5:", error);
+    }
+    return false;
+  }
+}
+
+/**
+ * Require admin or level 5+ access - throws error if not authorized
+ */
+export async function requireAdminOrLevel5() {
+  const hasAccess = await isAdminOrLevel5();
+  if (!hasAccess) {
+    throw new Error("Admin or level 5+ access required");
   }
 }

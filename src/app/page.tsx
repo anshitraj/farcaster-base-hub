@@ -12,6 +12,7 @@ import NotificationSidebar from "@/components/NotificationSidebar";
 import HorizontalAppCard from "@/components/HorizontalAppCard";
 import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
 import CategoryCard from "@/components/CategoryCard";
+import PromoSection from "@/components/PromoSection";
 
 // Lazy load heavy components (only load when needed)
 const TopBanner = lazy(() => import("@/components/TopBanner"));
@@ -199,21 +200,40 @@ function HomePageContent() {
     }
   }, [searchParams]);
 
-  // Lightweight preload - only first banner image (LCP optimization)
+  // Lightweight preload - only first banner image and icon (LCP optimization)
   useEffect(() => {
     if (typeof window === "undefined" || topApps.length === 0) return;
     
-    // Only preload the first banner image for LCP
+    // Preload the first banner image for LCP
     const firstApp = topApps[0];
     if (firstApp?.headerImageUrl) {
-      const optimizedUrl = optimizeBannerImage(firstApp.headerImageUrl);
-      const link = document.createElement("link");
-      link.rel = "preload";
-      link.as = "image";
-      link.href = optimizedUrl;
-      link.setAttribute("fetchpriority", "high");
-      document.head.appendChild(link);
+      const optimizedBannerUrl = optimizeBannerImage(firstApp.headerImageUrl);
+      const bannerLink = document.createElement("link");
+      bannerLink.rel = "preload";
+      bannerLink.as = "image";
+      bannerLink.href = optimizedBannerUrl;
+      bannerLink.setAttribute("fetchpriority", "high");
+      document.head.appendChild(bannerLink);
     }
+    
+    // Preload the first app icon for LCP
+    if (firstApp?.iconUrl) {
+      const optimizedIconUrl = optimizeDevImage(firstApp.iconUrl);
+      const iconLink = document.createElement("link");
+      iconLink.rel = "preload";
+      iconLink.as = "image";
+      iconLink.href = optimizedIconUrl;
+      iconLink.setAttribute("fetchpriority", "high");
+      document.head.appendChild(iconLink);
+    }
+    
+    // Preload logo
+    const logoLink = document.createElement("link");
+    logoLink.rel = "preload";
+    logoLink.as = "image";
+    logoLink.href = "/logo.webp";
+    logoLink.setAttribute("fetchpriority", "high");
+    document.head.appendChild(logoLink);
   }, [topApps]);
 
   useEffect(() => {
@@ -343,6 +363,9 @@ function HomePageContent() {
             </Suspense>
           ) : null}
 
+          {/* Promo Section */}
+          <PromoSection />
+
           {/* Trending Section */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
@@ -389,7 +412,7 @@ function HomePageContent() {
             )}
           </motion.section>
 
-          {/* Popular Categories Section */}
+          {/* Popular Categories Section - Lazy loaded below fold */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -490,7 +513,7 @@ function HomePageContent() {
             </div>
           </motion.section>
 
-          {/* Explore Apps Section */}
+          {/* Explore Apps Section - Lazy loaded below fold */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -536,7 +559,7 @@ function HomePageContent() {
             </div>
           </motion.section>
 
-          {/* Paid Developer Apps - Coming Soon Section */}
+          {/* Paid Developer Apps - Coming Soon Section - Lazy loaded below fold */}
           <motion.section
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

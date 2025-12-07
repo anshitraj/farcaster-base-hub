@@ -1,26 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireModerator, requireAdminOnly } from "@/lib/admin";
+import { MiniApp, Developer, Badge } from "@/db/schema";
+import { eq, desc, and } from "drizzle-orm";
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     await requireModerator();
 
-    const apps = await prisma.miniApp.findMany({
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            verified: true,
-          },
-        },
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        verified: Developer.verified,
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .orderBy(desc(MiniApp.createdAt));
+    
+    const apps = appsData.map(({ app, developer }) => ({ ...app, developer }));
 
     return NextResponse.json({ apps });
   } catch (error: any) {
@@ -31,7 +34,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }
@@ -94,6 +97,10 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+
+    // Check if app is being approved - create claimable badge
+    const [existingApp] = await db.select().from(MiniApp).where(eq(MiniApp.id, appId)).limit(1);
+    const isBeingApproved = existingApp && existingApp.status !== "approved" && updateData.status === "approved";
     if (typeof featuredInBanner === "boolean") {
       updateData.featuredInBanner = featuredInBanner;
     }
@@ -108,10 +115,49 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const app = await prisma.miniApp.update({
-      where: { id: appId },
-      data: updateData,
-    });
+    const [app] = await db.update(MiniApp)
+      .set(updateData)
+      .where(eq(MiniApp.id, appId))
+      .returning();
+
+    // If app was just approved, create a claimable badge record
+    if (isBeingApproved && app) {
+      try {
+        // Get developer
+        const [developer] = await db.select()
+          .from(Developer)
+          .where(eq(Developer.id, app.developerId))
+          .limit(1);
+
+        if (developer) {
+          // Check if badge already exists
+          const existingBadge = await db.select()
+            .from(Badge)
+            .where(
+              and(
+                eq(Badge.appId, app.id),
+                eq(Badge.developerId, developer.id)
+              )
+            )
+            .limit(1);
+
+          // Only create if it doesn't exist
+          if (existingBadge.length === 0) {
+            await db.insert(Badge).values({
+              name: `${app.name} Builder Badge`,
+              imageUrl: app.iconUrl || "",
+              appName: app.name,
+              appId: app.id,
+              developerId: developer.id,
+              claimed: false,
+            });
+          }
+        }
+      } catch (badgeError) {
+        // Don't fail the approval if badge creation fails
+        console.error("Error creating claimable badge:", badgeError);
+      }
+    }
 
     return NextResponse.json({ success: true, app });
   } catch (error: any) {
@@ -122,7 +168,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }
@@ -152,9 +198,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete the app (cascade will handle related records)
-    await prisma.miniApp.delete({
-      where: { id: appId },
-    });
+    await db.delete(MiniApp).where(eq(MiniApp.id, appId));
 
     return NextResponse.json({ success: true, message: "App deleted successfully" });
   } catch (error: any) {
@@ -165,7 +209,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (error?.code === 'P1001' || error?.message?.includes('Can\'t reach database')) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

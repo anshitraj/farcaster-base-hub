@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // Feature flags stored in environment or database
 // For now, we'll use a simple in-memory store (in production, use database or env vars)
@@ -9,6 +11,8 @@ let featureFlags = {
   premiumEnabled: true, // Default: enabled
 };
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
@@ -32,11 +36,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Check if user is admin (settings management is admin-only)
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-      select: { adminRole: true },
-    });
+    const developerResult = await db.select({ adminRole: Developer.adminRole })
+      .from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer || developer.adminRole !== "ADMIN") {
       return NextResponse.json(
@@ -84,11 +90,13 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Check if user is admin (settings management is admin-only)
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-      select: { adminRole: true },
-    });
+    const developerResult = await db.select({ adminRole: Developer.adminRole })
+      .from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer || developer.adminRole !== "ADMIN") {
       return NextResponse.json(

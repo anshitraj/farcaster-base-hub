@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import Image from "next/image";
 
 const Footer = () => {
   return (
@@ -7,8 +7,14 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Zap className="w-5 h-5 text-base-blue" />
-              <span className="text-lg font-bold text-gradient-base">Mini App Store</span>
+              <Image
+                src="/logo.webp"
+                alt="Mini App Store"
+                width={200}
+                height={60}
+                className="h-8 w-auto"
+                priority
+              />
             </div>
             <p className="text-sm text-muted-foreground">
               Discover the best Mini Apps across Farcaster & Base ecosystem.

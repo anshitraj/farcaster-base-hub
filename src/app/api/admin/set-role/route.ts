@@ -9,7 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const setRoleSchema = z.object({
@@ -22,27 +24,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = setRoleSchema.parse(body);
 
+    const walletLower = validated.wallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: validated.wallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
       // Create developer if they don't exist
-      developer = await prisma.developer.create({
-        data: {
-          wallet: validated.wallet.toLowerCase(),
-          adminRole: validated.role,
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet: walletLower,
+        adminRole: validated.role,
+      }).returning();
+      developer = newDeveloper;
     } else {
       // Update existing developer
-      developer = await prisma.developer.update({
-        where: { id: developer.id },
-        data: {
-          adminRole: validated.role,
-        },
-      });
+      const [updatedDeveloper] = await db.update(Developer)
+        .set({ adminRole: validated.role })
+        .where(eq(Developer.id, developer.id))
+        .returning();
+      developer = updatedDeveloper;
     }
 
     return NextResponse.json({

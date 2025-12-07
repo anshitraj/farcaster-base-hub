@@ -1,35 +1,33 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { MiniApp } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 // Debug endpoint to check what apps are in the database
+
+export const runtime = "edge";
 export async function GET() {
   try {
-    const allApps = await prisma.miniApp.findMany({
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        featuredInBanner: true,
-        url: true,
-        createdAt: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 20,
-    });
+    const allApps = await db.select({
+      id: MiniApp.id,
+      name: MiniApp.name,
+      status: MiniApp.status,
+      featuredInBanner: MiniApp.featuredInBanner,
+      url: MiniApp.url,
+      createdAt: MiniApp.createdAt,
+    })
+      .from(MiniApp)
+      .orderBy(desc(MiniApp.createdAt))
+      .limit(20);
 
-    const approvedApps = await prisma.miniApp.findMany({
-      where: {
-        status: "approved",
-      },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        featuredInBanner: true,
-      },
-    });
+    const approvedApps = await db.select({
+      id: MiniApp.id,
+      name: MiniApp.name,
+      status: MiniApp.status,
+      featuredInBanner: MiniApp.featuredInBanner,
+    })
+      .from(MiniApp)
+      .where(eq(MiniApp.status, "approved"));
 
     return NextResponse.json({
       total: allApps.length,

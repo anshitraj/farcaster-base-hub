@@ -23,6 +23,7 @@ import Image from "next/image";
 import OptimizedImage from "@/components/OptimizedImage";
 import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
+// Keep dynamic for search/filter functionality
 export const dynamic = 'force-dynamic';
 
 const ITEMS_PER_PAGE = 20;
@@ -227,14 +228,14 @@ function AppsPageContent() {
           )}
 
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+                <div key={i} className="h-[90px] bg-gray-900 rounded-lg animate-pulse" />
               ))}
             </div>
           ) : apps.length > 0 ? (
             <>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {apps.map((app, index) => {
                   const rating = app.ratingAverage || 0;
                   
@@ -365,9 +366,9 @@ export default function AppsPage() {
         <AppHeader />
         <div className="pt-8 pb-8">
           <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-32 bg-gray-900 rounded-xl animate-pulse" />
+                <div key={i} className="h-[90px] bg-gray-900 rounded-lg animate-pulse" />
               ))}
             </div>
           </div>

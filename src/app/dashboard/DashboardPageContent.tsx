@@ -236,131 +236,23 @@ export default function DashboardPageContent() {
           if (mounted && data.wallet) {
             setWallet(data.wallet);
             
-            // Fetch all data in parallel for faster loading
+            // Fetch dashboard data FIRST (critical) - show page immediately
             try {
-              const [dashRes, devRes, xpRes, profileRes, farcasterRes] = await Promise.allSettled([
-                fetch(`/api/developers/${data.wallet}/dashboard`, { credentials: "include" }),
-                fetch(`/api/developers/${data.wallet}`, { credentials: "include" }),
-                fetch(`/api/xp/claim`, { credentials: "include" }),
-                fetch(`/api/developer/profile`, { credentials: "include" }),
-                fetch("/api/auth/farcaster/me", { credentials: "include" }),
-              ]);
+              const dashRes = await fetch(`/api/developers/${data.wallet}/dashboard`, { 
+                credentials: "include",
+                cache: 'no-store', // Always get fresh data
+              });
               
-              // Process dashboard data first (critical) - set loading to false immediately
-              if (dashRes.status === "fulfilled" && dashRes.value.ok) {
-                const dashData = await dashRes.value.json();
+              if (dashRes.ok) {
+                const dashData = await dashRes.json();
                 if (mounted) {
                   setDashboard(dashData);
-                  setLoading(false);
+                  setLoading(false); // Show page IMMEDIATELY after dashboard loads
                 }
               } else if (mounted) {
                 setDashboard({ totalApps: 0, totalClicks: 0, totalInstalls: 0, averageRating: 0, apps: [] });
-                setLoading(false);
+                setLoading(false); // Show page even if dashboard fails
               }
-              
-              // Process other data in background (non-blocking)
-              if (!mounted) return;
-              
-              if (devRes.status === "fulfilled" && devRes.value.ok) {
-                devRes.value.json().then((devData) => {
-                  if (mounted) setDeveloperStatus(devData);
-                }).catch(() => {});
-              }
-              
-              if (xpRes.status === "fulfilled" && xpRes.value.ok) {
-                xpRes.value.json().then((xpData) => {
-                  if (mounted) setXpData(xpData);
-                }).catch(() => {});
-              }
-              
-              if (profileRes.status === "fulfilled" && profileRes.value.ok) {
-                profileRes.value.json().then((data) => {
-                  if (mounted && data.developer) {
-                    setProfile(data.developer);
-                    setProfileName(data.developer.name || "");
-                  }
-                }).catch(() => {});
-              }
-
-              // Fetch Base wallet name and avatar if it's a Base wallet (non-blocking)
-              (async () => {
-                try {
-                  let profileData: any = null;
-                  let farcasterData: any = null;
-                  
-                  if (profileRes.status === "fulfilled" && profileRes.value.ok) {
-                    try {
-                      profileData = await profileRes.value.json();
-                    } catch (e) {}
-                  }
-                  
-                  if (farcasterRes.status === "fulfilled" && farcasterRes.value.ok) {
-                    try {
-                      farcasterData = await farcasterRes.value.json();
-                    } catch (e) {}
-                  }
-
-                  const isBaseWallet = await checkIfBaseWallet(data.wallet);
-                  if (isBaseWallet) {
-                    Promise.all([
-                      resolveBaseName(data.wallet).catch(() => null),
-                      fetchBaseAvatar(data.wallet, null).catch(() => null),
-                    ]).then(([baseName, baseAvatar]) => {
-                      if (!mounted) return;
-                      
-                      if (miniAppUser?.displayName || miniAppUser?.username) {
-                        setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
-                      } else if (farcasterData?.farcaster?.name) {
-                        setDisplayName(farcasterData.farcaster.name);
-                      } else if (profileData?.developer?.name) {
-                        setDisplayName(profileData.developer.name);
-                      } else if (baseName) {
-                        setDisplayName(baseName);
-                      }
-                      
-                      if (miniAppUser?.pfpUrl) {
-                        setDisplayAvatar(miniAppUser.pfpUrl);
-                      } else if (farcasterData?.farcaster?.avatar) {
-                        setDisplayAvatar(farcasterData.farcaster.avatar);
-                      } else if (profileData?.developer?.avatar) {
-                        setDisplayAvatar(profileData.developer.avatar);
-                      } else if (baseAvatar) {
-                        setDisplayAvatar(baseAvatar);
-                      }
-                    });
-                  } else if (mounted) {
-                    if (miniAppUser?.displayName || miniAppUser?.username) {
-                      setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
-                    } else if (farcasterData?.farcaster?.name) {
-                      setDisplayName(farcasterData.farcaster.name);
-                    } else if (profileData?.developer?.name) {
-                      setDisplayName(profileData.developer.name);
-                    }
-                    
-                    if (miniAppUser?.pfpUrl) {
-                      setDisplayAvatar(miniAppUser.pfpUrl);
-                    } else if (farcasterData?.farcaster?.avatar) {
-                      setDisplayAvatar(farcasterData.farcaster.avatar);
-                    } else if (profileData?.developer?.avatar) {
-                      setDisplayAvatar(profileData.developer.avatar);
-                    }
-                  }
-                } catch (e) {
-                  console.error("Error fetching wallet info:", e);
-                  if (mounted && profileData?.developer) {
-                    if (miniAppUser?.displayName || miniAppUser?.username) {
-                      setDisplayName(miniAppUser.displayName || miniAppUser.username || null);
-                    } else if (profileData.developer.name) {
-                      setDisplayName(profileData.developer.name);
-                    }
-                    if (miniAppUser?.pfpUrl) {
-                      setDisplayAvatar(miniAppUser.pfpUrl);
-                    } else if (profileData.developer.avatar) {
-                      setDisplayAvatar(profileData.developer.avatar);
-                    }
-                  }
-                }
-              })();
             } catch (dashError) {
               console.error("Error fetching dashboard:", dashError);
               if (mounted) {
@@ -368,6 +260,39 @@ export default function DashboardPageContent() {
                 setLoading(false);
               }
             }
+            
+            // Fetch other data in background (non-blocking, fire and forget)
+            // Don't wait for these - they'll populate when ready
+            Promise.allSettled([
+              fetch(`/api/developers/${data.wallet}`, { credentials: "include" }).then(res => res.ok ? res.json() : null).then(devData => {
+                if (mounted && devData) {
+                  setDeveloperStatus(devData);
+                }
+              }).catch(() => {}),
+              
+              fetch(`/api/xp/claim`, { credentials: "include" }).then(res => res.ok ? res.json() : null).then(xpData => {
+                if (mounted && xpData) setXpData(xpData);
+              }).catch(() => {}),
+              
+              fetch(`/api/developer/profile`, { credentials: "include" }).then(res => res.ok ? res.json() : null).then(data => {
+                if (mounted && data?.developer) {
+                  setProfile(data.developer);
+                  setProfileName(data.developer.name || "");
+                }
+              }).catch(() => {}),
+              
+              fetch("/api/auth/farcaster/me", { credentials: "include" }).then(res => res.ok ? res.json() : null).then(farcasterData => {
+                if (mounted && farcasterData?.farcaster) {
+                  // Update display name/avatar if not already set
+                  if (!displayName && farcasterData.farcaster.name) {
+                    setDisplayName(farcasterData.farcaster.name);
+                  }
+                  if (!displayAvatar && farcasterData.farcaster.avatar) {
+                    setDisplayAvatar(farcasterData.farcaster.avatar);
+                  }
+                }
+              }).catch(() => {}),
+            ]).catch(() => {}); // Ignore all errors for background fetches
           } else if (mounted) {
             setWallet(null);
           }

@@ -82,8 +82,10 @@ export function CategoryHighlightCard({
               alt={title}
               fill
               className="object-cover"
-              unoptimized
-              priority
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              quality={75}
+              priority={false}
+              loading="lazy"
             />
           </div>
           {/* Dark overlay for text readability */}
@@ -144,7 +146,8 @@ export function CategoryHighlightCard({
                         width={56}
                         height={56}
                         className="w-full h-full object-cover"
-                        unoptimized
+                        quality={75}
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-white/5">

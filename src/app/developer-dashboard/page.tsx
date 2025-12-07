@@ -19,8 +19,10 @@ import {
   MessageSquare,
   Loader2,
   Plus,
-  Package
+  Package,
+  Trophy
 } from "lucide-react";
+import CollectiblesSection from "@/components/CollectiblesSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -36,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
 import { trackPageView } from "@/lib/analytics";
+import PromoManagement from "@/components/PromoManagement";
 
 interface App {
   id: string;
@@ -68,6 +71,7 @@ export default function DeveloperDashboardPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [canManagePromos, setCanManagePromos] = useState(false);
   
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -141,7 +145,34 @@ export default function DeveloperDashboardPage() {
       }
     }
     
+    async function checkPromoPermissions() {
+      try {
+        const authRes = await fetch("/api/auth/wallet", {
+          method: "GET",
+          credentials: "include",
+        });
+        
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData?.wallet) {
+            const devRes = await fetch(`/api/developers/${authData.wallet}`, {
+              credentials: "include",
+            });
+            if (devRes.ok) {
+              const devData = await devRes.json();
+              const isAdmin = devData.developer?.adminRole === "ADMIN" || devData.developer?.adminRole === "MODERATOR";
+              const isLevel5 = (devData.developer?.developerLevel || 0) >= 5;
+              setCanManagePromos(isAdmin || isLevel5);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error checking promo permissions:", error);
+      }
+    }
+    
     fetchApps();
+    checkPromoPermissions();
   }, [router, toast]);
 
   const handleDelete = (app: App) => {
@@ -362,6 +393,22 @@ export default function DeveloperDashboardPage() {
                 </Link>
               </div>
             </div>
+
+            {/* Collectibles Section */}
+            <div className="mb-12">
+              <div className="flex items-center gap-2 mb-4">
+                <Trophy className="h-6 w-6 text-yellow-400" />
+                <h2 className="text-2xl font-bold text-white">Collectibles</h2>
+              </div>
+              <CollectiblesSection />
+            </div>
+
+            {/* Promo Management Section */}
+            {canManagePromos && (
+              <div className="mb-12">
+                <PromoManagement />
+              </div>
+            )}
 
             {/* Apps List */}
             {apps.length === 0 ? (

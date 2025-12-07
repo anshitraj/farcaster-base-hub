@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
+import { MiniApp, Developer, AppEvent } from "@/db/schema";
+import { eq, and, or, ilike, sql, desc, asc, count, inArray } from "drizzle-orm";
 
 // Cache for 60 seconds using ISR
 export const revalidate = 60;
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   // Extract params first so they're available in catch block
@@ -18,83 +21,104 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(offsetParam, 10) || 0;
 
   try {
-
-    // Build where clause
-    const where: any = {
-      status: "approved", // Only show approved apps
-    };
+    // Build where conditions
+    const conditions = [eq(MiniApp.status, "approved")];
 
     if (search) {
       const searchLower = search.toLowerCase();
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { category: { contains: search, mode: "insensitive" } },
-        { tags: { has: searchLower } }, // Search in tags array
-      ];
+      conditions.push(
+        or(
+          ilike(MiniApp.name, `%${search}%`),
+          ilike(MiniApp.description, `%${search}%`),
+          ilike(MiniApp.category, `%${search}%`),
+          sql`${sql.raw(`'${searchLower.replace(/'/g, "''")}'`)} = ANY(${MiniApp.tags}::text[])`
+        )!
+      );
     }
 
     if (category) {
       // Handle category mapping
       // "DeFi" should map to "Finance" category or tag
       if (category === "DeFi") {
-        where.OR = [
-          { category: "Finance" },
-          { tags: { has: "defi" } },
-        ];
+        conditions.push(
+          or(
+            eq(MiniApp.category, "Finance"),
+            sql`'defi' = ANY(${MiniApp.tags}::text[])`
+          )!
+        );
       } else {
-        where.category = category;
+        conditions.push(eq(MiniApp.category, category));
       }
     }
 
     if (tag) {
-      where.tags = { has: tag };
+      conditions.push(sql`${sql.raw(`'${tag.replace(/'/g, "''")}'`)} = ANY(${MiniApp.tags}::text[])`);
     }
 
+    const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+
     // Build orderBy
-    let orderBy: any = { createdAt: "desc" };
+    let orderByClause: any = desc(MiniApp.createdAt);
     let shouldRandomize = false;
     let shouldUseTrending = false;
     
     if (sort === "trending") {
       // For trending, we need to fetch apps with events and compute trending scores
       shouldUseTrending = true;
-      orderBy = { clicks: "desc" }; // Initial sort, will be overridden
+      orderByClause = desc(MiniApp.clicks); // Initial sort, will be overridden
     } else if (sort === "installs") {
-      orderBy = { installs: "desc" };
+      orderByClause = desc(MiniApp.installs);
     } else if (sort === "rating") {
-      orderBy = { ratingAverage: "desc" };
+      orderByClause = desc(MiniApp.ratingAverage);
     } else if (sort === "newest") {
       // For newest, we'll randomize to ensure fair distribution
       // This ensures new apps get equal visibility
       shouldRandomize = true;
-      orderBy = { createdAt: "desc" };
+      orderByClause = desc(MiniApp.createdAt);
     }
 
-    // Build include object conditionally
-    const includeObj: any = {
-      developer: {
-        select: {
-          id: true,
-          wallet: true,
-          name: true,
-          avatar: true,
-          verified: true,
-        },
-      },
-    };
+    // Fetch apps with developer info
+    const fetchLimit = shouldRandomize ? Math.min(limit * 3, 100) : shouldUseTrending ? Math.min(limit * 2, 50) : limit;
     
+    let appsQuery = db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
+      },
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(fetchLimit)
+      .offset(offset);
+
+    let appsData = await appsQuery;
+
+    // Fetch events if needed for trending
+    let eventsMap: Record<string, any[]> = {};
     if (shouldUseTrending) {
-      includeObj.events = true; // Include events for trending calculation
+      const appIds = appsData.map(a => a.app.id);
+      if (appIds.length > 0) {
+        const events = await db.select().from(AppEvent)
+          .where(inArray(AppEvent.miniAppId, appIds));
+        events.forEach(event => {
+          if (!eventsMap[event.miniAppId]) eventsMap[event.miniAppId] = [];
+          eventsMap[event.miniAppId].push(event);
+        });
+      }
     }
 
-    let apps = await prisma.miniApp.findMany({
-      where,
-      orderBy,
-      take: shouldRandomize ? Math.min(limit * 3, 100) : shouldUseTrending ? Math.min(limit * 2, 50) : limit,
-      skip: offset,
-      include: includeObj,
-    });
+    // Transform to match expected format
+    let apps = appsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+      events: eventsMap[app.id] || [],
+    }));
 
     // Fair randomization algorithm for newest apps
     // Similar to Play Store - ensures all new apps get visibility
@@ -197,9 +221,11 @@ export async function GET(request: NextRequest) {
       apps = appsWithScores.slice(0, limit).map(({ app }) => app) as any;
     }
 
-    const total = await prisma.miniApp.count({ where });
+    // Get total count
+    const totalResult = await db.select({ count: count(MiniApp.id) }).from(MiniApp).where(whereClause);
+    const total = Number(totalResult[0]?.count || 0);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       apps: apps.map((app) => ({
         ...app,
         topBaseRank: app.topBaseRank,
@@ -211,9 +237,15 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
     });
+
+    // Aggressive caching for better performance
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300, max-age=60');
+    response.headers.set('CDN-Cache-Control', 'public, s-maxage=300');
+    response.headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=300');
+    return response;
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get apps error:", error.message);
       return NextResponse.json({
         apps: [],

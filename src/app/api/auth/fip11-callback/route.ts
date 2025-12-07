@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { cookies } from "next/headers";
-import crypto from "crypto";
+import { Developer, UserSession } from "@/db/schema";
+import { eq, or } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,49 +25,46 @@ export async function POST(request: NextRequest) {
     const farcasterWallet = `farcaster:${fid}`;
 
     // Check if developer already exists
-    let developer = await prisma.developer.findFirst({
-      where: {
-        OR: [
-          { wallet: farcasterWallet },
-        ],
-      },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, farcasterWallet))
+      .limit(1);
+    let developer = developerResult[0];
 
     // Create or update developer record
     if (developer) {
-      developer = await prisma.developer.update({
-        where: { id: developer.id },
-        data: {
+      const [updated] = await db.update(Developer)
+        .set({
           wallet: farcasterWallet,
           name: displayName || username || developer.name,
           avatar: pfpUrl || developer.avatar,
-        },
-      });
+        })
+        .where(eq(Developer.id, developer.id))
+        .returning();
+      developer = updated;
     } else {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: farcasterWallet,
-          name: displayName || username || `User ${fid}`,
-          avatar: pfpUrl || null,
-          developerLevel: 1,
-          streakCount: 0,
-          totalXP: 0,
-          verified: true,
-          isOfficial: false,
-        },
-      });
+      const [created] = await db.insert(Developer).values({
+        wallet: farcasterWallet,
+        name: displayName || username || `User ${fid}`,
+        avatar: pfpUrl || null,
+        developerLevel: 1,
+        streakCount: 0,
+        totalXP: 0,
+        verified: true,
+        isOfficial: false,
+      }).returning();
+      developer = created;
     }
 
-    // Create session
-    const sessionToken = crypto.randomBytes(32).toString("hex");
+    // Create session using Web Crypto API for Edge Runtime
+    const randomBytes = new Uint8Array(32);
+    crypto.getRandomValues(randomBytes);
+    const sessionToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await prisma.userSession.create({
-      data: {
-        wallet: farcasterWallet,
-        sessionToken,
-        expiresAt,
-      },
+    await db.insert(UserSession).values({
+      wallet: farcasterWallet,
+      sessionToken,
+      expiresAt,
     });
 
     // Create response

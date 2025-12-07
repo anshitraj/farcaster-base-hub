@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -9,29 +11,30 @@ export const dynamic = 'force-dynamic';
  * 2. Verification of builder (developer.verified)
  * 3. Most clicks (clicks)
  */
+
+export const runtime = "edge";
 export async function GET() {
   try {
-    const apps = await prisma.miniApp.findMany({
-      where: {
-        status: "approved", // Only show approved apps
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      include: {
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
-      },
-      orderBy: [
-        { ratingCount: "desc" }, // Sort by number of reviews first
-        { clicks: "desc" }, // Then by clicks
-      ],
-      take: 50, // Get enough apps to rank
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.status, "approved"))
+      .orderBy(desc(MiniApp.ratingCount), desc(MiniApp.clicks))
+      .limit(50);
+
+    const apps = appsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+    }));
 
     if (apps.length === 0) {
       return NextResponse.json({ apps: [] });
@@ -80,7 +83,7 @@ export async function GET() {
     return NextResponse.json({ apps: result });
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get ranked trending apps error:", error.message);
       return NextResponse.json({ apps: [] }, { status: 200 });
     }

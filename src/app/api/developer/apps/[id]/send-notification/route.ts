@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { MiniApp, Developer, CollectionItem, Collection, Notification } from "@/db/schema";
+import { eq, and, inArray, sql, ilike } from "drizzle-orm";
 import { z } from "zod";
 
 const sendNotificationSchema = z.object({
   title: z.string().min(1, "Title is required").max(100, "Title must be less than 100 characters"),
   message: z.string().min(1, "Message is required").max(500, "Message must be less than 500 characters"),
-  link: z.string().url().optional(),
+  link: z.string().optional().refine(
+    (val) => {
+      if (!val || val === '') return true; // Optional, empty is fine
+      // Accept full URLs or paths starting with /
+      return val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/');
+    },
+    { message: "Link must be a valid URL (http:// or https://) or a path starting with /" }
+  ),
 });
 
 export const dynamic = 'force-dynamic';
@@ -34,21 +43,28 @@ export async function POST(
     const body = await request.json();
     const validated = sendNotificationSchema.parse(body);
 
+    const walletLower = wallet.toLowerCase();
     // Verify app exists and belongs to developer
-    const app = await prisma.miniApp.findUnique({
-      where: { id: appId },
-      include: { developer: true },
-    });
-
-    if (!app) {
+    const appResult = await db.select({
+      app: MiniApp,
+      developer: Developer,
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.id, appId))
+      .limit(1);
+    const appData = appResult[0];
+    
+    if (!appData) {
       return NextResponse.json(
         { error: "App not found" },
         { status: 404 }
       );
     }
+    const app = { ...appData.app, developer: appData.developer };
 
     // Verify ownership
-    if (app.developer.wallet.toLowerCase() !== wallet.toLowerCase()) {
+    if (!app.developer || app.developer.wallet.toLowerCase() !== walletLower) {
       return NextResponse.json(
         { error: "Unauthorized. You can only send notifications for your own apps." },
         { status: 403 }
@@ -56,27 +72,24 @@ export async function POST(
     }
 
     // Get all users who have favorited this app
-    const favoriteCollections = await prisma.collectionItem.findMany({
-      where: {
-        appId: appId,
-        collection: {
-          type: "favorites",
-        },
-      },
-      include: {
-        collection: {
-          include: {
-            developer: true,
-          },
-        },
-      },
-    });
+    const favoriteCollectionsData = await db.select({
+      item: CollectionItem,
+      collection: Collection,
+      developer: Developer,
+    })
+      .from(CollectionItem)
+      .leftJoin(Collection, eq(CollectionItem.collectionId, Collection.id))
+      .leftJoin(Developer, eq(Collection.developerId, Developer.id))
+      .where(and(
+        eq(CollectionItem.appId, appId),
+        eq(Collection.type, "favorites")
+      ));
 
     // Get unique wallets (users who favorited)
     const userWallets = new Set<string>();
-    favoriteCollections.forEach((item) => {
-      if (item.collection.developer.wallet) {
-        userWallets.add(item.collection.developer.wallet.toLowerCase());
+    favoriteCollectionsData.forEach((item) => {
+      if (item.developer?.wallet) {
+        userWallets.add(item.developer.wallet.toLowerCase());
       }
     });
 
@@ -89,25 +102,20 @@ export async function POST(
     }
 
     // Rate limiting: 1 notification per developer per user per app
-    // Each developer can send only 1 notification to each user who favorited their app
-    // Check if any of these users already received a notification for this specific app
-    const existingNotifications = await prisma.notification.findMany({
-      where: {
-        wallet: { in: Array.from(userWallets) },
-        type: "app_updated",
-        link: { contains: `/apps/${appId}` },
-      },
-      select: {
-        wallet: true,
-      },
-    });
+    const userWalletsArray = Array.from(userWallets);
+    const existingNotificationsResult = await db.select({ wallet: Notification.wallet })
+      .from(Notification)
+      .where(and(
+        inArray(Notification.wallet, userWalletsArray),
+        eq(Notification.type, "app_updated"),
+        sql`${Notification.link} LIKE ${`%/apps/${appId}%`}`
+      ));
 
     // Create a set of wallets that already received a notification for this app
-    const notifiedWallets = new Set(existingNotifications.map(n => n.wallet.toLowerCase()));
+    const notifiedWallets = new Set(existingNotificationsResult.map(n => n.wallet.toLowerCase()));
     
     // Filter out users who already received a notification for this app
-    // This ensures each developer can send only 1 notification per user per app
-    const walletsToNotify = Array.from(userWallets).filter(
+    const walletsToNotify = userWalletsArray.filter(
       (w) => !notifiedWallets.has(w.toLowerCase())
     );
 
@@ -119,19 +127,28 @@ export async function POST(
       });
     }
 
-    // Create notifications for all users who favorited (excluding those who got one in last 24h)
+    // Create notifications for all users who favorited
+    // Convert relative paths to absolute URLs if needed
+    let notificationLink = validated.link || `/apps/${appId}`;
+    if (notificationLink && !notificationLink.startsWith('http://') && !notificationLink.startsWith('https://')) {
+      // If it's a relative path, keep it as is (it will be resolved on the frontend)
+      // Or convert to absolute URL if you have a base URL
+      notificationLink = notificationLink.startsWith('/') ? notificationLink : `/${notificationLink}`;
+    }
+    
     const notifications = walletsToNotify.map((userWallet) => ({
       wallet: userWallet,
-      type: "app_updated",
+      type: "app_updated" as const,
       title: validated.title,
       message: validated.message,
-      link: validated.link || `/apps/${appId}`,
+      link: notificationLink,
       read: false,
     }));
 
-    await prisma.notification.createMany({
-      data: notifications,
-    });
+    // Insert notifications one by one (Drizzle doesn't have createMany)
+    await Promise.all(
+      notifications.map(notif => db.insert(Notification).values(notif))
+    );
 
     return NextResponse.json({
       success: true,
@@ -147,7 +164,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }

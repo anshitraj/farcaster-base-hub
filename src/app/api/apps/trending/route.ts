@@ -1,35 +1,60 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { computeTrendingScore, MiniAppWithEvents } from "@/lib/trending";
+import { MiniApp, Developer, AppEvent } from "@/db/schema";
+import { eq, desc, inArray, and, gte } from "drizzle-orm";
 
 // Cache trending apps for 60 seconds - use ISR instead of force-dynamic
 export const revalidate = 60;
+export const runtime = "edge";
 
 export async function GET() {
   try {
     // SIMPLIFIED: Just get ALL approved apps, prioritizing featured
-    const apps = await prisma.miniApp.findMany({
-      where: {
-        status: "approved", // Only show approved apps
+    const appsData = await db.select({
+      app: MiniApp,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+        verified: Developer.verified,
       },
-      include: {
-        events: true, // Include all events for scoring
-        developer: {
-          select: {
-            id: true,
-            wallet: true,
-            name: true,
-            avatar: true,
-            verified: true,
-          },
-        },
-      },
-      orderBy: [
-        { featuredInBanner: "desc" }, // Featured apps FIRST
-        { createdAt: "desc" }, // Then by creation date
-      ],
-      take: 20, // Get enough apps to work with
-    });
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.status, "approved"))
+      .orderBy(desc(MiniApp.featuredInBanner), desc(MiniApp.createdAt))
+      .limit(20);
+
+    // OPTIMIZE: Only fetch events from last 48 hours (used in trending calculation)
+    // This dramatically reduces the amount of data fetched and processed
+    const appIds = appsData.map(a => a.app.id);
+    const eventsMap: Record<string, any[]> = {};
+    if (appIds.length > 0) {
+      const hours48 = 48 * 60 * 60 * 1000;
+      const cutoffDate = new Date(Date.now() - hours48);
+      
+      // Filter by time in database query instead of JavaScript - much faster!
+      const events = await db.select().from(AppEvent)
+        .where(
+          and(
+            inArray(AppEvent.miniAppId, appIds),
+            gte(AppEvent.createdAt, cutoffDate)
+          )
+        );
+      events.forEach(event => {
+        if (!eventsMap[event.miniAppId]) eventsMap[event.miniAppId] = [];
+        eventsMap[event.miniAppId].push(event);
+      });
+    }
+
+    // Transform to match expected format
+    const apps = appsData.map(({ app, developer }) => ({
+      ...app,
+      developer,
+      events: eventsMap[app.id] || [],
+    }));
 
     if (apps.length === 0) {
       return NextResponse.json({ apps: [] });
@@ -78,10 +103,13 @@ export async function GET() {
       headerImageUrl: app.headerImageUrl,
     }));
 
-    return NextResponse.json({ apps: result });
+    const response = NextResponse.json({ apps: result });
+    // Add cache headers for better performance
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
+    return response;
   } catch (error: any) {
     // Gracefully handle database connection errors during build
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       console.error("Get trending apps error:", error.message);
       return NextResponse.json({ apps: [] }, { status: 200 });
     }

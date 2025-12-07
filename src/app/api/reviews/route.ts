@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { convertReferralForUser } from "@/lib/referral-helpers";
+import { MiniApp, Developer, Review, UserPoints, PointsTransaction } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 
 const reviewSchema = z.object({
   miniAppId: z.string().uuid(),
   rating: z.number().int().min(1).max(5),
   comment: z.string().max(1000).optional(),
+});
+
+const replySchema = z.object({
+  reviewId: z.string().uuid(),
+  reply: z.string().min(1, "Reply cannot be empty").max(1000, "Reply must be less than 1000 characters"),
 });
 
 export async function POST(request: NextRequest) {
@@ -17,10 +25,8 @@ export async function POST(request: NextRequest) {
     const validated = reviewSchema.parse(body);
 
     // Verify app exists and get developer info
-    const app = await prisma.miniApp.findUnique({
-      where: { id: validated.miniAppId },
-      include: { developer: true },
-    });
+    const appResult = await db.select().from(MiniApp).where(eq(MiniApp.id, validated.miniAppId)).limit(1);
+    const app = appResult[0];
 
     if (!app) {
       return NextResponse.json(
@@ -29,11 +35,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get developer info
+    const developerResult = await db.select().from(Developer).where(eq(Developer.id, app.developerId)).limit(1);
+    const appDeveloper = developerResult[0];
+
     // Prevent developers from rating their own apps
     if (session) {
-      const developer = await prisma.developer.findUnique({
-        where: { wallet: session.wallet },
-      });
+      const developerResult2 = await db.select().from(Developer)
+        .where(eq(Developer.wallet, session.wallet.toLowerCase()))
+        .limit(1);
+      const developer = developerResult2[0];
       
       if (developer && developer.id === app.developerId) {
         return NextResponse.json(
@@ -52,17 +63,17 @@ export async function POST(request: NextRequest) {
     
     if (session) {
       const normalizedWallet = session.wallet.toLowerCase();
-      let developer = await prisma.developer.findUnique({
-        where: { wallet: normalizedWallet },
-      });
+      let developerResult = await db.select().from(Developer)
+        .where(eq(Developer.wallet, normalizedWallet))
+        .limit(1);
+      let developer = developerResult[0];
       
       // Create developer if doesn't exist
       if (!developer) {
-        developer = await prisma.developer.create({
-          data: {
-            wallet: normalizedWallet,
-          },
-        });
+        const [newDeveloper] = await db.insert(Developer).values({
+          wallet: normalizedWallet,
+        }).returning();
+        developer = newDeveloper;
       }
       
       developerId = developer.id;
@@ -94,13 +105,12 @@ export async function POST(request: NextRequest) {
                   if (user?.pfp_url) {
                     reviewerAvatar = user.pfp_url;
                     // Update developer with avatar and name if available
-                    await prisma.developer.update({
-                      where: { id: developer.id },
-                      data: {
+                    await db.update(Developer)
+                      .set({
                         avatar: reviewerAvatar,
                         name: user.display_name || user.username || developer.name,
-                      },
-                    });
+                      })
+                      .where(eq(Developer.id, developer.id));
                   }
                 }
               } catch (neynarError) {
@@ -124,10 +134,9 @@ export async function POST(request: NextRequest) {
                 if (baseData.avatar) {
                   reviewerAvatar = baseData.avatar;
                   // Update developer with avatar
-                  await prisma.developer.update({
-                    where: { id: developer.id },
-                    data: { avatar: reviewerAvatar },
-                  });
+                  await db.update(Developer)
+                    .set({ avatar: reviewerAvatar })
+                    .where(eq(Developer.id, developer.id));
                 }
               }
             } catch (baseError) {
@@ -146,12 +155,13 @@ export async function POST(request: NextRequest) {
     let existingReview: any = null;
     let isNewReview = true;
     if (session && developerId) {
-      existingReview = await prisma.review.findFirst({
-        where: {
-          miniAppId: validated.miniAppId,
-          developerId: developerId,
-        },
-      });
+      const existingReviewResult = await db.select().from(Review)
+        .where(and(
+          eq(Review.miniAppId, validated.miniAppId),
+          eq(Review.developerId, developerId)
+        ))
+        .limit(1);
+      existingReview = existingReviewResult[0];
     }
 
     // Update existing review or create new one
@@ -159,42 +169,40 @@ export async function POST(request: NextRequest) {
     if (existingReview) {
       // Update existing review (user can change their rating)
       isNewReview = false;
-      review = await prisma.review.update({
-        where: { id: existingReview.id },
-        data: {
+      const [updatedReview] = await db.update(Review)
+        .set({
           rating: validated.rating,
           comment: validated.comment || null,
-        },
-      });
+        })
+        .where(eq(Review.id, existingReview.id))
+        .returning();
+      review = updatedReview;
     } else {
       // Create new review
-      review = await prisma.review.create({
-        data: {
-          miniAppId: validated.miniAppId,
-          rating: validated.rating,
-          comment: validated.comment,
-          developerId,
-        },
-      });
+      const [newReview] = await db.insert(Review).values({
+        miniAppId: validated.miniAppId,
+        rating: validated.rating,
+        comment: validated.comment,
+        developerId,
+      }).returning();
+      review = newReview;
     }
 
     // Recalculate rating
-    const reviews = await prisma.review.findMany({
-      where: { miniAppId: validated.miniAppId },
-      select: { rating: true },
-    });
+    const reviews = await db.select({ rating: Review.rating })
+      .from(Review)
+      .where(eq(Review.miniAppId, validated.miniAppId));
 
     const ratingCount = reviews.length;
     const ratingAverage =
       reviews.reduce((sum, r) => sum + r.rating, 0) / ratingCount;
 
-    await prisma.miniApp.update({
-      where: { id: validated.miniAppId },
-      data: {
+    await db.update(MiniApp)
+      .set({
         ratingCount,
         ratingAverage,
-      },
-    });
+      })
+      .where(eq(MiniApp.id, validated.miniAppId));
 
     // Award 10 points for rating (Rate 2 Earn)
     let pointsAwarded = 0;
@@ -204,83 +212,75 @@ export async function POST(request: NextRequest) {
       
       try {
         // Find or create user points record
-        let userPoints = await prisma.userPoints.findUnique({
-          where: { wallet: session.wallet },
-        });
+        const walletLower = session.wallet.toLowerCase();
+        let userPointsResult = await db.select().from(UserPoints)
+          .where(eq(UserPoints.wallet, walletLower))
+          .limit(1);
+        let userPoints = userPointsResult[0];
 
         if (!userPoints) {
-          userPoints = await prisma.userPoints.create({
-            data: {
-              wallet: session.wallet,
-              totalPoints: RATING_POINTS,
-            },
-          });
+          const [newPoints] = await db.insert(UserPoints).values({
+            wallet: walletLower,
+            totalPoints: RATING_POINTS,
+          }).returning();
+          userPoints = newPoints;
         } else {
           // Update points
-          userPoints = await prisma.userPoints.update({
-            where: { wallet: session.wallet },
-            data: {
-              totalPoints: {
-                increment: RATING_POINTS,
-              },
-            },
-          });
+          const [updatedPoints] = await db.update(UserPoints)
+            .set({
+              totalPoints: userPoints.totalPoints + RATING_POINTS,
+            })
+            .where(eq(UserPoints.wallet, walletLower))
+            .returning();
+          userPoints = updatedPoints;
         }
 
         // Create transaction record
-        await prisma.pointsTransaction.create({
-          data: {
-            wallet: session.wallet,
-            points: RATING_POINTS,
-            type: "review",
-            description: `Earned ${RATING_POINTS} points for rating "${app.name}"`,
-            referenceId: review.id,
-          },
+        await db.insert(PointsTransaction).values({
+          wallet: walletLower,
+          points: RATING_POINTS,
+          type: "review",
+          description: `Earned ${RATING_POINTS} points for rating "${app.name}"`,
+          referenceId: review.id,
         });
 
         pointsAwarded = RATING_POINTS;
 
         // Award 50 points to developer for receiving a review
         try {
-          const developer = await prisma.developer.findUnique({
-            where: { id: app.developerId },
-          });
-
-          if (developer && developer.wallet) {
+          if (appDeveloper && appDeveloper.wallet) {
+            const devWalletLower = appDeveloper.wallet.toLowerCase();
             // Find or create developer's user points record
-            let developerPoints = await prisma.userPoints.findUnique({
-              where: { wallet: developer.wallet.toLowerCase() },
-            });
+            let developerPointsResult = await db.select().from(UserPoints)
+              .where(eq(UserPoints.wallet, devWalletLower))
+              .limit(1);
+            let developerPoints = developerPointsResult[0];
 
             const DEVELOPER_REVIEW_POINTS = 50;
 
             if (!developerPoints) {
-              developerPoints = await prisma.userPoints.create({
-                data: {
-                  wallet: developer.wallet.toLowerCase(),
-                  totalPoints: DEVELOPER_REVIEW_POINTS,
-                },
-              });
+              const [newDevPoints] = await db.insert(UserPoints).values({
+                wallet: devWalletLower,
+                totalPoints: DEVELOPER_REVIEW_POINTS,
+              }).returning();
+              developerPoints = newDevPoints;
             } else {
-              developerPoints = await prisma.userPoints.update({
-                where: { wallet: developer.wallet.toLowerCase() },
-                data: {
-                  totalPoints: {
-                    increment: DEVELOPER_REVIEW_POINTS,
-                  },
-                },
-              });
+              const [updatedDevPoints] = await db.update(UserPoints)
+                .set({
+                  totalPoints: developerPoints.totalPoints + DEVELOPER_REVIEW_POINTS,
+                })
+                .where(eq(UserPoints.wallet, devWalletLower))
+                .returning();
+              developerPoints = updatedDevPoints;
             }
 
             // Create transaction record for developer
-            await prisma.pointsTransaction.create({
-              data: {
-                wallet: developer.wallet.toLowerCase(),
-                points: DEVELOPER_REVIEW_POINTS,
-                type: "review_received",
-                description: `Earned ${DEVELOPER_REVIEW_POINTS} points for receiving a review on "${app.name}"`,
-                referenceId: review.id,
-              },
+            await db.insert(PointsTransaction).values({
+              wallet: devWalletLower,
+              points: DEVELOPER_REVIEW_POINTS,
+              type: "review_received",
+              description: `Earned ${DEVELOPER_REVIEW_POINTS} points for receiving a review on "${app.name}"`,
+              referenceId: review.id,
             });
           }
         } catch (developerPointsError) {
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
 
     // Award 100 XP to developer if app rating is above 3 stars
     let developerXPAwarded = 0;
-    if (ratingAverage > 3.0 && app.developer) {
+    if (ratingAverage > 3.0 && appDeveloper && appDeveloper.wallet) {
       const DEVELOPER_XP = 100;
       
       try {
@@ -306,49 +306,47 @@ export async function POST(request: NextRequest) {
         const shouldAwardXP = previousRating <= 3.0 && ratingAverage > 3.0;
         
         if (shouldAwardXP) {
+          const devWalletLower = appDeveloper.wallet.toLowerCase();
           // Check if developer already received XP for this app (prevent duplicate)
-          const existingXP = await prisma.pointsTransaction.findFirst({
-            where: {
-              wallet: app.developer.wallet,
-              type: "developer_rating",
-              referenceId: validated.miniAppId,
-            },
-          });
+          const existingXPResult = await db.select().from(PointsTransaction)
+            .where(and(
+              eq(PointsTransaction.wallet, devWalletLower),
+              eq(PointsTransaction.type, "developer_rating"),
+              eq(PointsTransaction.referenceId, validated.miniAppId)
+            ))
+            .limit(1);
+          const existingXP = existingXPResult[0];
 
           if (!existingXP) {
             // Find or create developer points record
-            let devPoints = await prisma.userPoints.findUnique({
-              where: { wallet: app.developer.wallet },
-            });
+            let devPointsResult = await db.select().from(UserPoints)
+              .where(eq(UserPoints.wallet, devWalletLower))
+              .limit(1);
+            let devPoints = devPointsResult[0];
 
             if (!devPoints) {
-              devPoints = await prisma.userPoints.create({
-                data: {
-                  wallet: app.developer.wallet,
-                  totalPoints: DEVELOPER_XP,
-                },
-              });
+              const [newDevPoints] = await db.insert(UserPoints).values({
+                wallet: devWalletLower,
+                totalPoints: DEVELOPER_XP,
+              }).returning();
+              devPoints = newDevPoints;
             } else {
-              // Update points
-              devPoints = await prisma.userPoints.update({
-                where: { wallet: app.developer.wallet },
-                data: {
-                  totalPoints: {
-                    increment: DEVELOPER_XP,
-                  },
-                },
-              });
+              const [updatedDevPoints] = await db.update(UserPoints)
+                .set({
+                  totalPoints: devPoints.totalPoints + DEVELOPER_XP,
+                })
+                .where(eq(UserPoints.wallet, devWalletLower))
+                .returning();
+              devPoints = updatedDevPoints;
             }
 
             // Create transaction record
-            await prisma.pointsTransaction.create({
-              data: {
-                wallet: app.developer.wallet,
-                points: DEVELOPER_XP,
-                type: "developer_rating",
-                description: `Earned ${DEVELOPER_XP} XP - Your app "${app.name}" reached ${ratingAverage.toFixed(1)} stars!`,
-                referenceId: validated.miniAppId,
-              },
+            await db.insert(PointsTransaction).values({
+              wallet: devWalletLower,
+              points: DEVELOPER_XP,
+              type: "developer_rating",
+              description: `Earned ${DEVELOPER_XP} XP - Your app "${app.name}" reached ${ratingAverage.toFixed(1)} stars!`,
+              referenceId: validated.miniAppId,
             });
 
             developerXPAwarded = DEVELOPER_XP;
@@ -384,6 +382,89 @@ export async function POST(request: NextRequest) {
     console.error("Create review error:", error);
     return NextResponse.json(
       { error: "Failed to create review" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getSessionFromCookies();
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const validated = replySchema.parse(body);
+
+    // Get the review
+    const reviewResult = await db.select({
+      review: Review,
+      app: MiniApp,
+      appDeveloper: Developer,
+    })
+      .from(Review)
+      .leftJoin(MiniApp, eq(Review.miniAppId, MiniApp.id))
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(Review.id, validated.reviewId))
+      .limit(1);
+
+    const result = reviewResult[0];
+    if (!result || !result.review || !result.app) {
+      return NextResponse.json(
+        { error: "Review not found" },
+        { status: 404 }
+      );
+    }
+
+    const { review, app, appDeveloper } = result;
+
+    // Verify that the authenticated developer owns the app
+    const developerResult = await db.select()
+      .from(Developer)
+      .where(eq(Developer.wallet, session.wallet.toLowerCase()))
+      .limit(1);
+
+    const developer = developerResult[0];
+    if (!developer || !appDeveloper || developer.id !== appDeveloper.id) {
+      return NextResponse.json(
+        { error: "You can only reply to reviews for your own apps" },
+        { status: 403 }
+      );
+    }
+
+    // Update the review with the developer reply
+    const [updatedReview] = await db.update(Review)
+      .set({
+        developerReply: validated.reply,
+        developerReplyDate: sql`now()`,
+      })
+      .where(eq(Review.id, validated.reviewId))
+      .returning();
+
+    return NextResponse.json({
+      success: true,
+      review: {
+        id: updatedReview.id,
+        developerReply: updatedReview.developerReply,
+        developerReplyDate: updatedReview.developerReplyDate,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    console.error("Reply to review error:", error);
+    return NextResponse.json(
+      { error: "Failed to reply to review" },
       { status: 500 }
     );
   }

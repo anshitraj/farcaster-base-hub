@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { awardReferralClickPoints } from "@/lib/referral-helpers";
+import { Referral, UserProfile } from "@/db/schema";
+import { eq, and, desc, sql, isNull } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +28,10 @@ export async function POST(request: NextRequest) {
     let finalReferrerWallet = referrerWallet;
     if (!finalReferrerWallet) {
       try {
-        const userProfile = await prisma.userProfile.findFirst({
-          where: { farcasterFid: String(referrerFid) },
-        });
+        const userProfileResult = await db.select().from(UserProfile)
+          .where(eq(UserProfile.farcasterFid, String(referrerFid)))
+          .limit(1);
+        const userProfile = userProfileResult[0];
         if (userProfile) {
           finalReferrerWallet = userProfile.wallet;
         }
@@ -37,17 +40,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const referredWalletLower = currentWallet ? currentWallet.toLowerCase() : null;
     // Check if referral already exists
-    const existingReferral = await prisma.referral.findFirst({
-      where: {
-        referrerFid: String(referrerFid),
-        referredWallet: currentWallet ? currentWallet.toLowerCase() : null,
-        clicked: true,
-      },
-      orderBy: {
-        clickedAt: 'desc',
-      },
-    });
+    const conditions = [
+      eq(Referral.referrerFid, String(referrerFid)),
+      eq(Referral.clicked, true)
+    ];
+    if (referredWalletLower) {
+      conditions.push(eq(Referral.referredWallet, referredWalletLower));
+    } else {
+      conditions.push(isNull(Referral.referredWallet));
+    }
+    
+    const existingReferralResult = await db.select().from(Referral)
+      .where(and(...conditions))
+      .orderBy(desc(Referral.clickedAt))
+      .limit(1);
+    const existingReferral = existingReferralResult[0];
 
     let referral;
     let isNewClick = false;
@@ -58,16 +67,15 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new referral record
       isNewClick = true;
-      referral = await prisma.referral.create({
-        data: {
-          referrerFid: String(referrerFid),
-          referrerWallet: finalReferrerWallet ? finalReferrerWallet.toLowerCase() : null,
-          referredWallet: currentWallet ? currentWallet.toLowerCase() : null,
-          referralUrl,
-          clicked: true,
-          clickedAt: new Date(),
-        },
-      });
+      const [newReferral] = await db.insert(Referral).values({
+        referrerFid: String(referrerFid),
+        referrerWallet: finalReferrerWallet ? finalReferrerWallet.toLowerCase() : null,
+        referredWallet: referredWalletLower,
+        referralUrl,
+        clicked: true,
+        clickedAt: new Date(),
+      }).returning();
+      referral = newReferral;
     }
 
     // Award 100 points to referrer for the click (only for new clicks)

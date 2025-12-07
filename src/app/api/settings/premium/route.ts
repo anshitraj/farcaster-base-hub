@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 // For now, we'll fetch from the admin settings API
 let premiumEnabled = true; // Default
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     // In production, fetch from database or env var

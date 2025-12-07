@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { TopBaseApps, MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const CRON_SECRET = process.env.CRON_SECRET || "your-secret-token";
 const TOP30_DATAFEED_URL = "https://raw.githubusercontent.com/anshitraj/base-gpt-datafeed/main/miniapps.json";
@@ -16,6 +18,8 @@ interface Top30App {
   trendingScore?: number;
 }
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     // Optional: Verify cron secret
@@ -61,15 +65,33 @@ export async function GET(request: NextRequest) {
     const errors: string[] = [];
 
     // Clear existing top 30
-    await prisma.topBaseApps.deleteMany({});
+    await db.delete(TopBaseApps);
 
     // Insert new top 30
     for (let i = 0; i < top30.length; i++) {
       const app = top30[i];
       try {
-        await prisma.topBaseApps.upsert({
-          where: { url: app.url },
-          create: {
+        // Check if exists
+        const existingResult = await db.select().from(TopBaseApps)
+          .where(eq(TopBaseApps.url, app.url))
+          .limit(1);
+        const existing = existingResult[0];
+
+        if (existing) {
+          // Update
+          await db.update(TopBaseApps)
+            .set({
+              name: app.name,
+              icon: app.icon || null,
+              category: app.category || null,
+              score: Math.round(app.score),
+              rank: i + 1,
+              lastSynced: new Date(),
+            })
+            .where(eq(TopBaseApps.url, app.url));
+        } else {
+          // Create
+          await db.insert(TopBaseApps).values({
             url: app.url,
             name: app.name,
             icon: app.icon || null,
@@ -77,29 +99,19 @@ export async function GET(request: NextRequest) {
             score: Math.round(app.score),
             rank: i + 1,
             lastSynced: new Date(),
-          },
-          update: {
-            name: app.name,
-            icon: app.icon || null,
-            category: app.category || null,
-            score: Math.round(app.score),
-            rank: i + 1,
-            lastSynced: new Date(),
-          },
-        });
+          });
+        }
 
         // Update corresponding MiniApp if it exists
-        const existingApp = await prisma.miniApp.findUnique({
-          where: { url: app.url },
-        });
+        const existingAppResult = await db.select().from(MiniApp)
+          .where(eq(MiniApp.url, app.url))
+          .limit(1);
+        const existingApp = existingAppResult[0];
 
         if (existingApp) {
-          await prisma.miniApp.update({
-            where: { id: existingApp.id },
-            data: {
-              topBaseRank: i + 1,
-            },
-          });
+          await db.update(MiniApp)
+            .set({ topBaseRank: i + 1 })
+            .where(eq(MiniApp.id, existingApp.id));
         }
 
         syncedCount++;

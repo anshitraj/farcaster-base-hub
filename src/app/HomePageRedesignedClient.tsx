@@ -21,8 +21,8 @@ import {
 } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import UserProfile from "@/components/UserProfile";
-import OptimizedImage from "@/components/OptimizedImage";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import Image from "next/image";
+// ImageKit optimization removed - Next.js Image handles WebP conversion automatically
 
 // Dynamically import framer-motion
 const MotionDiv = dynamic(
@@ -206,14 +206,21 @@ export default function HomePageRedesignedClient({ initialData }: HomePageRedesi
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-lg bg-[#2A2A2A] p-2 flex-shrink-0">
                         {app.iconUrl ? (
-                          <OptimizedImage
-                            src={optimizeDevImage(app.iconUrl)}
+                          <Image
+                            src={app.iconUrl}
                             alt={app.name}
                             width={48}
                             height={48}
                             className="w-full h-full object-contain rounded"
                             sizes="(max-width: 640px) 48px, 48px"
-                            priority={false}
+                            quality={70}
+                            loading="lazy"
+                            placeholder="blur"
+                            blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = "/placeholder.svg";
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full bg-base-blue/20 rounded flex items-center justify-center">

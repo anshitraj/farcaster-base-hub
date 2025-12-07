@@ -196,7 +196,7 @@ export default function MiniappsPage() {
                         {/* Developer */}
                         {app.developer && (
                           <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
-                            <span>by {app.developer.name || "Unknown"}</span>
+                            <span>by {(app.developer.name === "System" ? "Mini Cast Admin" : app.developer.name) || "Unknown"}</span>
                           </div>
                         )}
 

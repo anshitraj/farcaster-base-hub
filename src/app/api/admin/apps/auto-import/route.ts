@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { requireAdminOnly } from "@/lib/admin";
 import { fetchFarcasterMetadata } from "@/lib/farcaster-metadata";
+import { Developer, MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const importSchema = z.object({
@@ -38,19 +40,20 @@ export async function POST(request: NextRequest) {
       ? metadata.owner[0] 
       : (typeof metadata.owner === 'string' ? metadata.owner : DEFAULT_OWNER_ADDRESS);
 
+    const walletLower = developerWallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: developerWallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: developerWallet.toLowerCase(),
-          name: metadata.developer?.name || "Unknown",
-          verified: true, // Auto-imported apps get verified developer
-        },
-      });
+      const [created] = await db.insert(Developer).values({
+        wallet: walletLower,
+        name: metadata.developer?.name || "Unknown",
+        verified: true, // Auto-imported apps get verified developer
+      }).returning();
+      developer = created;
     }
 
     // Extract homeUrl (frame homeUrl or fallback to provided URL)
@@ -58,9 +61,10 @@ export async function POST(request: NextRequest) {
     const homeUrl = metadata.homeUrl || metadata.url || normalizedUrl;
 
     // Check if app already exists (by homeUrl)
-    const existingApp = await prisma.miniApp.findUnique({
-      where: { url: homeUrl },
-    });
+    const existingAppResult = await db.select().from(MiniApp)
+      .where(eq(MiniApp.url, homeUrl))
+      .limit(1);
+    const existingApp = existingAppResult[0];
 
     if (existingApp) {
       return NextResponse.json(
@@ -98,40 +102,41 @@ export async function POST(request: NextRequest) {
     const baseMiniAppUrl = (frameUrl && !isWebhookUrl) ? frameUrl : null;
 
     // Create app
-    const app = await prisma.miniApp.create({
-      data: {
-        name: appName,
-        description: description || `${appName} - A Farcaster mini app`,
-        url: homeUrl, // This is the original URL - use for Base
-        iconUrl: iconUrl,
-        headerImageUrl: headerImageUrl,
-        category: category,
-        tags: Array.isArray(tags) ? tags.slice(0, 10) : [], // Limit to 10 tags
-        developerTags: [],
-        screenshots: Array.isArray(screenshots) ? screenshots.slice(0, 5) : [], // Limit to 5 screenshots
-        baseMiniAppUrl: baseMiniAppUrl, // Only set if not a webhook URL
-        farcasterUrl: normalizedUrl, // Store the original input URL for Farcaster
-        farcasterJson: JSON.stringify(metadataWithOwner),
-        autoUpdated: true,
-        status: "approved", // Auto-imported apps are auto-approved
-        verified: true,
-        developerId: developer.id,
-        clicks: 0,
-        installs: 0,
-        launchCount: 0,
-        uniqueUsers: 0,
-        popularityScore: 0,
-        ratingAverage: 0,
-        ratingCount: 0,
-      },
-      include: {
-        developer: true,
-      },
-    });
+    const [app] = await db.insert(MiniApp).values({
+      name: appName,
+      description: description || `${appName} - A Farcaster mini app`,
+      url: homeUrl, // This is the original URL - use for Base
+      iconUrl: iconUrl,
+      headerImageUrl: headerImageUrl,
+      category: category,
+      tags: Array.isArray(tags) ? tags.slice(0, 10) : [], // Limit to 10 tags
+      developerTags: [],
+      screenshots: Array.isArray(screenshots) ? screenshots.slice(0, 5) : [], // Limit to 5 screenshots
+      baseMiniAppUrl: baseMiniAppUrl, // Only set if not a webhook URL
+      farcasterUrl: normalizedUrl, // Store the original input URL for Farcaster
+      farcasterJson: JSON.stringify(metadataWithOwner),
+      autoUpdated: true,
+      status: "approved", // Auto-imported apps are auto-approved
+      verified: true,
+      developerId: developer.id,
+      clicks: 0,
+      installs: 0,
+      launchCount: 0,
+      uniqueUsers: 0,
+      popularityScore: 0,
+      ratingAverage: 0,
+      ratingCount: 0,
+    }).returning();
+    
+    // Fetch developer for response
+    const developerData = await db.select().from(Developer)
+      .where(eq(Developer.id, developer.id))
+      .limit(1);
+    const appWithDeveloper = { ...app, developer: developerData[0] };
 
     return NextResponse.json({
       success: true,
-      app,
+      app: appWithDeveloper,
       message: "App auto-imported successfully from farcaster.json",
     });
   } catch (error: any) {

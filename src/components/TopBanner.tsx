@@ -164,7 +164,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 fill
                 className="object-cover object-center z-0"
                 priority={currentIndex === 0}
-                quality={75}
+                quality={85}
                 loading={currentIndex === 0 ? "eager" : "lazy"}
                 fetchPriority={currentIndex === 0 ? "high" : "auto"}
                 sizes="100vw"
@@ -206,8 +206,9 @@ export default function TopBanner({ apps }: TopBannerProps) {
                     width={128}
                     height={128}
                     className="w-full h-full object-contain rounded-xl sm:rounded-2xl"
-                    quality={75}
+                    quality={85}
                     decoding="async"
+                    sizes="(max-width: 768px) 64px, (max-width: 1024px) 96px, 128px"
                     data-original={currentApp.iconUrl}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
@@ -244,21 +245,23 @@ export default function TopBanner({ apps }: TopBannerProps) {
                       <Image
                         src="/verify.svg"
                         alt="Verified"
-                        width={20}
-                        height={20}
+                        width={28}
+                        height={28}
                         className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 flex-shrink-0"
                         title="Verified App"
-                        unoptimized
+                        quality={90}
+                        priority={currentIndex === 0}
                       />
                     ) : (
                       <Image
                         src="/Warning.svg"
                         alt="Unverified"
-                        width={20}
-                        height={20}
+                        width={28}
+                        height={28}
                         className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 flex-shrink-0"
                         title="Unverified App"
-                        unoptimized
+                        quality={90}
+                        priority={currentIndex === 0}
                       />
                     )}
                   </div>

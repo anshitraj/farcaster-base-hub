@@ -47,7 +47,12 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
 
         if (inMini) {
           // Call ready ASAP (non-blocking)
-          sdk.actions.ready().catch(console.error);
+          sdk.actions.ready().catch((err: any) => {
+            // Suppress harmless SDK errors
+            if (process.env.NODE_ENV === 'development') {
+              console.debug("SDK ready error (non-critical):", err?.message || err);
+            }
+          });
 
           // Load context asynchronously (don't block)
           sdk.context
@@ -66,12 +71,18 @@ export function MiniAppProvider({ children }: { children: ReactNode }) {
                 });
               }
             })
-            .catch((err) => {
-              console.error("Context load error:", err);
+            .catch((err: any) => {
+              // Only log in development - suppress in production
+              if (process.env.NODE_ENV === 'development') {
+                console.debug("Context load error (non-critical):", err?.message || err);
+              }
             });
         }
-      } catch (err) {
-        console.error("MiniApp Init Error:", err);
+      } catch (err: any) {
+        // Silently handle errors - don't spam console in development
+        if (process.env.NODE_ENV === 'development') {
+          console.debug("MiniApp Init Error (non-critical):", err?.message || err);
+        }
       }
     })();
     

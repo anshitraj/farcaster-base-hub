@@ -392,26 +392,13 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 height={100}
                 className="h-14 sm:h-12 md:h-14 lg:h-16 w-auto"
                 priority
+                quality={90}
+                sizes="(max-width: 640px) 200px, (max-width: 1024px) 250px, 300px"
               />
             </Link>
           </div>
 
-          {/* Search Bar - Center */}
-          <div className="flex-1 max-w-2xl mx-2 sm:mx-4 hidden md:block">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 z-10" />
-              <Input
-                type="text"
-                placeholder="Search mini apps..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                className="pl-12 pr-4 h-11 rounded-full bg-gray-900 border border-gray-800 text-white placeholder:text-gray-500 focus-visible:ring-blue-500 focus-visible:ring-2 focus-visible:border-blue-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0 ml-auto">
             {/* List a Project Button - Show on mobile instead of profile */}
             <Link href="/submit">
               <motion.button
@@ -425,18 +412,6 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 <span className="sm:hidden">List App</span>
               </motion.button>
             </Link>
-
-            {/* Mobile Search Button */}
-            <motion.button
-              whileHover={isMobile ? {} : { scale: 1.1 }}
-              whileTap={isMobile ? {} : { scale: 0.9 }}
-              className="md:hidden p-1.5 sm:p-2 hover:bg-gray-800 active:bg-gray-700 rounded-xl transition-all duration-100 touch-manipulation"
-              onClick={() => router.push("/search")}
-              aria-label="Search"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
-            </motion.button>
 
             <motion.button 
               whileHover={isMobile ? {} : { scale: 1.1 }}
@@ -552,6 +527,8 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
                 height={100}
                 className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"
                 priority
+                quality={90}
+                sizes="(max-width: 640px) 200px, (max-width: 1024px) 250px, 300px"
               />
             </Link>
           </div>
