@@ -117,7 +117,7 @@ const AppCard = ({
                 {iconUrl && (
                   <div className="flex-shrink-0">
                     <Image
-                      src={iconUrl.startsWith("/uploads/") ? iconUrl : `/api/icon?id=${id}`}
+                      src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                       alt={name}
                       width={44}
                       height={44}
@@ -129,7 +129,7 @@ const AppCard = ({
                       sizes="44px"
                       placeholder="blur"
                       blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
-                      unoptimized={!iconUrl.startsWith("/uploads/")}
+                      unoptimized={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.src = '/placeholder.svg';
@@ -226,7 +226,7 @@ const AppCard = ({
                   <div className="w-full h-40 bg-gradient-to-br from-base-blue/30 via-base-cyan/20 to-purple-500/20 flex items-center justify-center relative overflow-hidden">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0B0F19] via-transparent to-transparent z-10" />
                     <Image
-                      src={iconUrl.startsWith("/uploads/") ? iconUrl : `/api/icon?id=${id}`}
+                      src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                       alt={name}
                       width={100}
                       height={100}
@@ -238,7 +238,7 @@ const AppCard = ({
                       sizes="96px"
                       placeholder="blur"
                       blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzEyMTIxMiIvPjwvc3ZnPg=="
-                      unoptimized={!iconUrl.startsWith("/uploads/")}
+                      unoptimized={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.src = "/placeholder.svg";
@@ -356,7 +356,7 @@ const AppCard = ({
             <div className="flex flex-col items-center text-center mb-4">
               {iconUrl && (
                 <Image
-                  src={iconUrl.startsWith("/uploads/") ? iconUrl : `/api/icon?id=${id}`}
+                  src={iconUrl ? `/api/icon?url=${encodeURIComponent(iconUrl)}` : `/api/icon?id=${id}`}
                   alt={name}
                   width={80}
                   height={80}
@@ -366,7 +366,7 @@ const AppCard = ({
                   sizes="80px"
                   placeholder="blur"
                   blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
-                  unoptimized={!iconUrl.startsWith("/uploads/")}
+                  unoptimized={false}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.src = "/placeholder.svg";
