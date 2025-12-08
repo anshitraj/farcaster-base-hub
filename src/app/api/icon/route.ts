@@ -45,6 +45,8 @@ export async function GET(req: Request) {
     // Handle local paths (starting with /)
     if (target.startsWith("/")) {
       try {
+        // For /uploads files, try to read from public folder
+        // In production, these might not exist if not committed to git
         const filePath = join(process.cwd(), "public", target);
         const buffer = await readFile(filePath);
         
@@ -63,8 +65,9 @@ export async function GET(req: Request) {
           },
         });
       } catch (error) {
-        // File doesn't exist, return placeholder
-        console.error(`[api/icon] File not found: ${target}`, error);
+        // File doesn't exist locally - return placeholder
+        // Note: /uploads files should be served directly by Next.js, not through this route
+        console.error(`[api/icon] File not found: ${target}`);
         return getPlaceholder();
       }
     }

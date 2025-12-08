@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModerator } from "@/lib/admin";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { existsSync } from "fs";
-import sharp from "sharp";
+import { put } from "@vercel/blob";
 import { convertToWebP } from "@/lib/image-optimization";
 
 export async function POST(request: NextRequest) {
@@ -12,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
-    const type = formData.get("type") as string; // "icon" or "header"
+    const type = formData.get("type") as string; // "icon", "header", or "screenshot"
 
     if (!file) {
       return NextResponse.json(
@@ -46,27 +43,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), "public", "uploads");
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
+    // Convert file to buffer
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(new Uint8Array(bytes));
 
     // Generate unique filename
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split(".").pop() || "png";
-    const filename = `${type}-${timestamp}-${randomString}.${fileExtension}`;
-    let filepath = join(uploadsDir, filename);
-
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(new Uint8Array(bytes));
-
+    
     // Convert PNG/JPG to WebP automatically
     let finalBuffer: Buffer = buffer;
     let finalExtension = fileExtension;
-    let finalFilename = filename;
+    let finalFilename = `${type}-${timestamp}-${randomString}.${fileExtension}`;
 
     const isPngJpg = file.type === "image/png" || 
                      file.type === "image/jpeg" || 
@@ -81,23 +70,28 @@ export async function POST(request: NextRequest) {
         finalBuffer = await convertToWebP(buffer, 75);
         finalExtension = "webp";
         finalFilename = `${type}-${timestamp}-${randomString}.webp`;
-        filepath = join(uploadsDir, finalFilename);
       } catch (conversionError) {
         console.error("Failed to convert image to WebP:", conversionError);
         // Fallback to original if conversion fails
       }
     }
 
-    // Save the file (WebP if converted, original otherwise)
-    await writeFile(filepath, finalBuffer);
+    // Upload to Vercel Blob Storage
+    // Store in organized folders: uploads/icons/, uploads/headers/, uploads/screenshots/
+    const blobPath = `uploads/${type}s/${finalFilename}`;
+    
+    const blob = await put(blobPath, finalBuffer, {
+      access: "public",
+      contentType: finalExtension === "webp" 
+        ? "image/webp" 
+        : file.type || `image/${finalExtension}`,
+    });
 
-    // Return the public URL
-    const publicUrl = `/uploads/${finalFilename}`;
-
+    // Return the Vercel Blob URL
     return NextResponse.json({
       success: true,
-      url: publicUrl,
-      filename: filename,
+      url: blob.url, // Vercel Blob URL (e.g., https://xxx.public.blob.vercel-storage.com/...)
+      filename: finalFilename,
     });
   } catch (error: any) {
     if (error.message === "Admin access required") {

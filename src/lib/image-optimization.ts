@@ -131,8 +131,8 @@ export async function getOptimizedImageUrl(
 }
 
 /**
- * Converts an image URL to WebP and saves it locally
- * Returns the new local WebP URL
+ * Converts an image URL to WebP and saves it to Vercel Blob Storage
+ * Returns the new Vercel Blob URL
  */
 export async function convertAndSaveImage(
   imageUrl: string,
@@ -140,8 +140,7 @@ export async function convertAndSaveImage(
   filenamePrefix: string
 ): Promise<string | null> {
   try {
-    const fs = await import("fs/promises");
-    const path = await import("path");
+    const { put } = await import("@vercel/blob");
     const { v4: uuidv4 } = await import("uuid");
 
     // Check if already WebP
@@ -174,15 +173,16 @@ export async function convertAndSaveImage(
     const buffer = Buffer.from(await response.arrayBuffer());
     const webpBuffer = await convertToWebP(buffer, 75);
 
-    // Save to local storage
-    const uploadDir = path.join(process.cwd(), "public", "uploads", subfolder);
-    await fs.mkdir(uploadDir, { recursive: true });
-
+    // Upload to Vercel Blob Storage
     const filename = `${filenamePrefix}-${uuidv4()}.webp`;
-    const filePath = path.join(uploadDir, filename);
-    await fs.writeFile(filePath, webpBuffer);
+    const blobPath = `uploads/${subfolder}/${filename}`;
+    
+    const blob = await put(blobPath, webpBuffer, {
+      access: "public",
+      contentType: "image/webp",
+    });
 
-    return `/uploads/${subfolder}/${filename}`;
+    return blob.url; // Return Vercel Blob URL
   } catch (error: any) {
     console.error(`Error converting and saving image: ${imageUrl}`, error);
     return imageUrl; // Return original on failure
