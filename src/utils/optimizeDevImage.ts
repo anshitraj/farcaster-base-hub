@@ -1,12 +1,12 @@
 /**
  * Optimizes developer-provided images (icons + banners)
  * 
- * For production: Let Next.js Image handle all URLs directly for proper optimization.
+ * For production: Routes /uploads paths through /api/icon for proper fallback handling.
  * Next.js Image component automatically:
  * - Converts PNG/JPG to WebP format when browser supports it
  * - Serves optimized images via /_next/image endpoint
  * - Caches optimized images for 1 year
- * - Serves /uploads files directly from public folder (for local dev)
+ * - Routes /uploads through /api/icon to handle missing files gracefully
  * - Optimizes Vercel Blob URLs directly (external HTTPS URLs)
  * 
  * @param url - The original image URL from developer (can be local path, Vercel Blob URL, or external URL)
@@ -16,9 +16,15 @@
 export function optimizeDevImage(url?: string | null, quality: number = 80): string {
   if (!url) return "/placeholder.svg";
 
-  // All local paths (including /uploads) should be returned as-is
+  // Route /uploads paths through /api/icon for proper fallback handling
+  // In production, /uploads files don't exist in the filesystem, so we need a fallback
+  // /api/icon will return a placeholder if the file doesn't exist
+  if (url.startsWith("/uploads")) {
+    return `/api/icon?url=${encodeURIComponent(url)}`;
+  }
+
+  // Other local paths (static assets) should be returned as-is
   // Next.js will serve them directly from the public folder and optimize them
-  // Note: In production, uploaded files are stored in Vercel Blob and return HTTPS URLs
   if (url.startsWith("/")) {
     return url;
   }
