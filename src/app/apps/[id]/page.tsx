@@ -27,6 +27,7 @@ import { trackPageView, trackAppInteraction } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
 import EditWhatsNewButton from "@/components/EditWhatsNewButton";
+import AppBadgeSection from "@/components/AppBadgeSection";
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -37,6 +38,7 @@ export default function AppDetailPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [currentWallet, setCurrentWallet] = useState<string | null>(null);
   const [recommendedApps, setRecommendedApps] = useState<any[]>([]);
   const [emblaRef, emblaApi] = useEmblaCarousel({ 
     loop: false, 
@@ -118,16 +120,20 @@ export default function AppDetailPage() {
                 return null;
               })
               .then(authData => {
-                if (authData?.wallet && data.app.developer?.wallet) {
-                  setIsOwner(
-                    authData.wallet.toLowerCase() ===
-                      data.app.developer.wallet.toLowerCase()
-                  );
+                if (authData?.wallet) {
+                  setCurrentWallet(authData.wallet);
+                  if (data.app.developer?.wallet) {
+                    setIsOwner(
+                      authData.wallet.toLowerCase() ===
+                        data.app.developer.wallet.toLowerCase()
+                    );
+                  }
                 }
               })
               .catch(() => {
                 // Not authenticated, not owner
                 setIsOwner(false);
+                setCurrentWallet(null);
               });
             
             // Fetch recommended apps in parallel (non-blocking)
@@ -569,6 +575,16 @@ export default function AppDetailPage() {
               )}
             </motion.div>
           )}
+
+          {/* Badge Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.13 }}
+            className="mb-6"
+          >
+            <AppBadgeSection app={app} currentWallet={currentWallet} />
+          </motion.div>
 
           {/* Stats Grid */}
           <motion.div

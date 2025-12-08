@@ -21,11 +21,16 @@ export default function PointsDisplay() {
   const router = useRouter();
 
   useEffect(() => {
-    // Don't wait for Mini App - fetch immediately
-    // Wagmi handles connection, we can fetch points right away
-    // Don't fetch if not authenticated or still checking auth
-    if (authLoading || !isAuthenticated) {
-      setPoints(0);
+    // Don't fetch if still checking auth
+    if (authLoading) {
+      setLoading(true);
+      setPoints(null);
+      return;
+    }
+
+    // Don't fetch if not authenticated - hide the component
+    if (!isAuthenticated) {
+      setPoints(null);
       setLoading(false);
       return;
     }
@@ -42,17 +47,22 @@ export default function PointsDisplay() {
 
         if (res.ok) {
           const data = await res.json();
-          setPoints(data.totalPoints || 0);
+          // Only set points if we got valid data and user is authenticated
+          if (isAuthenticated) {
+            setPoints(data.totalPoints || 0);
+          } else {
+            setPoints(null);
+          }
         } else if (res.status === 401) {
-          // User is not authenticated, set points to 0
-          setPoints(0);
+          // User is not authenticated, clear points
+          setPoints(null);
         } else {
-          setPoints(0);
+          setPoints(null);
         }
       } catch (error) {
         if (!mounted) return;
         console.error("Error fetching points:", error);
-        setPoints(0);
+        setPoints(null);
       } finally {
         if (mounted) {
           setLoading(false);
@@ -60,7 +70,10 @@ export default function PointsDisplay() {
       }
     }
 
-    fetchPoints();
+    // Only fetch if authenticated
+    if (isAuthenticated) {
+      fetchPoints();
+    }
     
     // Listen for wallet connection to refresh points
     const handleWalletConnect = () => {
@@ -71,7 +84,7 @@ export default function PointsDisplay() {
 
     const handleWalletDisconnect = () => {
       if (mounted) {
-        setPoints(0);
+        setPoints(null);
         setLoading(false);
       }
     };
@@ -95,13 +108,17 @@ export default function PointsDisplay() {
     };
   }, [isAuthenticated, authLoading]);
 
-  // Don't show points display if user is not authenticated or has 0 points
-  if (loading || points === null || !isAuthenticated) {
+  // Don't show points display if:
+  // - Still loading auth state
+  // - Not authenticated
+  // - Points are null (not fetched or user disconnected)
+  // - Points are 0 (hide for cleaner UI)
+  if (loading || authLoading || points === null || !isAuthenticated || points === 0) {
     return null;
   }
 
-  // Only show if user has points (hide when 0 for cleaner UI)
-  if (points === 0) {
+  // Double-check: only show if we have valid points and are authenticated
+  if (typeof points !== 'number' || points <= 0 || !isAuthenticated) {
     return null;
   }
 

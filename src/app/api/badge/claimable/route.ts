@@ -5,7 +5,7 @@ import { MiniApp, Developer, Badge } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {

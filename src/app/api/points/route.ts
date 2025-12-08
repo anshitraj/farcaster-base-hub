@@ -4,7 +4,8 @@ import { getSessionFromCookies } from "@/lib/auth";
 import { UserPoints, PointsTransaction } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // Mark as dynamic since it uses cookies
 export const revalidate = 30; // Cache for 30 seconds
 
 export async function GET(request: NextRequest) {

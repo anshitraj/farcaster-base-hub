@@ -12,6 +12,7 @@ import RatingStars from "@/components/RatingStars";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import FavoriteButton from "@/components/FavoriteButton";
 import { trackPageView } from "@/lib/analytics";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 export default function TrendingAppsPage() {
   const router = useRouter();
@@ -94,12 +95,11 @@ export default function TrendingAppsPage() {
                       {app.iconUrl ? (
                         <div className="w-14 h-14 md:w-20 md:h-20 rounded-lg md:rounded-xl bg-gray-800 p-1.5 md:p-2 border border-gray-700">
                           <Image
-                            src={app.iconUrl}
+                            src={optimizeDevImage(app.iconUrl)}
                             alt={app.name}
                             width={80}
                             height={80}
                             className="w-full h-full object-contain rounded"
-                            unoptimized
                           />
                         </div>
                       ) : (

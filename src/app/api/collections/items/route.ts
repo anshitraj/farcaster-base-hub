@@ -326,7 +326,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const revalidate = 30; // Cache for 30 seconds
 
 export async function GET(request: NextRequest) {

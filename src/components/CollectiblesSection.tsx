@@ -44,24 +44,28 @@ export default function CollectiblesSection() {
     try {
       setLoading(true);
       const [claimableRes, badgesRes] = await Promise.all([
-        fetch("/api/badge/claimable-apps"),
-        fetch("/api/badge/my-badges"),
+        fetch("/api/badge/claimable-apps", { credentials: "include" }),
+        fetch("/api/badge/my-badges", { credentials: "include" }),
       ]);
 
       if (claimableRes.ok) {
         const claimableData = await claimableRes.json();
         setClaimableApps(claimableData.claimableApps || []);
+      } else {
+        console.error("Failed to fetch claimable apps:", claimableRes.status, await claimableRes.text());
       }
 
       if (badgesRes.ok) {
         const badgesData = await badgesRes.json();
         setClaimedBadges(badgesData.badges || []);
+      } else {
+        console.error("Failed to fetch badges:", badgesRes.status, await badgesRes.text());
       }
     } catch (error) {
       console.error("Error fetching collectibles:", error);
       toast({
         title: "Error",
-        description: "Failed to load collectibles",
+        description: "Failed to load collectibles. Please refresh the page.",
         variant: "destructive",
       });
     } finally {
@@ -89,45 +93,68 @@ export default function CollectiblesSection() {
   return (
     <div className="space-y-8">
       {/* Claimable Badges Section */}
-      {claimableApps.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="h-5 w-5 text-blue-400" />
-            <h2 className="text-xl font-bold text-white">
-              Available Badges ({claimableApps.length})
-            </h2>
-          </div>
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-5 w-5 text-blue-400" />
+          <h2 className="text-xl font-bold text-white">
+            Available Badges ({claimableApps.length})
+          </h2>
+        </div>
+        {claimableApps.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {claimableApps.map((app) => (
               <div
                 key={app.id}
                 className="bg-[#1A1A1A] rounded-lg border border-gray-800 p-4 hover:border-blue-500/50 transition-colors"
               >
-                <div className="flex items-start gap-3">
-                  {app.iconUrl && (
-                    <Image
-                      src={app.iconUrl}
-                      alt={app.name}
-                      width={48}
-                      height={48}
-                      className="rounded-lg"
-                    />
+                {/* Badge Image - Show Cast Your App badge image for cast badges, app icon for SBT */}
+                <div className="mb-3">
+                  {app.badgeType === "cast_your_app" ? (
+                    <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30">
+                      <Image
+                        src="/badges/castapp.webp"
+                        alt="Cast Your App Badge"
+                        fill
+                        className="object-contain p-2"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      {app.iconUrl && (
+                        <Image
+                          src={app.iconUrl}
+                          alt={app.name}
+                          width={48}
+                          height={48}
+                          className="rounded-lg"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-white truncate">
+                          {app.name}
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-1">{app.category}</p>
+                        <p className="text-xs text-blue-400 mt-1">SBT Badge</p>
+                      </div>
+                    </div>
                   )}
-                  <div className="flex-1 min-w-0">
+                </div>
+                
+                {/* App Info for Cast Your App Badge */}
+                {app.badgeType === "cast_your_app" && (
+                  <div className="mb-3">
                     <h3 className="font-semibold text-white truncate">
                       {app.name}
                     </h3>
                     <p className="text-xs text-gray-400 mt-1">{app.category}</p>
-                    {app.badgeType && (
-                      <p className="text-xs text-blue-400 mt-1">
-                        {app.badgeType === "sbt" ? "SBT Badge" : "Cast Your App Badge"}
-                      </p>
-                    )}
+                    <p className="text-xs text-blue-400 mt-1">Cast Your App Badge</p>
                   </div>
-                </div>
+                )}
+                
                 <Button
                   onClick={() => handleClaimClick(app)}
-                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   size="sm"
                 >
                   <Sparkles className="mr-2 h-3 w-3" />
@@ -136,8 +163,18 @@ export default function CollectiblesSection() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 bg-[#1A1A1A] rounded-lg border border-gray-800">
+            <Sparkles className="h-8 w-8 text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm mb-1">
+              No badges available to claim yet.
+            </p>
+            <p className="text-gray-500 text-xs">
+              Approved apps will appear here. Make sure your app is approved and you're logged in with the correct wallet.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Claimed Badges Section */}
       <div>
@@ -169,26 +206,34 @@ export default function CollectiblesSection() {
                       width={200}
                       height={200}
                       className="w-full h-full object-contain"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                     />
                   ) : (
                     <Trophy className="h-16 w-16 text-blue-400" />
                   )}
                 </div>
                 <h3 className="font-semibold text-white mb-1">{badge.appName}</h3>
-                <p className="text-xs text-gray-400 mb-1">{badge.name}</p>
-                {badge.badgeType && (
-                  <p className="text-xs text-blue-400 mb-3">
-                    {badge.badgeType === "sbt" ? "SBT Badge" : "Cast Your App Badge"}
-                  </p>
-                )}
-                {badge.txHash && (
+                <p className="text-xs text-gray-400 mb-2">
+                  {badge.badgeType === "sbt" ? "SBT Badge" : "Verified Mini Cast Store Badge"}
+                </p>
+                {badge.txHash ? (
                   <a
                     href={`https://basescan.org/tx/${badge.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    className="text-xs text-blue-400 hover:text-blue-300 underline flex items-center gap-1 mt-2"
                   >
-                    View on BaseScan
+                    View transaction on BaseScan
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <a
+                    href="https://basescan.org/address/0x28cBF9E07ef5eA0eD04AC7BD698135B3EF97b51e#internaltx"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 underline flex items-center gap-1 mt-2"
+                  >
+                    Check badge contract on BaseScan
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
@@ -208,6 +253,7 @@ export default function CollectiblesSection() {
           }
         }}
         app={selectedApp}
+        onSuccess={handleClaimSuccess}
       />
     </div>
   );

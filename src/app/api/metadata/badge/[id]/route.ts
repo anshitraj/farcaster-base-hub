@@ -6,7 +6,7 @@ import { generateBadgeMetadata, generateBadgeSVG, generateBadgeDesign } from "@/
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600; // Cache for 1 hour
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(
   request: NextRequest,

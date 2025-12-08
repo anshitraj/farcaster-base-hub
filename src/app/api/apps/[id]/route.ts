@@ -6,7 +6,7 @@ import { eq, desc } from "drizzle-orm";
 
 // Cache for 30 seconds - app details don't change frequently
 export const revalidate = 30;
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(
   request: NextRequest,
@@ -98,6 +98,12 @@ export async function GET(
         lastUpdatedAt: app.lastUpdatedAt,
         launchCount: app.launchCount || 0,
         uniqueUsers: app.uniqueUsers || 0,
+        // Badge fields
+        developerBadgeReady: (app as any).developerBadgeReady || false,
+        developerBadgeImage: (app as any).developerBadgeImage || null,
+        developerBadgeMetadata: (app as any).developerBadgeMetadata || null,
+        castBadgeMinted: (app as any).castBadgeMinted || false,
+        developerBadgeMinted: (app as any).developerBadgeMinted || false,
         popularityScore: app.popularityScore || 0,
         clicks: app.clicks || 0,
         installs: app.installs || 0,

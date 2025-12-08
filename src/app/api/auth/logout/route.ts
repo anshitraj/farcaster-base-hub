@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * Clears session cookies and redirects to home
  */
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();

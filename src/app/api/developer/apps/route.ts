@@ -6,7 +6,7 @@ import { Developer, MiniApp, Review, CollectionItem, Collection } from "@/db/sch
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {

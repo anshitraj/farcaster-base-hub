@@ -23,11 +23,30 @@ export async function GET() {
 
     try {
       console.log("Fetching gas price from RPC:", BASE_RPC.replace(/\/v2\/[^\/]+$/, "/***"));
-      const provider = new ethers.JsonRpcProvider(BASE_RPC);
+      const provider = new ethers.JsonRpcProvider(BASE_RPC, undefined, {
+        staticNetwork: true,
+      });
       
-      // Try direct RPC call first (most reliable)
+      // Add timeout wrapper for RPC calls
+      const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Request timeout")), timeoutMs);
+        });
+        
+        try {
+          const result = await Promise.race([promise, timeoutPromise]);
+          clearTimeout(timeoutId!);
+          return result;
+        } catch (error) {
+          clearTimeout(timeoutId!);
+          throw error;
+        }
+      };
+      
+      // Try direct RPC call first (most reliable) with 10s timeout
       try {
-        const gasPrice = await provider.send("eth_gasPrice", []);
+        const gasPrice = await withTimeout(provider.send("eth_gasPrice", []), 10000);
         if (gasPrice) {
           gasPriceGwei = parseFloat(ethers.formatUnits(gasPrice, "gwei"));
           console.log("Gas price from eth_gasPrice:", gasPriceGwei);
@@ -36,10 +55,10 @@ export async function GET() {
         console.error("Error with eth_gasPrice:", rpcError.message || rpcError);
       }
 
-      // Fallback to getFeeData if direct call fails
+      // Fallback to getFeeData if direct call fails with 10s timeout
       if (!gasPriceGwei || gasPriceGwei === 0) {
         try {
-          const feeData = await provider.getFeeData();
+          const feeData = await withTimeout(provider.getFeeData(), 10000);
           console.log("FeeData:", feeData);
           
           if (feeData.gasPrice) {

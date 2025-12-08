@@ -6,6 +6,9 @@ import { MiniApp, Developer, Badge } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
+export const runtime = "nodejs";
+export const dynamic = 'force-dynamic';
+
 const mintSchema = z.object({
   developerWallet: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   appId: z.string().uuid(),
@@ -158,11 +161,39 @@ export async function POST(request: NextRequest) {
     // Mint badge
     let txHash: string;
     try {
+      console.log(`[Badge Mint] Attempting to mint badge for ${validated.developerWallet}, app: ${app.name}, type: ${validated.badgeType}`);
+      console.log(`[Badge Mint] Metadata URI: ${metadataUri}`);
       txHash = await mintBadge(validated.developerWallet, metadataUri);
-    } catch (error) {
-      console.error("Mint badge error:", error);
+      console.log(`[Badge Mint] Success! Transaction hash: ${txHash}`);
+    } catch (error: any) {
+      console.error("[Badge Mint] Mint badge error:", error);
+      console.error("[Badge Mint] Error details:", {
+        message: error?.message,
+        stack: error?.stack,
+        code: error?.code,
+        reason: error?.reason,
+      });
+      
+      // Check if it's a timeout error
+      const isTimeout = error?.message?.includes("timeout") || 
+                       error?.code === "TIMEOUT" ||
+                       error?.message?.includes("TIMEOUT");
+      
       return NextResponse.json(
-        { error: "Failed to mint badge. Check contract configuration." },
+        { 
+          status: 500,
+          error: isTimeout 
+            ? "Failed to mint Cast Your App badge" 
+            : "Failed to mint badge. Check contract configuration.",
+          details: isTimeout
+            ? "request timeout (code=TIMEOUT, version=6.15.0)"
+            : error?.message || String(error),
+          fullResponse: {
+            message: error?.message,
+            code: error?.code,
+            reason: error?.reason,
+          }
+        },
         { status: 500 }
       );
     }

@@ -38,5 +38,11 @@ export const MiniApp = pgTable("MiniApp", {
   monetizationEnabled: boolean("monetizationEnabled").default(false).notNull(),
   tags: text("tags").array().default([]).notNull(),
   whatsNew: text("whatsNew"), // What's new / changelog section
+  // Badge fields
+  developerBadgeReady: boolean("developerBadgeReady").default(false).notNull(),
+  developerBadgeImage: text("developerBadgeImage"),
+  developerBadgeMetadata: text("developerBadgeMetadata"),
+  castBadgeMinted: boolean("castBadgeMinted").default(false).notNull(),
+  developerBadgeMinted: boolean("developerBadgeMinted").default(false).notNull(),
 });
 

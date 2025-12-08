@@ -162,8 +162,27 @@ export async function mintSBTWithPaymaster(
       // Paymaster will sponsor if configured
     });
     
-    await tx.wait();
-    return tx.hash;
+    console.log("[Coinbase API] Transaction sent, hash:", tx.hash);
+    
+    // Wait for transaction with timeout (60 seconds)
+    const timeoutMs = 60000;
+    const confirmationPromise = tx.wait();
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error("Transaction confirmation timeout")), timeoutMs)
+    );
+    
+    try {
+      await Promise.race([confirmationPromise, timeoutPromise]);
+      console.log("[Coinbase API] Transaction confirmed!");
+      return tx.hash;
+    } catch (waitError: any) {
+      // If timeout, still return the tx hash since the transaction was sent
+      if (waitError.message === "Transaction confirmation timeout") {
+        console.warn("[Coinbase API] Transaction confirmation timed out, but transaction was sent:", tx.hash);
+        return tx.hash;
+      }
+      throw waitError;
+    }
   } catch (error: any) {
     console.error("Mint SBT error:", error);
     throw new Error(`Failed to mint SBT: ${error.message}`);

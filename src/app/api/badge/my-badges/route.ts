@@ -5,7 +5,7 @@ import { Developer, Badge } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       appName: Badge.appName,
       appId: Badge.appId,
       developerId: Badge.developerId,
+      badgeType: Badge.badgeType,
       txHash: Badge.txHash,
       claimed: Badge.claimed,
       metadataUri: Badge.metadataUri,

@@ -25,12 +25,14 @@ interface BadgeClaimModalProps {
     category: string;
     badgeType?: "sbt" | "cast_your_app";
   } | null;
+  onSuccess?: () => void;
 }
 
 export default function BadgeClaimModal({
   open,
   onOpenChange,
   app,
+  onSuccess,
 }: BadgeClaimModalProps) {
   const { toast } = useToast();
   const [claiming, setClaiming] = useState(false);
@@ -95,35 +97,73 @@ export default function BadgeClaimModal({
 
     setClaiming(true);
     try {
-      const response = await fetch("/api/badge/mint", {
+      // Use the new badges/claim API endpoint
+      const response = await fetch("/api/badges/claim", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
-          developerWallet: walletAddress,
           appId: app.id,
-          badgeType: app.badgeType || "sbt", // Default to sbt if not specified
+          badgeType: app.badgeType === "cast_your_app" ? "cast" : "developer",
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to claim badge");
+        const errorMsg = data.error || "Failed to claim badge";
+        const errorDetails = data.details ? `: ${data.details}` : "";
+        console.error("[Badge Claim] API Error:", {
+          status: response.status,
+          error: errorMsg,
+          details: data.details,
+          fullResponse: data,
+        });
+        throw new Error(`${errorMsg}${errorDetails}`);
       }
 
       setClaimed(true);
+      
+      // Build transaction link if txHash is available
+      const txHash = data.txHash;
+      const txLink = txHash ? `https://basescan.org/tx/${txHash}` : null;
+      const message = data.message || "You've successfully claimed your Verified Mini Cast Store badge!";
+      
       toast({
         title: "Badge Claimed! 🎉",
-        description: `You've successfully claimed your ${app.name} builder badge!`,
+        description: (
+          <div className="space-y-2">
+            <p>{message}</p>
+            {txLink && (
+              <a
+                href={txLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline text-sm flex items-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                View Transaction on BaseScan
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
+        ),
       });
 
-      // Close modal after 2 seconds
+      // Trigger success callback to refresh badges immediately
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Close modal after 3 seconds (increased to allow clicking the link)
       setTimeout(() => {
         onOpenChange(false);
         setClaimed(false);
-      }, 2000);
+      }, 3000);
     } catch (error: any) {
       toast({
         title: "Claim Failed",
@@ -143,7 +183,7 @@ export default function BadgeClaimModal({
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-bold text-white">
-              Claim {app.name} Builder Badge
+              Claim Verified Mini Cast Store Badge
             </DialogTitle>
             <button
               onClick={() => onOpenChange(false)}
@@ -164,7 +204,18 @@ export default function BadgeClaimModal({
           <div className="flex justify-center">
             <div className="relative w-64 h-64 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 p-4">
               <div className="w-full h-full rounded-xl bg-[#1A1A1A] flex items-center justify-center relative overflow-hidden">
-                {app.iconUrl ? (
+                {app.badgeType === "cast_your_app" ? (
+                  // Show Cast Your App badge image
+                  <Image
+                    src="/badges/castapp.webp"
+                    alt="Cast Your App Badge"
+                    width={200}
+                    height={200}
+                    className="object-contain w-auto h-auto"
+                    sizes="200px"
+                  />
+                ) : app.iconUrl ? (
+                  // Show app icon for SBT badges
                   <Image
                     src={app.iconUrl}
                     alt={app.name}

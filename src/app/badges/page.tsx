@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import AppHeader from "@/components/AppHeader";
 import { useAccount } from "wagmi";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface EarnedBadge {
   id: string;
@@ -233,12 +234,11 @@ export default function BadgesPage() {
                           <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden">
                             {badge.imageUrl ? (
                               <Image
-                                src={badge.imageUrl}
+                                src={optimizeDevImage(badge.imageUrl)}
                                 alt={badge.name}
                                 width={96}
                                 height={96}
                                 className="w-24 h-24 object-cover"
-                                unoptimized
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.src = "/placeholder.svg";
@@ -332,12 +332,11 @@ export default function BadgesPage() {
                           <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden">
                             {app.iconUrl ? (
                               <Image
-                                src={app.iconUrl}
+                                src={optimizeDevImage(app.iconUrl)}
                                 alt={app.name}
                                 width={96}
                                 height={96}
                                 className="w-24 h-24 object-cover"
-                                unoptimized
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.src = "/placeholder.svg";
