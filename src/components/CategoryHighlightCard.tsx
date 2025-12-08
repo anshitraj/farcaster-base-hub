@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 import { motion } from "framer-motion";
 
 type CategoryHighlightCardProps = {
@@ -86,6 +86,7 @@ export function CategoryHighlightCard({
               quality={75}
               priority={false}
               loading="lazy"
+              unoptimized={needsUnoptimized(optimizeDevImage(backgroundImage))}
             />
           </div>
           {/* Dark overlay for text readability */}
@@ -133,6 +134,7 @@ export function CategoryHighlightCard({
                       <Image
                         src={optimizeDevImage(app.iconUrl)}
                         data-original={app.iconUrl}
+                        unoptimized={needsUnoptimized(optimizeDevImage(app.iconUrl))}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           const originalUrl = target.getAttribute("data-original");

@@ -8,7 +8,7 @@ import { Star, Play } from "lucide-react";
 import RatingStars from "./RatingStars";
 import PremiumBadge from "./PremiumBadge";
 import PremiumLockedOverlay from "./PremiumLockedOverlay";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface PremiumCardProps {
   id: string;
@@ -51,6 +51,7 @@ export default function PremiumCard({
                 className="w-24 h-24 rounded-2xl shadow-2xl z-20 relative"
                 loading="lazy"
                 data-original={iconUrl}
+                unoptimized={needsUnoptimized(optimizeDevImage(iconUrl))}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   const originalUrl = target.getAttribute("data-original");

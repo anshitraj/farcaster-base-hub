@@ -70,13 +70,13 @@ export async function GET(req: Request) {
         // Return placeholder immediately to avoid 404 errors
         // This prevents Next.js Image from trying to optimize a non-existent file
         if (target.startsWith("/uploads")) {
-          // Silently return placeholder for missing /uploads files
-          // This is expected in production where old /uploads paths don't exist
+          // Log missing /uploads files for debugging
+          console.error(`[api/icon] Missing /uploads file (expected in production): ${target}`, error);
           return getPlaceholder();
         }
         
         // For other local paths, log the error
-        console.error(`[api/icon] File not found: ${target}`);
+        console.error(`[api/icon] File not found: ${target}`, error);
         return getPlaceholder();
       }
     }
@@ -92,7 +92,11 @@ export async function GET(req: Request) {
       });
 
       if (!response.ok) {
-        console.error(`[api/icon] Failed to fetch external image: ${target} - Status: ${response.status}`);
+        console.error(`[api/icon] Failed to fetch external image: ${target} - Status: ${response.status}`, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+        });
         return getPlaceholder();
       }
 
@@ -105,11 +109,19 @@ export async function GET(req: Request) {
         },
       });
     } catch (fetchError) {
-      console.error(`[api/icon] Error fetching external image: ${target}`, fetchError);
+      console.error(`[api/icon] Error fetching external image: ${target}`, {
+        error: fetchError,
+        message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+        stack: fetchError instanceof Error ? fetchError.stack : undefined,
+      });
       return getPlaceholder();
     }
   } catch (e) {
-    console.error(`[api/icon] Unexpected error:`, e);
+    console.error(`[api/icon] Unexpected error for URL: ${target}`, {
+      error: e,
+      message: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack : undefined,
+    });
     return getPlaceholder();
   }
 }

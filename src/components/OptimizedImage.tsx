@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { ComponentProps } from "react";
+import { needsUnoptimized } from "@/utils/optimizeDevImage";
 
 /**
  * OptimizedImage component
@@ -46,8 +47,8 @@ export default function OptimizedImage({
         props.blurDataURL ||
         "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMTExODI3Ii8+PC9zdmc+"
       }
-      // Ensure unoptimized is false so Next.js optimizes the image
-      unoptimized={false}
+      // API routes cannot be optimized by Next.js Image, so use unoptimized for them
+      unoptimized={needsUnoptimized(src)}
       {...props}
     />
   );

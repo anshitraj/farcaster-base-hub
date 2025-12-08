@@ -7,7 +7,7 @@ import { Play, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
 import RatingStars from "./RatingStars";
-import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, optimizeBannerImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface TopBannerProps {
   apps: {
@@ -163,6 +163,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 alt={currentApp.name}
                 fill
                 className="object-cover object-center z-0"
+                unoptimized={needsUnoptimized(optimizeBannerImage(currentApp.headerImageUrl))}
                 priority={currentIndex === 0}
                 quality={85}
                 loading={currentIndex === 0 ? "eager" : "lazy"}
@@ -210,6 +211,7 @@ export default function TopBanner({ apps }: TopBannerProps) {
                     decoding="async"
                     sizes="(max-width: 768px) 64px, (max-width: 1024px) 96px, 128px"
                     data-original={currentApp.iconUrl}
+                    unoptimized={needsUnoptimized(optimizeDevImage(currentApp.iconUrl))}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       const originalUrl = target.getAttribute("data-original");

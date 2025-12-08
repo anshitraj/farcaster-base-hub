@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Star, ExternalLink } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface MiniAppListItemProps {
   id: string;
@@ -64,6 +64,7 @@ export function MiniAppListItem({
           <Image
             src={optimizeDevImage(icon)}
             data-original={icon}
+            unoptimized={needsUnoptimized(optimizeDevImage(icon))}
             onError={(e) => {
               const target = e.target as HTMLImageElement;
               const originalUrl = target.getAttribute("data-original");

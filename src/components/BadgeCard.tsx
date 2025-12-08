@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface BadgeCardProps {
   name: string;
@@ -28,8 +28,17 @@ const BadgeCard = ({ name, imageUrl, appName }: BadgeCardProps) => {
           quality={75}
           loading="lazy"
           sizes="64px"
+          unoptimized={needsUnoptimized(safeSrc)}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
+            console.error(`[BadgeCard] Image failed to load:`, {
+              originalUrl: imageUrl,
+              optimizedUrl: safeSrc,
+              currentSrc: target.src,
+              badgeName: name,
+              appName: appName,
+              isApiRoute: needsUnoptimized(safeSrc),
+            });
             target.src = "/placeholder.svg";
           }}
         />

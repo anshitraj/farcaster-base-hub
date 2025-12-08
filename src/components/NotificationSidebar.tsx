@@ -6,7 +6,7 @@ import { X, Bell, CheckCircle, AlertCircle, Info, Sparkles, ChevronDown, Chevron
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface Notification {
   id: string;
@@ -266,6 +266,7 @@ export default function NotificationSidebar({ isOpen, onClose, onNotificationRea
                                 width={40}
                                 height={40}
                                 className="w-full h-full object-cover"
+                                unoptimized={needsUnoptimized(optimizeDevImage(notification.appIcon))}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.src = "/placeholder.svg";

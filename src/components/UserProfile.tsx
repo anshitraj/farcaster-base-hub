@@ -17,7 +17,7 @@ import { useSignMessage } from "wagmi";
 import { useMiniApp } from "@/components/MiniAppProvider";
 import { getCurrentUser, clearCurrentUser } from "@/lib/auth-helpers";
 import Link from "next/link";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface UserProfileData {
   wallet: string;
@@ -652,6 +652,7 @@ export default function UserProfile() {
                 width={36}
                 height={36}
                 className="w-9 h-9 rounded-full border-2 border-white/20 shadow-lg"
+                unoptimized={needsUnoptimized(optimizeDevImage(avatarUrl))}
               />
               {profile.isBaseWallet && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-base-blue rounded-full flex items-center justify-center border-2 border-[#0B0F19] shadow-md">
@@ -673,6 +674,7 @@ export default function UserProfile() {
                 width={48}
                 height={48}
                 className="w-12 h-12 rounded-full border-2 border-base-blue/50"
+                unoptimized={needsUnoptimized(optimizeDevImage(avatarUrl))}
               />
               <div className="flex-1 min-w-0">
                 {profile.name && (

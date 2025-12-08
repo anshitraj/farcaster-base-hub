@@ -15,7 +15,7 @@ import AutoUpdateBadge from "./AutoUpdateBadge";
 import RankBadge from "./RankBadge";
 import SecuredBadge from "./SecuredBadge";
 import FavoriteButton from "./FavoriteButton";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface AppCardProps {
   id: string;
@@ -129,9 +129,18 @@ const AppCard = ({
                       sizes="44px"
                       placeholder="blur"
                       blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
-                      unoptimized={false}
+                      unoptimized={needsUnoptimized(iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`)}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
+                        const originalSrc = iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`;
+                        console.error(`[AppCard] Image failed to load:`, {
+                          originalUrl: iconUrl,
+                          optimizedUrl: originalSrc,
+                          currentSrc: target.src,
+                          appId: id,
+                          appName: name,
+                          isApiRoute: needsUnoptimized(originalSrc),
+                        });
                         target.src = '/placeholder.svg';
                       }}
                     />
@@ -238,9 +247,18 @@ const AppCard = ({
                       sizes="96px"
                       placeholder="blur"
                       blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzEyMTIxMiIvPjwvc3ZnPg=="
-                      unoptimized={false}
+                      unoptimized={needsUnoptimized(iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`)}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
+                        const originalSrc = iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`;
+                        console.error(`[AppCard] Featured image failed to load:`, {
+                          originalUrl: iconUrl,
+                          optimizedUrl: originalSrc,
+                          currentSrc: target.src,
+                          appId: id,
+                          appName: name,
+                          isApiRoute: needsUnoptimized(originalSrc),
+                        });
                         target.src = "/placeholder.svg";
                       }}
                     />
@@ -366,9 +384,18 @@ const AppCard = ({
                   sizes="80px"
                   placeholder="blur"
                   blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
-                  unoptimized={false}
+                  unoptimized={needsUnoptimized(iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`)}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
+                    const originalSrc = iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`;
+                    console.error(`[AppCard] Grid image failed to load:`, {
+                      originalUrl: iconUrl,
+                      optimizedUrl: originalSrc,
+                      currentSrc: target.src,
+                      appId: id,
+                      appName: name,
+                      isApiRoute: needsUnoptimized(originalSrc),
+                    });
                     target.src = "/placeholder.svg";
                   }}
                 />

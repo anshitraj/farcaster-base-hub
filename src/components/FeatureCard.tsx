@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Sparkles } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
 import { shortenDescription } from "@/lib/description-utils";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface FeatureCardProps {
   id: string;
@@ -102,6 +102,7 @@ export default function FeatureCard({
                   priority={false}
                   loading="lazy"
                   sizes="80px"
+                  unoptimized={needsUnoptimized(optimizeDevImage(iconUrl))}
                   data-original={iconUrl}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
