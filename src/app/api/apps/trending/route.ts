@@ -51,22 +51,28 @@ export async function GET() {
 
     // Transform to match expected format and fix /uploads paths
     const apps = appsData.map(({ app, developer }) => {
-      // Fix /uploads paths by falling back to original URLs from farcasterJson
+      // Fix /uploads paths by falling back to original URLs from farcasterJson or placeholder
       let iconUrl = app.iconUrl;
       let headerImageUrl = app.headerImageUrl;
       
       if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
         try {
           const farcasterData = JSON.parse(app.farcasterJson);
-          if (iconUrl?.startsWith("/uploads") && farcasterData.imageUrl) {
-            iconUrl = farcasterData.imageUrl;
+          if (iconUrl?.startsWith("/uploads")) {
+            iconUrl = farcasterData.imageUrl || "/placeholder.svg";
           }
-          if (headerImageUrl?.startsWith("/uploads") && farcasterData.splashImageUrl) {
-            headerImageUrl = farcasterData.splashImageUrl;
+          if (headerImageUrl?.startsWith("/uploads")) {
+            headerImageUrl = farcasterData.splashImageUrl || null;
           }
         } catch (e) {
-          // Keep original URLs if parsing fails
+          // Parsing failed, use placeholder
+          if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
         }
+      } else {
+        // No farcasterJson but has /uploads paths, use placeholder
+        if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+        if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
       }
       
       return {

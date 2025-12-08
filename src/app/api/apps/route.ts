@@ -113,12 +113,40 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Transform to match expected format
-    let apps = appsData.map(({ app, developer }) => ({
-      ...app,
-      developer,
-      events: eventsMap[app.id] || [],
-    }));
+    // Transform to match expected format and fix /uploads paths
+    let apps = appsData.map(({ app, developer }) => {
+      // Fix /uploads paths by falling back to original URLs from farcasterJson or placeholder
+      let iconUrl = app.iconUrl;
+      let headerImageUrl = app.headerImageUrl;
+      
+      if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+        try {
+          const farcasterData = JSON.parse(app.farcasterJson);
+          if (iconUrl?.startsWith("/uploads")) {
+            iconUrl = farcasterData.imageUrl || "/placeholder.svg";
+          }
+          if (headerImageUrl?.startsWith("/uploads")) {
+            headerImageUrl = farcasterData.splashImageUrl || null;
+          }
+        } catch (e) {
+          // Parsing failed, use placeholder
+          if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+        }
+      } else {
+        // No farcasterJson but has /uploads paths, use placeholder
+        if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+        if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+      }
+      
+      return {
+        ...app,
+        iconUrl,
+        headerImageUrl,
+        developer,
+        events: eventsMap[app.id] || [],
+      };
+    });
 
     // Fair randomization algorithm for newest apps
     // Similar to Play Store - ensures all new apps get visibility

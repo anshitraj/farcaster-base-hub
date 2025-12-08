@@ -40,17 +40,35 @@ export async function GET(
 
     let { app, developer } = result;
 
-    // Fix /uploads paths by falling back to original URLs from farcasterJson
-    if ((app.iconUrl?.startsWith("/uploads") || app.headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
-      try {
-        const farcasterData = JSON.parse(app.farcasterJson);
+    // Fix /uploads paths by falling back to original URLs from farcasterJson or placeholder
+    if (app.iconUrl?.startsWith("/uploads") || app.headerImageUrl?.startsWith("/uploads")) {
+      if (app.farcasterJson) {
+        try {
+          const farcasterData = JSON.parse(app.farcasterJson);
+          app = {
+            ...app,
+            iconUrl: app.iconUrl?.startsWith("/uploads") 
+              ? (farcasterData.imageUrl || "/placeholder.svg") 
+              : app.iconUrl,
+            headerImageUrl: app.headerImageUrl?.startsWith("/uploads") 
+              ? (farcasterData.splashImageUrl || null) 
+              : app.headerImageUrl,
+          };
+        } catch (e) {
+          // Parsing failed, use placeholder
+          app = {
+            ...app,
+            iconUrl: app.iconUrl?.startsWith("/uploads") ? "/placeholder.svg" : app.iconUrl,
+            headerImageUrl: app.headerImageUrl?.startsWith("/uploads") ? null : app.headerImageUrl,
+          };
+        }
+      } else {
+        // No farcasterJson, use placeholder
         app = {
           ...app,
-          iconUrl: app.iconUrl?.startsWith("/uploads") && farcasterData.imageUrl ? farcasterData.imageUrl : app.iconUrl,
-          headerImageUrl: app.headerImageUrl?.startsWith("/uploads") && farcasterData.splashImageUrl ? farcasterData.splashImageUrl : app.headerImageUrl,
+          iconUrl: app.iconUrl?.startsWith("/uploads") ? "/placeholder.svg" : app.iconUrl,
+          headerImageUrl: app.headerImageUrl?.startsWith("/uploads") ? null : app.headerImageUrl,
         };
-      } catch (e) {
-        // Keep original URLs if parsing fails
       }
     }
 
