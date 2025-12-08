@@ -200,41 +200,9 @@ function HomePageContent() {
     }
   }, [searchParams]);
 
-  // Lightweight preload - only first banner image and icon (LCP optimization)
-  useEffect(() => {
-    if (typeof window === "undefined" || topApps.length === 0) return;
-    
-    // Preload the first banner image for LCP
-    const firstApp = topApps[0];
-    if (firstApp?.headerImageUrl) {
-      const optimizedBannerUrl = optimizeBannerImage(firstApp.headerImageUrl);
-      const bannerLink = document.createElement("link");
-      bannerLink.rel = "preload";
-      bannerLink.as = "image";
-      bannerLink.href = optimizedBannerUrl;
-      bannerLink.setAttribute("fetchpriority", "high");
-      document.head.appendChild(bannerLink);
-    }
-    
-    // Preload the first app icon for LCP
-    if (firstApp?.iconUrl) {
-      const optimizedIconUrl = optimizeDevImage(firstApp.iconUrl);
-      const iconLink = document.createElement("link");
-      iconLink.rel = "preload";
-      iconLink.as = "image";
-      iconLink.href = optimizedIconUrl;
-      iconLink.setAttribute("fetchpriority", "high");
-      document.head.appendChild(iconLink);
-    }
-    
-    // Preload logo
-    const logoLink = document.createElement("link");
-    logoLink.rel = "preload";
-    logoLink.as = "image";
-    logoLink.href = "/logo.webp";
-    logoLink.setAttribute("fetchpriority", "high");
-    document.head.appendChild(logoLink);
-  }, [topApps]);
+  // Removed preload links - they were causing issues with Next.js Image optimization
+  // Next.js Image component handles optimization and loading automatically
+  // Using priority prop on Image components is the correct way to optimize LCP
 
   useEffect(() => {
     // Don't wait for Mini App - fetch data immediately

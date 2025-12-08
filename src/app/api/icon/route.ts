@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
+// Runtime configuration for Vercel serverless
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 async function getPlaceholder(): Promise<Response> {
   try {
     const placeholderPath = join(process.cwd(), "public", "placeholder.svg");
@@ -10,6 +14,7 @@ async function getPlaceholder(): Promise<Response> {
       headers: {
         "Content-Type": "image/svg+xml",
         "Cache-Control": "public, max-age=3600",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch {
@@ -22,6 +27,7 @@ async function getPlaceholder(): Promise<Response> {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "public, max-age=3600",
+        "Access-Control-Allow-Origin": "*",
       },
     });
   }
@@ -53,34 +59,45 @@ export async function GET(req: Request) {
           headers: {
             "Content-Type": contentType,
             "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
           },
         });
-      } catch {
+      } catch (error) {
         // File doesn't exist, return placeholder
+        console.error(`[api/icon] File not found: ${target}`, error);
         return getPlaceholder();
       }
     }
 
-    // Handle external URLs
-    const response = await fetch(target, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; MiniAppStore/1.0)",
-      },
-      signal: AbortSignal.timeout(5000), // 5 second timeout
-    });
+    // Handle external URLs - proxy them through this route
+    // This is mainly for /uploads paths that might not exist
+    try {
+      const response = await fetch(target, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; MiniAppStore/1.0)",
+        },
+        signal: AbortSignal.timeout(5000), // 5 second timeout
+      });
 
-    if (!response.ok) {
+      if (!response.ok) {
+        console.error(`[api/icon] Failed to fetch external image: ${target} - Status: ${response.status}`);
+        return getPlaceholder();
+      }
+
+      const blob = await response.blob();
+      return new Response(blob, {
+        headers: {
+          "Content-Type": response.headers.get("content-type") || "image/png",
+          "Cache-Control": "public, max-age=86400",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    } catch (fetchError) {
+      console.error(`[api/icon] Error fetching external image: ${target}`, fetchError);
       return getPlaceholder();
     }
-
-    const blob = await response.blob();
-    return new Response(blob, {
-      headers: {
-        "Content-Type": response.headers.get("content-type") || "image/png",
-        "Cache-Control": "public, max-age=86400",
-      },
-    });
   } catch (e) {
+    console.error(`[api/icon] Unexpected error:`, e);
     return getPlaceholder();
   }
 }

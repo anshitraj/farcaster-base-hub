@@ -1,17 +1,17 @@
 /**
  * Optimizes developer-provided images (icons + banners)
  * 
- * Routes images through /api/icon to handle missing files gracefully.
+ * For production: Let Next.js Image handle external URLs directly for proper optimization.
+ * Only use /api/icon as fallback for missing local files.
+ * 
  * Next.js Image component automatically:
  * - Converts PNG/JPG to WebP format when browser supports it
  * - Serves optimized images via /_next/image endpoint
  * - Caches optimized images for 1 year
  * 
- * All Image components should use Next.js Image with proper optimization props.
- * 
  * @param url - The original image URL from developer
  * @param quality - Quality parameter (unused, kept for compatibility)
- * @returns URL routed through /api/icon for safe handling
+ * @returns URL that Next.js Image can optimize directly
  */
 export function optimizeDevImage(url?: string | null, quality: number = 80): string {
   if (!url) return "/placeholder.svg";
@@ -21,10 +21,17 @@ export function optimizeDevImage(url?: string | null, quality: number = 80): str
     return url;
   }
 
-  // External URLs or /uploads go through /api/icon
-  // This prevents 404s for /uploads/ files that don't exist on Vercel
-  // The /api/icon route handles missing files gracefully by returning placeholders
-  return `/api/icon?url=${encodeURIComponent(url)}`;
+  // For production: Let Next.js Image handle external URLs directly
+  // This allows proper optimization through /_next/image endpoint
+  // Only route through /api/icon for /uploads paths that might not exist
+  if (url.startsWith("/uploads")) {
+    // Use /api/icon as fallback for potentially missing upload files
+    return `/api/icon?url=${encodeURIComponent(url)}`;
+  }
+
+  // External URLs: Return as-is so Next.js Image can optimize them directly
+  // Next.js will handle these through remotePatterns config
+  return url;
 }
 
 /**
