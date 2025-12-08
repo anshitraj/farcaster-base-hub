@@ -14,14 +14,13 @@ export function optimizeDevImage(url?: string | null, quality: number = 80): str
     return "/placeholder.svg";
   }
 
-  // Route /uploads paths through /api/icon for proper fallback handling
-  // In production, /uploads files don't exist in the filesystem, so we need a fallback
-  // /api/icon will return a placeholder if the file doesn't exist
-  // NOTE: API routes must use unoptimized={true} because Next.js Image can't optimize them
+  // IMPORTANT: /uploads paths don't exist in production (gitignored)
+  // These are legacy paths from before Vercel Blob integration
+  // Instead of routing through /api/icon (which will just return placeholder),
+  // return the placeholder directly so images show something instead of breaking
   if (url.startsWith("/uploads")) {
-    const apiUrl = `/api/icon?url=${encodeURIComponent(url)}`;
-    console.log(`[optimizeDevImage] Routing /uploads path through API: ${url} -> ${apiUrl}`);
-    return apiUrl;
+    console.warn(`[optimizeDevImage] Legacy /uploads path detected (file doesn't exist in production): ${url} - Using placeholder`);
+    return "/placeholder.svg";
   }
 
   // Other local paths (static assets) should be returned as-is
