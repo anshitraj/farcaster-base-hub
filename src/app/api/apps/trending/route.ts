@@ -49,12 +49,34 @@ export async function GET() {
       });
     }
 
-    // Transform to match expected format
-    const apps = appsData.map(({ app, developer }) => ({
-      ...app,
-      developer,
-      events: eventsMap[app.id] || [],
-    }));
+    // Transform to match expected format and fix /uploads paths
+    const apps = appsData.map(({ app, developer }) => {
+      // Fix /uploads paths by falling back to original URLs from farcasterJson
+      let iconUrl = app.iconUrl;
+      let headerImageUrl = app.headerImageUrl;
+      
+      if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+        try {
+          const farcasterData = JSON.parse(app.farcasterJson);
+          if (iconUrl?.startsWith("/uploads") && farcasterData.imageUrl) {
+            iconUrl = farcasterData.imageUrl;
+          }
+          if (headerImageUrl?.startsWith("/uploads") && farcasterData.splashImageUrl) {
+            headerImageUrl = farcasterData.splashImageUrl;
+          }
+        } catch (e) {
+          // Keep original URLs if parsing fails
+        }
+      }
+      
+      return {
+        ...app,
+        iconUrl,
+        headerImageUrl,
+        developer,
+        events: eventsMap[app.id] || [],
+      };
+    });
 
     if (apps.length === 0) {
       return NextResponse.json({ apps: [] });

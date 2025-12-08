@@ -38,7 +38,21 @@ export async function GET(
       );
     }
 
-    const { app, developer } = result;
+    let { app, developer } = result;
+
+    // Fix /uploads paths by falling back to original URLs from farcasterJson
+    if ((app.iconUrl?.startsWith("/uploads") || app.headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+      try {
+        const farcasterData = JSON.parse(app.farcasterJson);
+        app = {
+          ...app,
+          iconUrl: app.iconUrl?.startsWith("/uploads") && farcasterData.imageUrl ? farcasterData.imageUrl : app.iconUrl,
+          headerImageUrl: app.headerImageUrl?.startsWith("/uploads") && farcasterData.splashImageUrl ? farcasterData.splashImageUrl : app.headerImageUrl,
+        };
+      } catch (e) {
+        // Keep original URLs if parsing fails
+      }
+    }
 
     // Fetch reviews with their developers (single query)
     // Also fetch app developer info for replies

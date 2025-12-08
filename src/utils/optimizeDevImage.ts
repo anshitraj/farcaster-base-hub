@@ -14,13 +14,16 @@ export function optimizeDevImage(url?: string | null, quality: number = 80): str
     return "/placeholder.svg";
   }
 
-  // IMPORTANT: /uploads paths don't exist in production (gitignored)
-  // These are legacy paths from before Vercel Blob integration
-  // Instead of routing through /api/icon (which will just return placeholder),
-  // return the placeholder directly so images show something instead of breaking
+  // /uploads paths don't exist in production (gitignored)
+  // Return the URL as-is and let the Image component's onError handle the fallback
+  // This allows the browser to attempt loading but fail gracefully to placeholder
   if (url.startsWith("/uploads")) {
-    console.warn(`[optimizeDevImage] Legacy /uploads path detected (file doesn't exist in production): ${url} - Using placeholder`);
-    return "/placeholder.svg";
+    // Don't log in production to avoid spam
+    if (process.env.NODE_ENV === "development") {
+      console.warn(`[optimizeDevImage] Legacy /uploads path detected: ${url}`);
+    }
+    // Return as-is, the Image component will handle the error
+    return url;
   }
 
   // Other local paths (static assets) should be returned as-is
