@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Referral, UserProfile, UserPoints, PointsTransaction } from "@/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -39,25 +41,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Get user's FID from profile
-    const userProfile = await prisma.userProfile.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    const userProfileResult = await db.select().from(UserProfile)
+      .where(eq(UserProfile.wallet, walletLower))
+      .limit(1);
+    const userProfile = userProfileResult[0];
 
     const referredFid = userProfile?.farcasterFid || null;
 
     // Find the referral record
-    const referral = await prisma.referral.findFirst({
-      where: {
-        referrerFid: String(referrerFid),
-        referredWallet: wallet.toLowerCase(),
-        clicked: true,
-        converted: false,
-      },
-      orderBy: {
-        clickedAt: 'desc',
-      },
-    });
+    const referralResult = await db.select().from(Referral)
+      .where(and(
+        eq(Referral.referrerFid, String(referrerFid)),
+        eq(Referral.referredWallet, walletLower),
+        eq(Referral.clicked, true),
+        eq(Referral.converted, false)
+      ))
+      .orderBy(desc(Referral.clickedAt))
+      .limit(1);
+    const referral = referralResult[0];
 
     if (!referral) {
       return NextResponse.json(
@@ -67,41 +70,38 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark as converted
-    const updated = await prisma.referral.update({
-      where: { id: referral.id },
-      data: {
+    const [updated] = await db.update(Referral)
+      .set({
         converted: true,
         convertedAt: new Date(),
         referredFid: referredFid,
-      },
-    });
+      })
+      .where(eq(Referral.id, referral.id))
+      .returning();
 
     // Award points to the referrer
     if (updated.referrerWallet) {
-      const referrerPoints = await prisma.userPoints.findUnique({
-        where: { wallet: updated.referrerWallet },
-      });
+      const referrerWalletLower = updated.referrerWallet.toLowerCase();
+      const referrerPointsResult = await db.select().from(UserPoints)
+        .where(eq(UserPoints.wallet, referrerWalletLower))
+        .limit(1);
+      const referrerPoints = referrerPointsResult[0];
 
       if (referrerPoints) {
         const pointsToAward = 50; // Points for successful referral conversion
-        await prisma.userPoints.update({
-          where: { wallet: updated.referrerWallet },
-          data: {
-            totalPoints: {
-              increment: pointsToAward,
-            },
-          },
-        });
+        await db.update(UserPoints)
+          .set({
+            totalPoints: referrerPoints.totalPoints + pointsToAward,
+          })
+          .where(eq(UserPoints.wallet, referrerWalletLower));
 
         // Create transaction record
-        await prisma.pointsTransaction.create({
-          data: {
-            wallet: updated.referrerWallet,
-            points: pointsToAward,
-            type: "referral",
-            description: `Referral conversion - ${wallet.slice(0, 6)}...${wallet.slice(-4)}`,
-            referenceId: updated.id,
-          },
+        await db.insert(PointsTransaction).values({
+          wallet: referrerWalletLower,
+          points: pointsToAward,
+          type: "referral",
+          description: `Referral conversion - ${wallet.slice(0, 6)}...${wallet.slice(-4)}`,
+          referenceId: updated.id,
         });
       }
     }

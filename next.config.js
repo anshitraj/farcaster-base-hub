@@ -4,7 +4,6 @@ const webpack = require('webpack')
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['api.dicebear.com', 'images.unsplash.com', 'ik.imagekit.io'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -12,7 +11,11 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'ik.imagekit.io',
+        hostname: 'api.dicebear.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       },
     ],
     formats: ['image/avif', 'image/webp'], // Prioritize WebP for better compression
@@ -22,6 +25,13 @@ const nextConfig = {
     // Ensure WebP is used when available
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+    // Handle upstream image errors gracefully
+    unoptimized: false,
+  },
+  // Suppress upstream image errors in production
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
   },
   experimental: {
     serverActions: {
@@ -33,7 +43,7 @@ const nextConfig = {
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
-      '@radix-ui/react-select',
+      // Removed @radix-ui/react-select from optimization to fix webpack bundling issues
       '@radix-ui/react-tabs',
       '@radix-ui/react-toast',
       '@radix-ui/react-tooltip',

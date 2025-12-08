@@ -27,14 +27,14 @@ const Navbar = () => {
             className="text-sm font-medium text-foreground/80 hover:text-base-blue transition-colors relative group"
           >
             Home
-            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-300" />
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-100" />
           </Link>
           <Link 
             href="/apps" 
             className="text-sm font-medium text-foreground/80 hover:text-base-blue transition-colors relative group"
           >
             Explore
-            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-300" />
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-100" />
           </Link>
           <Link 
             href="/premium" 
@@ -47,14 +47,14 @@ const Navbar = () => {
             className="text-sm font-medium text-foreground/80 hover:text-base-blue transition-colors relative group"
           >
             Developers
-            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-300" />
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-100" />
           </Link>
           <Link 
             href="/submit" 
             className="text-sm font-medium text-foreground/80 hover:text-base-blue transition-colors relative group"
           >
             Submit
-            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-300" />
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-base-blue group-hover:w-full transition-all duration-100" />
           </Link>
         </div>
 

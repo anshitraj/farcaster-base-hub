@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const DAILY_XP_REWARD = 10;
 const WEEKLY_XP_REWARD = 50;
@@ -30,21 +32,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const walletLower = wallet.toLowerCase();
     // Find or create developer
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-    });
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
       // Create developer if doesn't exist
-      developer = await prisma.developer.create({
-        data: {
-          wallet: wallet.toLowerCase(),
-          streakCount: 0,
-          totalXP: 0,
-          developerLevel: 1,
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet: walletLower,
+        streakCount: 0,
+        totalXP: 0,
+        developerLevel: 1,
+      }).returning();
+      developer = newDeveloper;
     }
 
     const now = new Date();
@@ -90,18 +93,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Update developer
-    const newTotalXP = developer.totalXP + reward;
+    const newTotalXP = (developer.totalXP || 0) + reward;
     const newLevel = Math.floor(newTotalXP / XP_PER_LEVEL) + 1;
 
-    const updatedDeveloper = await prisma.developer.update({
-      where: { wallet: wallet.toLowerCase() },
-      data: {
+    const [updatedDeveloper] = await db.update(Developer)
+      .set({
         streakCount: newStreakCount,
         lastClaimDate: now,
         totalXP: newTotalXP,
         developerLevel: newLevel,
-      },
-    });
+      })
+      .where(eq(Developer.wallet, walletLower))
+      .returning();
 
     return NextResponse.json({
       success: true,
@@ -121,6 +124,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
@@ -145,15 +150,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: wallet.toLowerCase() },
-      select: {
-        streakCount: true,
-        lastClaimDate: true,
-        totalXP: true,
-        developerLevel: true,
-      },
-    });
+    const walletLower = wallet.toLowerCase();
+    const developerResult = await db.select({
+      streakCount: Developer.streakCount,
+      lastClaimDate: Developer.lastClaimDate,
+      totalXP: Developer.totalXP,
+      developerLevel: Developer.developerLevel,
+    })
+      .from(Developer)
+      .where(eq(Developer.wallet, walletLower))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json({

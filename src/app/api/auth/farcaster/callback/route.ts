@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { cookies } from "next/headers";
-import crypto from "crypto";
+import { Developer, UserSession } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -140,35 +142,46 @@ export async function GET(request: NextRequest) {
     // Using a special prefix for Farcaster FIDs to distinguish from wallet addresses
     const farcasterWallet = `farcaster:${fid}`;
 
-    const developer = await prisma.developer.upsert({
-      where: { wallet: farcasterWallet },
-      update: {
-        name: username,
-        avatar: pfpUrl,
-      },
-      create: {
+    // Check if developer exists
+    let developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, farcasterWallet))
+      .limit(1);
+    let developer = developerResult[0];
+
+    if (developer) {
+      // Update existing developer
+      const [updated] = await db.update(Developer)
+        .set({
+          name: username,
+          avatar: pfpUrl,
+        })
+        .where(eq(Developer.id, developer.id))
+        .returning();
+      developer = updated;
+    } else {
+      // Create new developer
+      const [created] = await db.insert(Developer).values({
         wallet: farcasterWallet,
         name: username,
         avatar: pfpUrl,
-      },
-    });
+      }).returning();
+      developer = created;
+    }
 
     // Create or update session (handle duplicates)
-    const sessionToken = crypto.randomBytes(32).toString("hex");
+    const randomBytes = new Uint8Array(32);
+    crypto.getRandomValues(randomBytes);
+    const sessionToken = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     try {
       // Delete any existing sessions for this wallet first
-      await prisma.userSession.deleteMany({
-        where: { wallet: farcasterWallet },
-      });
+      await db.delete(UserSession).where(eq(UserSession.wallet, farcasterWallet));
       
-      await prisma.userSession.create({
-        data: {
-          wallet: farcasterWallet,
-          sessionToken,
-          expiresAt,
-        },
+      await db.insert(UserSession).values({
+        wallet: farcasterWallet,
+        sessionToken,
+        expiresAt,
       });
     } catch (sessionError: any) {
       console.error("Session creation error:", sessionError);

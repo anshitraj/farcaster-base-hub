@@ -13,7 +13,7 @@ const GlowButton = ({
   variant = "gradient",
   ...props 
 }: GlowButtonProps) => {
-  const baseClasses = "transition-all duration-300 font-medium";
+  const baseClasses = "transition-all duration-100 font-medium touch-manipulation";
   
   let buttonClasses = "";
   let glowClass = "";
@@ -43,6 +43,7 @@ const GlowButton = ({
         "hover:scale-[1.02] active:scale-[0.98]",
         className
       )}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
       {...props}
     />
   );

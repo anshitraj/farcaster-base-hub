@@ -1,18 +1,38 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, ThumbsUp } from "lucide-react";
+import { Star, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import ReplyForm from "./ReplyForm";
 
 interface ReviewCardProps {
+  reviewId?: string;
   userName: string;
   userAvatar: string;
   rating: number;
   comment: string;
   date: string;
-  helpful: number;
+  developerReply?: string | null;
+  developerReplyDate?: string | Date | null;
+  developerName?: string | null;
+  developerAvatar?: string | null;
+  canReply?: boolean;
+  onReplySubmitted?: () => void;
 }
 
-const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: ReviewCardProps) => {
+const ReviewCard = ({ 
+  reviewId,
+  userName, 
+  userAvatar, 
+  rating, 
+  comment, 
+  date,
+  developerReply,
+  developerReplyDate,
+  developerName,
+  developerAvatar,
+  canReply = false,
+  onReplySubmitted,
+}: ReviewCardProps) => {
   // Generate a fallback avatar based on username if no avatar provided
   const getFallbackAvatar = (name: string) => {
     if (userAvatar && userAvatar !== "https://via.placeholder.com/48") {
@@ -71,10 +91,43 @@ const ReviewCard = ({ userName, userAvatar, rating, comment, date, helpful }: Re
               
               <p className="text-sm text-muted-foreground mb-3">{comment}</p>
               
-              <button className="flex items-center gap-2 text-xs text-muted-foreground hover:text-base-blue transition-colors">
-                <ThumbsUp className="w-4 h-4" />
-                <span>Helpful ({helpful})</span>
-              </button>
+              {/* Developer Reply */}
+              {developerReply && (
+                <div className="mt-4 pl-4 border-l-2 border-base-blue/30 bg-background-secondary/50 rounded-r-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-base-blue" />
+                    <span className="text-sm font-semibold text-base-blue">
+                      {developerName || "Developer"}
+                    </span>
+                    {developerReplyDate && (
+                      <span className="text-xs text-muted-foreground">
+                        {typeof developerReplyDate === 'string' 
+                          ? new Date(developerReplyDate).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })
+                          : developerReplyDate.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-foreground">{developerReply}</p>
+                </div>
+              )}
+
+              {/* Reply Form (only shown if canReply and no existing reply) */}
+              {canReply && !developerReply && reviewId && (
+                <div className="mt-3">
+                  <ReplyForm 
+                    reviewId={reviewId}
+                    onReplySubmitted={onReplySubmitted}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

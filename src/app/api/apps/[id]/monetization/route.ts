@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const monetizationSchema = z.object({
@@ -41,23 +43,28 @@ export async function PATCH(
     const body = await request.json();
     const validated = monetizationSchema.parse(body);
 
+    const walletLower = wallet.toLowerCase();
     // Find the app and verify ownership
-    const app = await prisma.miniApp.findUnique({
-      where: { id: params.id },
-      include: {
-        developer: true,
-      },
-    });
-
-    if (!app) {
+    const appResult = await db.select({
+      app: MiniApp,
+      developer: Developer,
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.id, params.id))
+      .limit(1);
+    const appData = appResult[0];
+    
+    if (!appData) {
       return NextResponse.json(
         { error: "App not found" },
         { status: 404 }
       );
     }
+    const app = { ...appData.app, developer: appData.developer };
 
     // Verify the user owns this app
-    if (app.developer.wallet.toLowerCase() !== wallet.toLowerCase()) {
+    if (!app.developer || app.developer.wallet.toLowerCase() !== walletLower) {
       return NextResponse.json(
         { error: "Unauthorized: You can only modify your own apps" },
         { status: 403 }
@@ -65,12 +72,12 @@ export async function PATCH(
     }
 
     // Update monetization status
-    const updatedApp = await prisma.miniApp.update({
-      where: { id: params.id },
-      data: {
+    const [updatedApp] = await db.update(MiniApp)
+      .set({
         monetizationEnabled: validated.enabled,
-      },
-    });
+      })
+      .where(eq(MiniApp.id, params.id))
+      .returning();
 
     return NextResponse.json({
       success: true,

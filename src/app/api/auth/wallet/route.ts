@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromCookies, createWalletSession } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { verifyMessage } from "ethers";
-import crypto from "crypto";
+import { db } from "@/lib/db";
+import { UserProfile } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+export const runtime = "edge";
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,7 +81,9 @@ export async function POST(request: NextRequest) {
       
       // Even if DB fails, create a temporary session token and store in cookie
       // This allows the app to work even when DB is down
-      const tempSessionToken = crypto.randomBytes(32).toString("hex");
+      const tempArray = new Uint8Array(32);
+      globalThis.crypto.getRandomValues(tempArray);
+      const tempSessionToken = Array.from(tempArray, byte => byte.toString(16).padStart(2, '0')).join('');
       const cookieStore = await cookies();
       
       cookieStore.set("sessionToken", tempSessionToken, {
@@ -123,55 +130,30 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSessionFromCookies();
-    
-    if (session) {
-      // Try to get FID from user profile
-      let fid: string | null = null;
-      try {
-        const { prisma } = await import("@/lib/db");
-        const userProfile = await prisma.userProfile.findUnique({
-          where: { wallet: session.wallet.toLowerCase() },
-        });
-        if (userProfile?.farcasterFid) {
-          fid = userProfile.farcasterFid;
-        }
-      } catch (error) {
-        // Ignore errors when fetching FID
-      }
-
-      return NextResponse.json({
-        wallet: session.wallet,
-        fid: fid,
-      });
-    }
-
-    // Fallback: check walletAddress cookie if DB session doesn't exist
+    // OPTIMIZE: Check cookie FIRST (no DB query), then fallback to session
     const cookieStore = await cookies();
     const walletFromCookie = cookieStore.get("walletAddress")?.value;
     
     if (walletFromCookie) {
-      // Normalize wallet address (lowercase, trim)
-      const normalizedWallet = walletFromCookie.toLowerCase().trim();
-      
-      // Try to get FID from user profile
-      let fid: string | null = null;
-      try {
-        const { prisma } = await import("@/lib/db");
-        const userProfile = await prisma.userProfile.findUnique({
-          where: { wallet: normalizedWallet },
-        });
-        if (userProfile?.farcasterFid) {
-          fid = userProfile.farcasterFid;
-        }
-      } catch (error) {
-        // Ignore errors when fetching FID
-      }
-
-      return NextResponse.json({
-        wallet: normalizedWallet,
-        fid: fid,
+      // Return immediately from cookie (fastest path - no DB query)
+      const response = NextResponse.json({
+        wallet: walletFromCookie.toLowerCase().trim(),
+        fid: null,
       });
+      response.headers.set('Cache-Control', 'private, max-age=60'); // Cache for 60s
+      return response;
+    }
+
+    // Only query DB if cookie doesn't exist
+    const session = await getSessionFromCookies();
+    
+    if (session) {
+      const response = NextResponse.json({
+        wallet: session.wallet,
+        fid: null,
+      });
+      response.headers.set('Cache-Control', 'private, max-age=60');
+      return response;
     }
 
     return NextResponse.json(
@@ -179,19 +161,16 @@ export async function GET(request: NextRequest) {
       { status: 401 }
     );
   } catch (error: any) {
-    // Only log if it's not a database connection error (to reduce spam)
-    if (!error?.code?.includes('P1001') && !error?.message?.includes('Can\'t reach database')) {
-      console.error("Get auth error:", error);
-    }
-    
     // Fallback: try to get wallet from cookie
     try {
       const cookieStore = await cookies();
       const walletFromCookie = cookieStore.get("walletAddress")?.value;
       if (walletFromCookie) {
-        return NextResponse.json({
+        const response = NextResponse.json({
           wallet: walletFromCookie,
         });
+        response.headers.set('Cache-Control', 'private, max-age=60');
+        return response;
       }
     } catch (cookieError) {
       // Ignore cookie errors

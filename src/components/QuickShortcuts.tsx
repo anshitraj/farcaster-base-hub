@@ -23,18 +23,7 @@ export default function QuickShortcuts({ onScrollToApps, onScrollToBadges }: Qui
         router.push("/developer-dashboard");
         break;
       case "badges":
-        if (onScrollToBadges) {
-          onScrollToBadges();
-        } else {
-          // Fallback: scroll to badges section or show badges
-          const badgesSection = document.getElementById("badges-section");
-          if (badgesSection) {
-            badgesSection.scrollIntoView({ behavior: "smooth" });
-          } else {
-            // If no badges section, show developer's badges page
-            router.push("/dashboard");
-          }
-        }
+        router.push("/badges");
         break;
       case "analytics":
         // Analytics is a premium feature - redirect to premium page

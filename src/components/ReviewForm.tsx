@@ -95,23 +95,23 @@ const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
       transition={{ duration: 0.4 }}
     >
       <Card className="glass-card">
-        <CardHeader>
+        <CardHeader className="p-4 pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle>Write a Review</CardTitle>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-base-cyan/10 border border-base-cyan/30">
-              <Star className="w-4 h-4 text-base-cyan fill-base-cyan" />
-              <span className="text-sm font-semibold text-base-cyan">+100 Points</span>
+            <CardTitle className="text-lg">Write a Review</CardTitle>
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-base-cyan/10 border border-base-cyan/30">
+              <Star className="w-3 h-3 text-base-cyan fill-base-cyan" />
+              <span className="text-xs font-semibold text-base-cyan">+100</span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-muted-foreground mt-1.5">
             Rate this app and earn 100 points! 🎁
           </p>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="p-4 pt-0">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-2">Your Rating</label>
-              <div className="flex gap-2">
+              <label className="block text-xs font-medium mb-1.5">Your Rating</label>
+              <div className="flex gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <button
                     key={i}
@@ -122,7 +122,7 @@ const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
                     className="transition-transform hover:scale-110"
                   >
                     <Star
-                      className={`w-8 h-8 ${
+                      className={`w-5 h-5 ${
                         i < (hoveredRating || rating)
                           ? "fill-base-cyan text-base-cyan"
                           : "text-muted-foreground"
@@ -134,16 +134,16 @@ const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Your Review</label>
+              <label className="block text-xs font-medium mb-1.5">Your Review</label>
               <Textarea
                 placeholder="Share your experience with this app..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="glass-card focus-visible:ring-base-blue min-h-[120px]"
+                className="glass-card focus-visible:ring-base-blue min-h-[80px] text-sm"
               />
             </div>
 
-            <GlowButton type="submit" className="w-full" disabled={submitting}>
+            <GlowButton type="submit" className="w-full text-sm py-2" disabled={submitting}>
               {submitting ? "Submitting..." : "Submit Review"}
             </GlowButton>
           </form>

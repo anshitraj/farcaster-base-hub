@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { LucideIcon } from "lucide-react";
 import { motion } from "framer-motion";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface CategoryCardProps {
   name: string;
@@ -55,11 +56,13 @@ export default function CategoryCard({
         {backgroundImage ? (
           <div className="absolute inset-0">
             <Image
-              src={backgroundImage.startsWith("/uploads/") ? `/api/icon?url=${encodeURIComponent(backgroundImage)}` : backgroundImage}
+              src={optimizeDevImage(backgroundImage)}
               alt={name}
               fill
               className="object-cover"
-              unoptimized
+              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
+              quality={75}
+              loading="lazy"
             />
             <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300" />
           </div>

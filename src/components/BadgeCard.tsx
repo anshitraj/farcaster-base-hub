@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
+import { optimizeDevImage } from "@/utils/optimizeDevImage";
 
 interface BadgeCardProps {
   name: string;
@@ -12,9 +13,8 @@ const BadgeCard = ({ name, imageUrl, appName }: BadgeCardProps) => {
     return null; // Don't render if imageUrl is missing
   }
   
-  // Route ALL URLs (local and external) through API to handle errors gracefully
-  // This prevents 404s for /uploads/ files that don't exist on Vercel
-  const safeSrc = `/api/icon?url=${encodeURIComponent(imageUrl)}`;
+  // Use optimizeDevImage to handle all URLs safely (local, external, uploads)
+  const safeSrc = optimizeDevImage(imageUrl);
   
   return (
     <Card className="glass-card hover:bg-white/10 transition-all duration-300">
@@ -28,7 +28,6 @@ const BadgeCard = ({ name, imageUrl, appName }: BadgeCardProps) => {
           quality={75}
           loading="lazy"
           sizes="64px"
-          unoptimized={false}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = "/placeholder.svg";

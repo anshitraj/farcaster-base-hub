@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { Notification, MiniApp } from "@/db/schema";
+import { eq, and, desc, count, sql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,16 +27,19 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get("unread") === "true";
     const limit = parseInt(searchParams.get("limit") || "50", 10);
 
-    const where: any = { wallet: wallet.toLowerCase() };
+    const walletLower = wallet.toLowerCase();
+    const conditions = [eq(Notification.wallet, walletLower)];
     if (unreadOnly) {
-      where.read = false;
+      conditions.push(eq(Notification.read, false));
     }
 
-    const notifications = await prisma.notification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
+    const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    const notifications = await db.select()
+      .from(Notification)
+      .where(whereClause)
+      .orderBy(desc(Notification.createdAt))
+      .limit(limit);
 
     // For developer notifications (app_updated), extract appId from link and fetch app info
     const notificationsWithAppInfo = await Promise.all(
@@ -43,14 +49,15 @@ export async function GET(request: NextRequest) {
           const appIdMatch = notif.link.match(/\/apps\/([a-f0-9-]+)/);
           if (appIdMatch && appIdMatch[1]) {
             try {
-              const app = await prisma.miniApp.findUnique({
-                where: { id: appIdMatch[1] },
-                select: {
-                  id: true,
-                  name: true,
-                  iconUrl: true,
-                },
-              });
+              const appResult = await db.select({
+                id: MiniApp.id,
+                name: MiniApp.name,
+                iconUrl: MiniApp.iconUrl,
+              })
+                .from(MiniApp)
+                .where(eq(MiniApp.id, appIdMatch[1]))
+                .limit(1);
+              const app = appResult[0];
               if (app) {
                 return {
                   ...notif,
@@ -68,12 +75,13 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    const unreadCount = await prisma.notification.count({
-      where: {
-        wallet: wallet.toLowerCase(),
-        read: false,
-      },
-    });
+    const unreadCountResult = await db.select({ count: count(Notification.id) })
+      .from(Notification)
+      .where(and(
+        eq(Notification.wallet, walletLower),
+        eq(Notification.read, false)
+      ));
+    const unreadCount = Number(unreadCountResult[0]?.count || 0);
 
     return NextResponse.json({
       notifications: notificationsWithAppInfo,

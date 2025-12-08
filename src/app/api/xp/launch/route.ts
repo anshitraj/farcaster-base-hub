@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { convertReferralForUser } from "@/lib/referral-helpers";
+import { MiniApp, Developer, AppLaunchEvent, PremiumSubscription, UserPoints, PointsTransaction, XPLog } from "@/db/schema";
+import { eq, and, gte, count, sql } from "drizzle-orm";
 
 const LAUNCH_XP_REWARD = 2;
 const LAUNCH_COOLDOWN_MINUTES = 5;
@@ -36,31 +38,37 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify app exists
-    const app = await prisma.miniApp.findUnique({
-      where: { id: appId },
-      include: { developer: true },
-    });
+    const appResult = await db.select({
+      app: MiniApp,
+      developer: Developer,
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.id, appId))
+      .limit(1);
+    const appData = appResult[0];
 
-    if (!app) {
+    if (!appData || !appData.app) {
       return NextResponse.json(
         { error: "App not found" },
         { status: 404 }
       );
     }
+    const app = { ...appData.app, developer: appData.developer };
 
     // Check cooldown if wallet is available
     if (wallet) {
       const fiveMinutesAgo = new Date(Date.now() - LAUNCH_COOLDOWN_MINUTES * 60 * 1000);
+      const walletLower = wallet.toLowerCase();
       
-      const recentLaunch = await prisma.appLaunchEvent.findFirst({
-        where: {
-          miniAppId: appId,
-          wallet: wallet.toLowerCase(),
-          createdAt: {
-            gte: fiveMinutesAgo,
-          },
-        },
-      });
+      const recentLaunchResult = await db.select().from(AppLaunchEvent)
+        .where(and(
+          eq(AppLaunchEvent.miniAppId, appId),
+          eq(AppLaunchEvent.wallet, walletLower),
+          gte(AppLaunchEvent.createdAt, fiveMinutesAgo)
+        ))
+        .limit(1);
+      const recentLaunch = recentLaunchResult[0];
 
       if (recentLaunch) {
         return NextResponse.json(
@@ -75,64 +83,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Create launch event
-    await prisma.appLaunchEvent.create({
-      data: {
-        miniAppId: appId,
-        wallet: wallet ? wallet.toLowerCase() : null,
-      },
+    await db.insert(AppLaunchEvent).values({
+      miniAppId: appId,
+      wallet: wallet ? wallet.toLowerCase() : null,
     });
 
     // Update app stats
-    const updateData: any = {
-      launchCount: { increment: 1 },
-    };
-
+    const appUpdateResult = await db.select().from(MiniApp).where(eq(MiniApp.id, appId)).limit(1);
+    const currentApp = appUpdateResult[0];
+    
     // Update unique users if wallet provided
+    let uniqueUsersIncrement = 0;
     if (wallet) {
-      const existingLaunch = await prisma.appLaunchEvent.findFirst({
-        where: {
-          miniAppId: appId,
-          wallet: wallet.toLowerCase(),
-        },
-      });
+      const walletLower = wallet.toLowerCase();
+      const previousLaunchesResult = await db.select({ count: count() })
+        .from(AppLaunchEvent)
+        .where(and(
+          eq(AppLaunchEvent.miniAppId, appId),
+          eq(AppLaunchEvent.wallet, walletLower)
+        ));
+      const previousLaunches = Number(previousLaunchesResult[0]?.count || 0);
 
-      // If this is the first launch from this wallet, increment uniqueUsers
-      if (!existingLaunch || existingLaunch.id === undefined) {
-        // This is handled by the launch event creation above
-        // We need to check if this wallet has launched before
-        const previousLaunches = await prisma.appLaunchEvent.count({
-          where: {
-            miniAppId: appId,
-            wallet: wallet.toLowerCase(),
-          },
-        });
-
-        if (previousLaunches === 1) {
-          // This is the first launch from this wallet
-          updateData.uniqueUsers = { increment: 1 };
-        }
+      if (previousLaunches === 1) {
+        // This is the first launch from this wallet
+        uniqueUsersIncrement = 1;
       }
     }
 
-    await prisma.miniApp.update({
-      where: { id: appId },
-      data: updateData,
-    });
+    await db.update(MiniApp)
+      .set({
+        launchCount: currentApp.launchCount + 1,
+        uniqueUsers: currentApp.uniqueUsers + uniqueUsersIncrement,
+      })
+      .where(eq(MiniApp.id, appId));
 
     // Award XP to user if wallet is available
     let xpAwarded = 0;
     if (wallet) {
       try {
+        const walletLower = wallet.toLowerCase();
         // Check if user has premium subscription
-        const premiumSubscription = await prisma.premiumSubscription.findFirst({
-          where: {
-            wallet: wallet.toLowerCase(),
-            status: "active",
-            expiresAt: {
-              gt: new Date(),
-            },
-          },
-        });
+        const premiumResult = await db.select().from(PremiumSubscription)
+          .where(and(
+            eq(PremiumSubscription.wallet, walletLower),
+            eq(PremiumSubscription.status, "active"),
+            sql`${PremiumSubscription.expiresAt} > NOW()`
+          ))
+          .limit(1);
+        const premiumSubscription = premiumResult[0];
 
         // Calculate XP with premium multiplier if applicable
         let xpToAward = LAUNCH_XP_REWARD;
@@ -141,37 +139,36 @@ export async function POST(request: NextRequest) {
         }
 
         // Find or create user points
-        let userPoints = await prisma.userPoints.findUnique({
-          where: { wallet: wallet.toLowerCase() },
-        });
+        let userPointsResult = await db.select().from(UserPoints)
+          .where(eq(UserPoints.wallet, walletLower))
+          .limit(1);
+        let userPoints = userPointsResult[0];
 
         if (!userPoints) {
-          userPoints = await prisma.userPoints.create({
-            data: {
-              wallet: wallet.toLowerCase(),
-              totalPoints: xpToAward,
-            },
-          });
+          const [newPoints] = await db.insert(UserPoints).values({
+            wallet: walletLower,
+            totalPoints: xpToAward,
+          }).returning();
+          userPoints = newPoints;
         } else {
-          userPoints = await prisma.userPoints.update({
-            where: { wallet: wallet.toLowerCase() },
-            data: {
-              totalPoints: { increment: xpToAward },
-            },
-          });
+          const [updatedPoints] = await db.update(UserPoints)
+            .set({
+              totalPoints: userPoints.totalPoints + xpToAward,
+            })
+            .where(eq(UserPoints.wallet, walletLower))
+            .returning();
+          userPoints = updatedPoints;
         }
 
         // Create transaction record
-        await prisma.pointsTransaction.create({
-          data: {
-            wallet: wallet.toLowerCase(),
-            points: xpToAward,
-            type: premiumSubscription ? "launch_premium" : "launch",
-            description: premiumSubscription
-              ? `Earned ${xpToAward} XP (Premium +10%) for launching "${app.name}"`
-              : `Earned ${xpToAward} XP for launching "${app.name}"`,
-            referenceId: appId,
-          },
+        await db.insert(PointsTransaction).values({
+          wallet: walletLower,
+          points: xpToAward,
+          type: premiumSubscription ? "launch_premium" : "launch",
+          description: premiumSubscription
+            ? `Earned ${xpToAward} XP (Premium +10%) for launching "${app.name}"`
+            : `Earned ${xpToAward} XP for launching "${app.name}"`,
+          referenceId: appId,
         });
 
         xpAwarded = xpToAward;
@@ -189,21 +186,21 @@ export async function POST(request: NextRequest) {
       try {
         const developerXP = 2; // Developer also gets XP when their app is launched
         
-        await prisma.developer.update({
-          where: { id: app.developer.id },
-          data: {
-            totalXP: { increment: developerXP },
-          },
-        });
+        const devResult = await db.select().from(Developer).where(eq(Developer.id, app.developer.id)).limit(1);
+        const currentDev = devResult[0];
+        
+        await db.update(Developer)
+          .set({
+            totalXP: (currentDev.totalXP || 0) + developerXP,
+          })
+          .where(eq(Developer.id, app.developer.id));
 
         // Log XP for developer
-        await prisma.xPLog.create({
-          data: {
-            developerId: app.developer.id,
-            amount: developerXP,
-            reason: "app_launch",
-            referenceId: appId,
-          },
+        await db.insert(XPLog).values({
+          developerId: app.developer.id,
+          amount: developerXP,
+          reason: "app_launch",
+          referenceId: appId,
         });
       } catch (xpError) {
         console.error("Error awarding developer XP:", xpError);

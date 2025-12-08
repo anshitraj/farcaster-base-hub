@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Advertisement } from "@/db/schema";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 // GET - Fetch active advertisements for public display
 export async function GET(request: NextRequest) {
@@ -9,23 +12,20 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const position = searchParams.get("position") || "sidebar";
 
-    const advertisements = await prisma.advertisement.findMany({
-      where: {
-        position,
-        isActive: true,
-      },
-      orderBy: [
-        { order: "asc" },
-        { createdAt: "desc" },
-      ],
-    });
+    const advertisements = await db.select()
+      .from(Advertisement)
+      .where(and(
+        eq(Advertisement.position, position),
+        eq(Advertisement.isActive, true)
+      ))
+      .orderBy(asc(Advertisement.order), desc(Advertisement.createdAt));
 
     // Increment view count for each ad (async, don't wait)
     advertisements.forEach((ad) => {
-      prisma.advertisement.update({
-        where: { id: ad.id },
-        data: { viewCount: { increment: 1 } },
-      }).catch(console.error);
+      db.update(Advertisement)
+        .set({ viewCount: ad.viewCount + 1 })
+        .where(eq(Advertisement.id, ad.id))
+        .catch(console.error);
     });
 
     return NextResponse.json({ advertisements });

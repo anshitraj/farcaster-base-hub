@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { MiniAppProvider } from "@/components/MiniAppProvider";
 import { WagmiProvider } from "@/components/WagmiProvider";
+import "@/lib/suppress-console-errors";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -38,6 +39,7 @@ export const metadata: Metadata = {
 };
 
 // Allow static generation where possible, but keep dynamic for auth-dependent routes
+// Individual pages can override this
 export const dynamic = 'auto';
 
 export default function RootLayout({

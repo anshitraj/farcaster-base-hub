@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { UserSession } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +10,8 @@ export const dynamic = 'force-dynamic';
  * Logout Route
  * Clears session cookies and redirects to home
  */
+
+export const runtime = "edge";
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -16,9 +20,7 @@ export async function GET(request: NextRequest) {
     // Delete session from database if exists
     if (sessionToken) {
       try {
-        await prisma.userSession.deleteMany({
-          where: { sessionToken },
-        });
+        await db.delete(UserSession).where(eq(UserSession.sessionToken, sessionToken));
       } catch (error) {
         console.error("Error deleting session:", error);
         // Continue even if deletion fails - database might be unavailable

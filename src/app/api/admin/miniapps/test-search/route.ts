@@ -6,6 +6,7 @@ import { searchMiniApps } from "@/lib/neynar/searchMiniApps";
  * Call this to see what the API actually returns
  */
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {

@@ -173,12 +173,16 @@ export default function VerifyPage() {
       if (data.verified) {
         setIsVerified(true);
         setStep(5);
+        // Dispatch event so other components can refresh verification status
+        window.dispatchEvent(new Event('verificationComplete'));
         toast({
           title: "Verification Complete! 🎉",
           description: "Your developer account is now fully verified.",
         });
       } else {
         setStep(3);
+        // Dispatch event even for partial verification
+        window.dispatchEvent(new Event('verificationComplete'));
         toast({
           title: "Wallet Verified",
           description: "Now verify your domain to complete verification.",
@@ -258,11 +262,15 @@ export default function VerifyPage() {
       if (data.verified) {
         setIsVerified(true);
         setStep(5);
+        // Dispatch event so other components can refresh verification status
+        window.dispatchEvent(new Event('verificationComplete'));
         toast({
           title: "Verification Complete! 🎉",
           description: "Your developer account is now fully verified.",
         });
       } else {
+        // Dispatch event even for partial verification
+        window.dispatchEvent(new Event('verificationComplete'));
         toast({
           title: "Domain Verified",
           description: "Now verify your wallet to complete verification.",

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { cookies } from "next/headers";
+import { Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,9 +17,10 @@ export async function GET(request: NextRequest) {
     }
 
     const farcasterWallet = `farcaster:${fid}`;
-    const developer = await prisma.developer.findUnique({
-      where: { wallet: farcasterWallet },
-    });
+    const developerResult = await db.select().from(Developer)
+      .where(eq(Developer.wallet, farcasterWallet))
+      .limit(1);
+    const developer = developerResult[0];
 
     if (!developer) {
       return NextResponse.json({ farcaster: null });

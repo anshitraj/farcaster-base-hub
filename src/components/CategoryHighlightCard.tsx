@@ -63,7 +63,7 @@ export function CategoryHighlightCard({
     app.name.toLowerCase().includes(featuredApp.toLowerCase())
   ) || categoryApps[0];
   
-  const appIcons = categoryApps.slice(0, 4); // Show max 4 icons with names (reduced from 6 to fit larger icons)
+  const appIcons = categoryApps.slice(0, 5); // Show max 5 icons with names
 
   const content = (
     <motion.div
@@ -78,12 +78,14 @@ export function CategoryHighlightCard({
         <>
           <div className="absolute inset-0">
             <Image
-              src={backgroundImage.startsWith("/uploads/") ? `/api/icon?url=${encodeURIComponent(backgroundImage)}` : backgroundImage}
+              src={optimizeDevImage(backgroundImage)}
               alt={title}
               fill
               className="object-cover"
-              unoptimized
-              priority
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              quality={75}
+              priority={false}
+              loading="lazy"
             />
           </div>
           {/* Dark overlay for text readability */}
@@ -111,22 +113,22 @@ export function CategoryHighlightCard({
         <div className="flex-1 flex items-center justify-center mb-4">
           {loading ? (
             <div className="flex gap-3">
-              {[...Array(4)].map((_, i) => (
+              {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex flex-col items-center gap-1">
-                  <div className="w-16 h-16 rounded-2xl bg-white/20 animate-pulse" />
+                  <div className="w-12 h-12 rounded-2xl bg-white/20 animate-pulse" />
                   <div className="w-12 h-3 rounded bg-white/20 animate-pulse" />
                 </div>
               ))}
             </div>
           ) : appIcons.length > 0 ? (
-            <div className="flex items-center justify-center gap-3 flex-wrap">
+            <div className="flex items-center justify-center gap-2.5 flex-wrap">
               {appIcons.map((app) => (
                 <div
                   key={app.id}
                   className="flex flex-col items-center gap-1.5 flex-shrink-0"
                 >
                   {/* App Icon */}
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 overflow-hidden shadow-md hover:scale-105 transition-transform duration-200">
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 overflow-hidden shadow-md hover:scale-105 transition-transform duration-200">
                     {app.iconUrl ? (
                       <Image
                         src={optimizeDevImage(app.iconUrl)}
@@ -141,23 +143,42 @@ export function CategoryHighlightCard({
                           }
                         }}
                         alt={app.name}
-                        width={80}
-                        height={80}
+                        width={56}
+                        height={56}
                         className="w-full h-full object-cover"
-                        unoptimized
+                        quality={75}
+                        loading="lazy"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-white/5">
-                        <div className="w-10 h-10 rounded-lg bg-white/20" />
+                        <div className="w-8 h-8 rounded-lg bg-white/20" />
                       </div>
                     )}
                   </div>
                   {/* App Name */}
-                  <p className="text-white text-xs font-medium text-center max-w-[60px] md:max-w-[80px] truncate drop-shadow-lg">
+                  <p className="text-white text-xs font-medium text-center max-w-[50px] md:max-w-[60px] truncate drop-shadow-lg">
                     {app.name}
                   </p>
                 </div>
               ))}
+              {/* Show More Button */}
+              {categoryApps.length > 5 && href && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = href;
+                  }}
+                  className="flex flex-col items-center gap-1.5 flex-shrink-0 group"
+                >
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30 border-dashed overflow-hidden shadow-md hover:scale-105 hover:bg-white/30 transition-all duration-200 flex items-center justify-center">
+                    <span className="text-white text-lg font-bold group-hover:scale-110 transition-transform">+</span>
+                  </div>
+                  <p className="text-white text-xs font-medium text-center max-w-[50px] md:max-w-[60px] truncate drop-shadow-lg">
+                    Show more
+                  </p>
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-center">

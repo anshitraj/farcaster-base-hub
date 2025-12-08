@@ -35,7 +35,7 @@ export default function HorizontalScroller({
         </div>
       )}
       <div className="overflow-x-auto scroll-smooth no-scrollbar pb-2">
-        <div className="flex gap-4 px-4 min-w-max">
+        <div className="flex gap-2.5 px-4 min-w-max">
           {children}
         </div>
       </div>

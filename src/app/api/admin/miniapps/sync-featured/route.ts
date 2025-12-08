@@ -4,7 +4,9 @@ import { searchMiniApps } from "@/lib/neynar/searchMiniApps";
 import { inferCategory, buildTags } from "@/lib/miniapps/category";
 import { getRawDescription, makeShortDescription, makeSeoDescription } from "@/lib/miniapps/description";
 import { MiniAppCategory, MiniAppSeed } from "@/types/miniapp";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
+import { Developer, MiniApp } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { writeFile } from "fs/promises";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
@@ -241,18 +243,16 @@ export async function POST(request: NextRequest) {
     // Import into database
     const defaultDeveloperWallet = DEFAULT_OWNER_ADDRESS.toLowerCase();
     
-    let developer = await prisma.developer.findUnique({
-      where: { wallet: defaultDeveloperWallet },
-    });
+    let developerResult = await db.select().from(Developer).where(eq(Developer.wallet, defaultDeveloperWallet)).limit(1);
+    let developer = developerResult[0];
 
     if (!developer) {
-      developer = await prisma.developer.create({
-        data: {
-          wallet: defaultDeveloperWallet,
-          name: "System",
-          verified: true,
-        },
-      });
+      const [newDeveloper] = await db.insert(Developer).values({
+        wallet: defaultDeveloperWallet,
+        name: "MiniCast Admin",
+        verified: true,
+      }).returning();
+      developer = newDeveloper;
     }
 
     let created = 0;
@@ -261,9 +261,8 @@ export async function POST(request: NextRequest) {
 
     for (const seed of seeds) {
       try {
-        const existingApp = await prisma.miniApp.findUnique({
-          where: { url: seed.frameUrl },
-        });
+        const existingAppResult = await db.select().from(MiniApp).where(eq(MiniApp.url, seed.frameUrl)).limit(1);
+        const existingApp = existingAppResult[0];
 
         const mappedCategory = mapCategory(seed.category);
         const normalizedUrl = seed.frameUrl.endsWith("/") 
@@ -298,36 +297,28 @@ export async function POST(request: NextRequest) {
         };
 
         if (existingApp) {
-          await prisma.miniApp.update({
-            where: { id: existingApp.id },
-            data: appData,
-          });
+          await db.update(MiniApp).set(appData).where(eq(MiniApp.id, existingApp.id));
           updated++;
         } else {
           try {
-            await prisma.miniApp.create({
-              data: {
-                ...appData,
-                clicks: 0,
-                installs: 0,
-                launchCount: 0,
-                uniqueUsers: 0,
-                popularityScore: 0,
-                ratingAverage: 0,
-                ratingCount: 0,
-              },
+            await db.insert(MiniApp).values({
+              ...appData,
+              clicks: 0,
+              installs: 0,
+              launchCount: 0,
+              uniqueUsers: 0,
+              popularityScore: 0,
+              ratingAverage: 0,
+              ratingCount: 0,
             });
             created++;
           } catch (createError: any) {
-            if (createError.code === "P2002") {
-              const updatedApp = await prisma.miniApp.findUnique({
-                where: { url: normalizedUrl },
-              });
+            // Check for unique constraint violation (similar to P2002)
+            if (createError.message?.includes("duplicate") || createError.code === "23505") {
+              const updatedAppResult = await db.select().from(MiniApp).where(eq(MiniApp.url, normalizedUrl)).limit(1);
+              const updatedApp = updatedAppResult[0];
               if (updatedApp) {
-                await prisma.miniApp.update({
-                  where: { id: updatedApp.id },
-                  data: appData,
-                });
+                await db.update(MiniApp).set(appData).where(eq(MiniApp.id, updatedApp.id));
                 updated++;
               }
             }

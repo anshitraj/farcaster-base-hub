@@ -12,7 +12,7 @@ import PageLoader from "@/components/PageLoader";
 import DeleteAppButton from "@/components/DeleteAppButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Users, ExternalLink, Play, CheckCircle2, Zap, Clock, Shield, ChevronLeft, ChevronRight } from "lucide-react";
+import { Star, Users, ExternalLink, Play, CheckCircle2, Zap, Clock, Shield, ChevronLeft, ChevronRight, Mail, Twitter, Globe, Info } from "lucide-react";
 import { motion } from "framer-motion";
 import useEmblaCarousel from "embla-carousel-react";
 import { getBaseDeepLink, getFarcasterDeepLink } from "@/lib/baseDeepLink";
@@ -26,6 +26,7 @@ import AppHeader from "@/components/AppHeader";
 import { trackPageView, trackAppInteraction } from "@/lib/analytics";
 import { useToast } from "@/hooks/use-toast";
 import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
+import EditWhatsNewButton from "@/components/EditWhatsNewButton";
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -253,11 +254,11 @@ export default function AppDetailPage() {
           <Image
             src={optimizeBannerImage(app.headerImageUrl)}
             alt={`${app.name} header`}
-            width={1920}
-            height={800}
-            className="w-full h-full object-cover"
+            fill
+            className="object-cover"
             priority
-            quality={90}
+            quality={85}
+            sizes="100vw"
             data-original={app.headerImageUrl}
             onError={(e) => {
               const target = e.target as HTMLImageElement;
@@ -307,6 +308,9 @@ export default function AppDetailPage() {
                       width={64}
                       height={64}
                       className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl bg-background-secondary p-1 md:p-1.5 shadow-lg flex-shrink-0"
+                      priority
+                      quality={85}
+                      sizes="(max-width: 768px) 48px, 64px"
                     />
                   )}
 
@@ -315,16 +319,19 @@ export default function AppDetailPage() {
                     <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1 flex-wrap">
                       <div className="flex items-center gap-1">
                         <h1 className="text-base md:text-lg lg:text-xl font-bold">{app.name}</h1>
-                        {app.verified && (
+                        {app.verified ? (
                           <Image
                             src="/verify.svg"
                             alt="Verified"
-                            width={20}
-                            height={20}
+                            width={24}
+                            height={24}
                             className="w-5 h-5 md:w-6 md:h-6 flex-shrink-0 ml-0.5 inline-block"
                             title="Verified App"
-                            unoptimized
+                            quality={90}
+                            priority
                           />
+                        ) : (
+                          <UnverifiedBadge iconOnly size="md" className="flex-shrink-0 ml-0.5" />
                         )}
                       </div>
                     </div>
@@ -333,7 +340,7 @@ export default function AppDetailPage() {
                         href={`/developers/${app.developer.wallet}`}
                         className="flex items-center gap-1 text-[10px] md:text-xs text-muted-foreground hover:text-base-blue transition-colors mb-1 md:mb-2"
                       >
-                        <span>{app.developer.name || "Anonymous Developer"}</span>
+                        <span>{(app.developer.name === "System" ? "Mini Cast Admin" : app.developer.name) || "Anonymous Developer"}</span>
                         {app.developer.verified && (
                           <VerifiedBadge type="developer" iconOnly size="sm" />
                         )}
@@ -372,6 +379,21 @@ export default function AppDetailPage() {
                         <AutoUpdateBadge className="text-[10px] md:text-xs" />
                       )}
                     </div>
+
+                    {/* Tags Section */}
+                    {app.tags && app.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 md:gap-2 mb-2 md:mb-3">
+                        {app.tags.map((tag: string, index: number) => (
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5"
+                          >
+                            {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -495,28 +517,143 @@ export default function AppDetailPage() {
             </p>
           </motion.div>
 
-          {/* Stats */}
+          {/* What's New Section */}
+          {(app.whatsNew || isOwner) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.12 }}
+              className="glass-card p-6 mb-6 rounded-2xl"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold">What's new</h2>
+                <div className="flex items-center gap-3">
+                  {app.lastUpdatedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Last updated {new Date(app.lastUpdatedAt).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  )}
+                  {isOwner && (
+                    <EditWhatsNewButton
+                      appId={id}
+                      currentWhatsNew={app.whatsNew}
+                      onUpdated={async () => {
+                        // Refresh app data
+                        const res = await fetch(`/api/apps/${id}`, {
+                          cache: 'no-store',
+                          headers: {
+                            'Cache-Control': 'no-cache',
+                          },
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setApp(data.app);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+              {app.whatsNew ? (
+                <div className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                  {app.whatsNew}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground italic">
+                  No updates yet. Add what's new to let users know about your latest changes!
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Stats Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.15 }}
             className="mb-6"
           >
-            <Card className="glass-card text-center p-4">
-              <div className="text-2xl font-bold mb-1">
-                {reviews.length > 0 ? (
-                  (app.ratingAverage || 0) % 1 === 0 
-                    ? (app.ratingAverage || 0).toString() 
-                    : (app.ratingAverage || 0).toFixed(1)
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {reviews.length > 0 ? 'Rating' : 'Not rated'}
-              </div>
-            </Card>
+            <div className="grid grid-cols-3 gap-3">
+              {/* Rating Count */}
+              <Card className="glass-card text-center p-4">
+                <div className="text-2xl font-bold mb-1">
+                  {reviews.length > 0 ? (
+                    (app.ratingAverage || 0) % 1 === 0 
+                      ? (app.ratingAverage || 0).toString() 
+                      : (app.ratingAverage || 0).toFixed(1)
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {reviews.length > 0 ? 'Rating' : 'Not rated'}
+                </div>
+              </Card>
+              
+              {/* Number of Opens */}
+              <Card className="glass-card text-center p-4">
+                <div className="text-2xl font-bold mb-1">
+                  {app.clicks || 0}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Opens
+                </div>
+              </Card>
+              
+              {/* Rating Count */}
+              <Card className="glass-card text-center p-4">
+                <div className="text-2xl font-bold mb-1">
+                  {reviews.length}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Reviews
+                </div>
+              </Card>
+            </div>
           </motion.div>
+
+          {/* App Support Section */}
+          {(app.supportEmail || app.twitterUrl) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.17 }}
+              className="mb-6"
+            >
+              <Card className="glass-card p-4">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  App Support
+                </h3>
+                <div className="space-y-3">
+                  {app.supportEmail && (
+                    <a
+                      href={`mailto:${app.supportEmail}`}
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-base-blue transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>{app.supportEmail}</span>
+                    </a>
+                  )}
+                  {app.twitterUrl && (
+                    <a
+                      href={app.twitterUrl.startsWith('http') ? app.twitterUrl : `https://twitter.com/${app.twitterUrl.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-base-blue transition-colors"
+                    >
+                      <Twitter className="w-4 h-4" />
+                      <span>{app.twitterUrl.startsWith('@') ? app.twitterUrl : app.twitterUrl.includes('twitter.com') ? app.twitterUrl : `@${app.twitterUrl}`}</span>
+                    </a>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Recommended Mini Apps */}
           <motion.div
@@ -561,10 +698,109 @@ export default function AppDetailPage() {
             transition={{ duration: 0.4, delay: 0.25 }}
             className="mb-6"
           >
-            <h2 className="text-lg font-semibold mb-4">
-              Ratings & Reviews ({reviews.length})
-            </h2>
-            
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Ratings and reviews</h2>
+              <button
+                className="w-8 h-8 rounded-full hover:bg-gray-800/50 flex items-center justify-center transition-colors"
+                aria-label="View all reviews"
+              >
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="flex items-start gap-2 mb-6">
+              <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                Ratings and reviews are verified and are from people who use the same type of device that you use
+              </p>
+            </div>
+
+            {/* Rating Overview */}
+            {reviews.length > 0 && (() => {
+              // Calculate rating distribution
+              const ratingDistribution = [5, 4, 3, 2, 1].map(rating => ({
+                rating,
+                count: reviews.filter(r => Math.round(r.rating) === rating).length
+              }));
+              const maxCount = Math.max(...ratingDistribution.map(d => d.count), 1);
+              const averageRating = app.ratingAverage || 0;
+              const normalizedRating = Math.max(0, Math.min(averageRating, 5));
+              const fullStars = Math.floor(normalizedRating);
+              const hasHalfStar = normalizedRating % 1 >= 0.5;
+
+              return (
+                <Card className="glass-card p-6 mb-6">
+                  <div className="flex flex-col md:flex-row gap-8">
+                    {/* Left: Rating and Stars */}
+                    <div className="flex flex-col items-center md:items-start">
+                      <div className="text-5xl font-bold mb-2">
+                        {normalizedRating % 1 === 0 
+                          ? normalizedRating.toString() 
+                          : normalizedRating.toFixed(1)}
+                      </div>
+                      <div className="flex items-center gap-1 mb-3">
+                        {Array.from({ length: fullStars }).map((_, i) => (
+                          <Star
+                            key={`full-${i}`}
+                            className="fill-blue-500 text-blue-500"
+                            size={24}
+                          />
+                        ))}
+                        {hasHalfStar && (
+                          <div className="relative">
+                            <Star
+                              className="text-muted-foreground"
+                              size={24}
+                            />
+                            <Star
+                              className="fill-blue-500 text-blue-500 absolute inset-0 overflow-hidden"
+                              size={24}
+                              style={{ clipPath: "inset(0 50% 0 0)" }}
+                            />
+                          </div>
+                        )}
+                        {Array.from({ length: 5 - fullStars - (hasHalfStar ? 1 : 0) }).map((_, i) => (
+                          <Star
+                            key={`empty-${i}`}
+                            className="text-muted-foreground fill-muted-foreground/20"
+                            size={24}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {reviews.length.toLocaleString()} {reviews.length === 1 ? 'review' : 'reviews'}
+                      </p>
+                    </div>
+
+                    {/* Right: Rating Distribution */}
+                    <div className="flex-1 space-y-2">
+                      {ratingDistribution.map(({ rating, count }) => {
+                        const percentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                        return (
+                          <div key={rating} className="flex items-center gap-3">
+                            <span className="text-sm text-white w-8">{rating}</span>
+                            <Star className="w-4 h-4 text-muted-foreground fill-muted-foreground/20" />
+                            <div className="flex-1 relative h-2 bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className="absolute left-0 top-0 h-full bg-blue-500 rounded-full transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-sm text-muted-foreground w-12 text-right">
+                              {count.toLocaleString()}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })()}
+
+            {/* Review Form */}
             {!isOwner && (
               <div className="mb-6">
                 <ReviewForm
@@ -594,6 +830,7 @@ export default function AppDetailPage() {
               </Card>
             )}
 
+            {/* Individual Reviews */}
             <div className="space-y-4">
               {reviews.length > 0 ? (
                 reviews.map((review) => {
@@ -611,15 +848,36 @@ export default function AppDetailPage() {
                           }))
                     : 'Unknown date';
                   
+                  // Get reviewer info (the user who wrote the review)
+                  const reviewer = review.developer || review.developerReviewer;
+                  
                   return (
                     <ReviewCard
                       key={review.id}
-                      userName={review.developerReviewer?.name || "Anonymous"}
-                      userAvatar={review.developerReviewer?.avatar || ""}
+                      reviewId={review.id}
+                      userName={reviewer?.name || "Anonymous"}
+                      userAvatar={reviewer?.avatar || ""}
                       rating={review.rating}
                       comment={review.comment || ""}
                       date={reviewDate}
-                      helpful={0}
+                      developerReply={review.developerReply}
+                      developerReplyDate={review.developerReplyDate}
+                      developerName={review.appDeveloper?.name || app.developer?.name || null}
+                      developerAvatar={review.appDeveloper?.avatar || app.developer?.avatar || null}
+                      canReply={isOwner && !review.developerReply}
+                      onReplySubmitted={() => {
+                        // Refresh reviews after reply
+                        fetch(`/api/apps/${id}`, {
+                          cache: 'no-store',
+                          headers: {
+                            'Cache-Control': 'no-cache',
+                          },
+                        })
+                          .then(res => res.json())
+                          .then(data => {
+                            setReviews(data.reviews || []);
+                          });
+                      }}
                     />
                   );
                 })

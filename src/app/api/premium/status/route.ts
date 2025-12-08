@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getCurrentWallet } from "@/lib/auth";
+import { PremiumSubscription } from "@/db/schema";
+import { eq, and, desc, lte, gt, sql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
+export const runtime = "edge";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,44 +17,34 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const walletLower = wallet.toLowerCase();
     // Find active subscription
-    const subscription = await prisma.premiumSubscription.findFirst({
-      where: {
-        wallet: wallet.toLowerCase(),
-        status: "active",
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-      orderBy: {
-        expiresAt: "desc",
-      },
-    });
+    const subscriptionResult = await db.select().from(PremiumSubscription)
+      .where(and(
+        eq(PremiumSubscription.wallet, walletLower),
+        eq(PremiumSubscription.status, "active"),
+        sql`${PremiumSubscription.expiresAt} > NOW()`
+      ))
+      .orderBy(desc(PremiumSubscription.expiresAt))
+      .limit(1);
+    const subscription = subscriptionResult[0];
 
     if (!subscription) {
       // Check for expired subscriptions
-      const expired = await prisma.premiumSubscription.findFirst({
-        where: {
-          wallet: wallet.toLowerCase(),
-          expiresAt: {
-            lte: new Date(),
-          },
-        },
-        orderBy: {
-          expiresAt: "desc",
-        },
-      });
+      const expiredResult = await db.select().from(PremiumSubscription)
+        .where(and(
+          eq(PremiumSubscription.wallet, walletLower),
+          lte(PremiumSubscription.expiresAt, new Date())
+        ))
+        .orderBy(desc(PremiumSubscription.expiresAt))
+        .limit(1);
+      const expired = expiredResult[0];
 
       if (expired) {
         // Auto-update expired subscriptions
-        await prisma.premiumSubscription.update({
-          where: {
-            id: expired.id,
-          },
-          data: {
-            status: "expired",
-          },
-        });
+        await db.update(PremiumSubscription)
+          .set({ status: "expired" })
+          .where(eq(PremiumSubscription.id, expired.id));
       }
 
       return NextResponse.json({

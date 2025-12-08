@@ -3,6 +3,8 @@ import { requireModerator } from "@/lib/admin";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import sharp from "sharp";
+import { convertToWebP } from "@/lib/image-optimization";
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,15 +57,42 @@ export async function POST(request: NextRequest) {
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split(".").pop() || "png";
     const filename = `${type}-${timestamp}-${randomString}.${fileExtension}`;
-    const filepath = join(uploadsDir, filename);
+    let filepath = join(uploadsDir, filename);
 
-    // Convert file to buffer and save
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(filepath, buffer);
+    const buffer = Buffer.from(new Uint8Array(bytes));
+
+    // Convert PNG/JPG to WebP automatically
+    let finalBuffer: Buffer = buffer;
+    let finalExtension = fileExtension;
+    let finalFilename = filename;
+
+    const isPngJpg = file.type === "image/png" || 
+                     file.type === "image/jpeg" || 
+                     file.type === "image/jpg" ||
+                     fileExtension.toLowerCase() === "png" ||
+                     fileExtension.toLowerCase() === "jpg" ||
+                     fileExtension.toLowerCase() === "jpeg";
+
+    if (isPngJpg) {
+      try {
+        // Convert to WebP with quality 75
+        finalBuffer = await convertToWebP(buffer, 75);
+        finalExtension = "webp";
+        finalFilename = `${type}-${timestamp}-${randomString}.webp`;
+        filepath = join(uploadsDir, finalFilename);
+      } catch (conversionError) {
+        console.error("Failed to convert image to WebP:", conversionError);
+        // Fallback to original if conversion fails
+      }
+    }
+
+    // Save the file (WebP if converted, original otherwise)
+    await writeFile(filepath, finalBuffer);
 
     // Return the public URL
-    const publicUrl = `/uploads/${filename}`;
+    const publicUrl = `/uploads/${finalFilename}`;
 
     return NextResponse.json({
       success: true,

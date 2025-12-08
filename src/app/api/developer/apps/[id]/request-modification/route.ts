@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { MiniApp, Developer } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 const requestModificationSchema = z.object({
@@ -33,21 +35,28 @@ export async function POST(
     const body = await request.json();
     const validated = requestModificationSchema.parse(body);
 
+    const walletLower = wallet.toLowerCase();
     // Verify app exists and belongs to developer
-    const app = await prisma.miniApp.findUnique({
-      where: { id: appId },
-      include: { developer: true },
-    });
-
-    if (!app) {
+    const appResult = await db.select({
+      app: MiniApp,
+      developer: Developer,
+    })
+      .from(MiniApp)
+      .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
+      .where(eq(MiniApp.id, appId))
+      .limit(1);
+    const appData = appResult[0];
+    
+    if (!appData) {
       return NextResponse.json(
         { error: "App not found" },
         { status: 404 }
       );
     }
+    const app = { ...appData.app, developer: appData.developer };
 
     // Verify ownership
-    if (app.developer.wallet.toLowerCase() !== wallet.toLowerCase()) {
+    if (!app.developer || app.developer.wallet.toLowerCase() !== walletLower) {
       return NextResponse.json(
         { error: "Unauthorized. You can only request modifications for your own apps." },
         { status: 403 }
@@ -58,14 +67,13 @@ export async function POST(
     const existingNotes = app.notesToAdmin || "";
     const modificationRequest = `\n\n[MODIFICATION REQUEST - ${new Date().toISOString()}]\nMessage: ${validated.message}${validated.changes ? `\nChanges: ${validated.changes}` : ""}`;
     
-    await prisma.miniApp.update({
-      where: { id: appId },
-      data: {
+    await db.update(MiniApp)
+      .set({
         status: "pending_review",
         notesToAdmin: existingNotes + modificationRequest,
         updatedAt: new Date(),
-      },
-    });
+      })
+      .where(eq(MiniApp.id, appId));
 
     return NextResponse.json({ 
       success: true, 
@@ -79,7 +87,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (error?.code === 'P1001' || error?.message?.includes("Can't reach database")) {
+    if (error?.message?.includes("connection") || error?.message?.includes("database")) {
       return NextResponse.json(
         { error: "Database temporarily unavailable. Please try again later." },
         { status: 503 }
