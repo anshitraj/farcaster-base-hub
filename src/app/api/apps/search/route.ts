@@ -122,11 +122,32 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .offset(offset);
 
-    const apps = appsData.map(({ app, developer, premiumApp }) => ({
-      ...app,
-      developer,
-      premiumApp,
-    }));
+    const apps = appsData.map(({ app, developer, premiumApp }) => {
+      let iconUrl = app.iconUrl;
+      let headerImageUrl = app.headerImageUrl;
+      
+      if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+        try {
+          const farcasterData = JSON.parse(app.farcasterJson);
+          if (iconUrl?.startsWith("/uploads")) iconUrl = farcasterData.imageUrl || "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = farcasterData.splashImageUrl || null;
+        } catch (e) {
+          if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+        }
+      } else {
+        if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+        if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+      }
+      
+      return {
+        ...app,
+        iconUrl,
+        headerImageUrl,
+        developer,
+        premiumApp,
+      };
+    });
 
     return NextResponse.json({
       apps,

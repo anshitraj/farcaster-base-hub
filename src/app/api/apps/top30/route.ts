@@ -29,10 +29,32 @@ export async function GET(request: NextRequest) {
           .leftJoin(Developer, eq(MiniApp.developerId, Developer.id))
           .where(eq(MiniApp.url, topApp.url))
           .limit(1);
-        const matchingApp = matchingAppResult[0] ? {
+        let matchingApp = matchingAppResult[0] ? {
           ...matchingAppResult[0].app,
           developer: matchingAppResult[0].developer,
         } : null;
+
+        // Fix /uploads paths in matched app
+        if (matchingApp) {
+          let iconUrl = matchingApp.iconUrl;
+          let headerImageUrl = matchingApp.headerImageUrl;
+          
+          if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && matchingApp.farcasterJson) {
+            try {
+              const farcasterData = JSON.parse(matchingApp.farcasterJson);
+              if (iconUrl?.startsWith("/uploads")) iconUrl = farcasterData.imageUrl || "/placeholder.svg";
+              if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = farcasterData.splashImageUrl || null;
+            } catch (e) {
+              if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+              if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+            }
+          } else {
+            if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+            if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+          }
+          
+          matchingApp = { ...matchingApp, iconUrl, headerImageUrl };
+        }
 
         return {
           ...topApp,

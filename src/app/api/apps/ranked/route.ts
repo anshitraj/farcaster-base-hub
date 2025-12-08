@@ -102,12 +102,33 @@ export async function GET() {
       });
     }
 
-    // Transform to match expected format
-    const apps = appsData.map(({ app, developer }) => ({
-      ...app,
-      developer,
-      events: eventsMap[app.id] || [],
-    }));
+    // Transform to match expected format and fix /uploads paths
+    const apps = appsData.map(({ app, developer }) => {
+      let iconUrl = app.iconUrl;
+      let headerImageUrl = app.headerImageUrl;
+      
+      if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+        try {
+          const farcasterData = JSON.parse(app.farcasterJson);
+          if (iconUrl?.startsWith("/uploads")) iconUrl = farcasterData.imageUrl || "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = farcasterData.splashImageUrl || null;
+        } catch (e) {
+          if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+          if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+        }
+      } else {
+        if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
+        if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+      }
+      
+      return {
+        ...app,
+        iconUrl,
+        headerImageUrl,
+        developer,
+        events: eventsMap[app.id] || [],
+      };
+    });
 
     if (apps.length === 0) {
       return NextResponse.json({ apps: [], ranks: {} });
