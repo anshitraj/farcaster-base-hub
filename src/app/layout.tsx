@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import "../index.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -92,6 +93,7 @@ export default function RootLayout({
           <BottomNav />
           <Toaster />
           <SpeedInsights />
+          <Analytics />
         </ErrorBoundary>
           </MiniAppProvider>
         </WagmiProvider>
