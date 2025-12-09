@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Coins } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -134,7 +134,13 @@ export default function PointsDisplay() {
               router.push("/quests");
             }}
           >
-            <Coins className="w-4 h-4 text-base-cyan fill-base-cyan" />
+            <Image 
+              src="/points.webp" 
+              alt="Points" 
+              width={16} 
+              height={16} 
+              className="w-4 h-4"
+            />
             <span className="text-xs font-semibold text-base-cyan">
               {points.toLocaleString()}
             </span>
