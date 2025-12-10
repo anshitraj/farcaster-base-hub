@@ -368,7 +368,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-        <div className="px-2 sm:px-3 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-1.5 sm:gap-2 md:gap-4">
+        <div className="px-2 sm:px-3 md:px-6 py-3 sm:py-4 md:py-6 flex items-center gap-1.5 sm:gap-2 md:gap-4">
           {/* Left Side: Menu Button + Logo */}
           <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0 min-w-0">
             {/* Mobile Menu Button */}
@@ -391,10 +391,10 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto max-w-[140px] sm:max-w-none"
+                className="h-12 sm:h-14 md:h-16 lg:h-20 w-auto max-w-[160px] sm:max-w-none"
                 priority
                 quality={90}
-                sizes="(max-width: 640px) 140px, (max-width: 1024px) 250px, 300px"
+                sizes="(max-width: 640px) 160px, (max-width: 1024px) 280px, 300px"
               />
             </Link>
           </div>
@@ -525,7 +525,7 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
   return (
     <Suspense fallback={
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-2 sm:gap-3 md:gap-4">
+        <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 flex items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             <Link href="/" className="flex-shrink-0">
               <Image
@@ -533,10 +533,10 @@ export default function AppHeader({ onMenuClick }: AppHeaderProps) {
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"
+                className="h-12 sm:h-14 md:h-16 lg:h-20 w-auto"
                 priority
                 quality={90}
-                sizes="(max-width: 640px) 200px, (max-width: 1024px) 250px, 300px"
+                sizes="(max-width: 640px) 200px, (max-width: 1024px) 280px, 300px"
               />
             </Link>
           </div>

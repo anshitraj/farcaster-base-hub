@@ -9,14 +9,14 @@ const Navbar = () => {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-[hsl(var(--background))]/95 backdrop-blur-xl border-b border-[hsl(var(--border))]">
-      <div className="max-w-screen-md mx-auto container-padding h-14 md:h-16 flex items-center justify-between">
+      <div className="max-w-screen-md mx-auto container-padding h-16 md:h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group hover:opacity-80 transition-opacity">
           <Image
             src="/logo.webp"
             alt="Mini App Store"
             width={200}
             height={60}
-            className="h-10 md:h-12 w-auto"
+            className="h-12 md:h-16 w-auto"
             priority
           />
         </Link>
