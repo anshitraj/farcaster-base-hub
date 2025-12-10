@@ -204,9 +204,10 @@ const AppCard = ({
                 href={`/apps/${id}`}
                 className="px-3 py-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white text-sm rounded-xl font-medium flex items-center gap-1 transition-colors z-10"
                 onClick={(e) => e.stopPropagation()}
+                title="View app details"
               >
                 <ExternalLink className="w-3 h-3" />
-                Open
+                View
               </Link>
             </div>
           </div>

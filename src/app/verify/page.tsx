@@ -153,6 +153,7 @@ export default function VerifyPage() {
       }
 
       // Request signature - use Wagmi's signMessageAsync for better Base App compatibility
+      let rawSigForLogging: string | undefined;
       try {
         // Ensure we have a connected wallet
         if (!walletAddress) {
@@ -168,17 +169,56 @@ export default function VerifyPage() {
           message: verificationMessage,
         });
         
+        // Store raw signature for logging
+        rawSigForLogging = rawSignature;
+        
         // Validate signature format
         if (!rawSignature || typeof rawSignature !== "string") {
           throw new Error("Invalid signature received from wallet");
         }
         
-        // Normalize signature: trim, ensure lowercase hex, and validate format
+        // Normalize signature: handle different formats from Base App mobile
+        // Base App might return JSON-encoded signatures or other formats
         let normalizedSig = rawSignature.trim();
+        
+        // Try to parse as JSON if it looks like JSON (starts with { or [)
+        if ((normalizedSig.startsWith("{") || normalizedSig.startsWith("[")) && normalizedSig.length > 100) {
+          try {
+            const parsed = JSON.parse(normalizedSig);
+            // Extract signature from common JSON formats
+            if (parsed.signature) {
+              normalizedSig = parsed.signature;
+            } else if (parsed.sig) {
+              normalizedSig = parsed.sig;
+            } else if (typeof parsed === "string") {
+              normalizedSig = parsed;
+            }
+            console.log("Extracted signature from JSON format");
+          } catch (e) {
+            // Not JSON, continue with original
+          }
+        }
+        
+        // Remove any whitespace
+        normalizedSig = normalizedSig.replace(/\s+/g, "");
+        
+        // Extract hex string if it's embedded in other text
+        // Look for a pattern that looks like a hex signature (0x followed by hex chars)
+        const hexMatch = normalizedSig.match(/0x[a-fA-F0-9]{128,132}/);
+        if (hexMatch && normalizedSig.length > 132) {
+          normalizedSig = hexMatch[0];
+          console.log("Extracted hex signature from longer string");
+        }
         
         // Ensure it starts with 0x
         if (!normalizedSig.startsWith("0x")) {
-          normalizedSig = "0x" + normalizedSig;
+          // Try to find hex pattern without 0x prefix
+          const hexWithoutPrefix = normalizedSig.match(/[a-fA-F0-9]{128,132}/);
+          if (hexWithoutPrefix) {
+            normalizedSig = "0x" + hexWithoutPrefix[0];
+          } else {
+            normalizedSig = "0x" + normalizedSig;
+          }
         }
         
         // Convert to lowercase for consistency
@@ -186,10 +226,25 @@ export default function VerifyPage() {
         
         // Validate signature length - should be 132 characters (0x + 130 hex chars)
         // Standard ECDSA signature is 65 bytes = 130 hex characters + 0x prefix
-        if (normalizedSig.length !== 132) {
-          console.error("Invalid signature length:", normalizedSig.length, "Expected: 132");
+        // But allow slightly longer signatures and trim if needed (some wallets add extra chars)
+        if (normalizedSig.length < 132) {
+          console.error("Invalid signature length (too short):", normalizedSig.length, "Expected: 132");
           console.error("Signature preview:", normalizedSig.substring(0, 20) + "...");
-          throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}. Please try signing again.`);
+          throw new Error(`Invalid signature format: expected at least 132 characters, got ${normalizedSig.length}. Please try signing again.`);
+        }
+        
+        // If signature is longer than 132, try to extract the first 132 characters
+        if (normalizedSig.length > 132) {
+          // Take first 132 characters (0x + 130 hex)
+          const trimmed = normalizedSig.substring(0, 132);
+          if (/^0x[a-f0-9]{130}$/.test(trimmed)) {
+            normalizedSig = trimmed;
+            console.log("Trimmed signature to 132 characters");
+          } else {
+            console.error("Invalid signature length (too long and can't trim):", normalizedSig.length, "Expected: 132");
+            console.error("Signature preview:", normalizedSig.substring(0, 20) + "...");
+            throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}. Please try signing again.`);
+          }
         }
         
         // Validate it's valid hex
@@ -222,12 +277,53 @@ export default function VerifyPage() {
             }
             
             let normalizedSig = rawSignature.trim();
+            
+            // Try to parse as JSON if it looks like JSON
+            if ((normalizedSig.startsWith("{") || normalizedSig.startsWith("[")) && normalizedSig.length > 100) {
+              try {
+                const parsed = JSON.parse(normalizedSig);
+                if (parsed.signature) {
+                  normalizedSig = parsed.signature;
+                } else if (parsed.sig) {
+                  normalizedSig = parsed.sig;
+                } else if (typeof parsed === "string") {
+                  normalizedSig = parsed;
+                }
+              } catch (e) {
+                // Not JSON, continue
+              }
+            }
+            
+            // Remove whitespace
+            normalizedSig = normalizedSig.replace(/\s+/g, "");
+            
+            // Extract hex pattern if embedded
+            const hexMatch = normalizedSig.match(/0x[a-fA-F0-9]{128,132}/);
+            if (hexMatch && normalizedSig.length > 132) {
+              normalizedSig = hexMatch[0];
+            }
+            
             if (!normalizedSig.startsWith("0x")) {
-              normalizedSig = "0x" + normalizedSig;
+              const hexWithoutPrefix = normalizedSig.match(/[a-fA-F0-9]{128,132}/);
+              if (hexWithoutPrefix) {
+                normalizedSig = "0x" + hexWithoutPrefix[0];
+              } else {
+                normalizedSig = "0x" + normalizedSig;
+              }
             }
             normalizedSig = normalizedSig.toLowerCase();
             
-            if (normalizedSig.length !== 132 || !/^0x[a-f0-9]{130}$/.test(normalizedSig)) {
+            // Handle longer signatures
+            if (normalizedSig.length > 132) {
+              const trimmed = normalizedSig.substring(0, 132);
+              if (/^0x[a-f0-9]{130}$/.test(trimmed)) {
+                normalizedSig = trimmed;
+              } else {
+                throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}.`);
+              }
+            }
+            
+            if (normalizedSig.length < 132 || !/^0x[a-f0-9]{130}$/.test(normalizedSig)) {
               throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}.`);
             }
             
@@ -244,7 +340,9 @@ export default function VerifyPage() {
       console.log("Sending signature:", {
         length: signature.length,
         preview: signature.substring(0, 20) + "...",
-        isValidFormat: /^0x[a-f0-9]{130}$/.test(signature)
+        isValidFormat: /^0x[a-f0-9]{130}$/.test(signature),
+        rawLength: rawSigForLogging?.length || 0,
+        rawPreview: typeof rawSigForLogging === "string" ? rawSigForLogging.substring(0, 50) : "N/A"
       });
 
       // Verify wallet - include domain for server-side verification

@@ -10,16 +10,18 @@ import { Shield, Users, Package, Settings, MessageSquare } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useAccount } from "wagmi";
 
 export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const router = useRouter();
+  const { address } = useAccount();
 
   useEffect(() => {
     trackPageView("/admin");
     checkAccess();
-  }, []);
+  }, [address]);
 
   async function checkAccess() {
     try {
@@ -35,8 +37,14 @@ export default function AdminPage() {
         return;
       }
 
+      // Build admin check URL with wallet address if available (for Base App mobile)
+      let checkUrl = "/api/admin/check";
+      if (address) {
+        checkUrl += `?wallet=${encodeURIComponent(address)}`;
+      }
+
       // Then check admin/moderator status
-      const res = await fetch("/api/admin/check", {
+      const res = await fetch(checkUrl, {
         credentials: "include",
       });
 

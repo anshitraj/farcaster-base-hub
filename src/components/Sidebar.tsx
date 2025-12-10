@@ -119,6 +119,32 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
     }
   }, []);
 
+  // Handle Escape key to close sidebar on mobile
+  useEffect(() => {
+    if (!isMobile || !isOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose) {
+        onClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isMobile, isOpen, onClose]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isMobile && isOpen && !isHidden) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, isOpen, isHidden]);
+
   const toggleCollapse = () => {
     const newCollapsed = !isCollapsed;
     setIsCollapsed(newCollapsed);
@@ -138,6 +164,15 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
   const handleLinkClick = () => {
     if (isMobile) {
       onClose?.();
+    }
+  };
+
+  // Handle backdrop click - ensure it closes the sidebar
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isMobile && onClose) {
+      onClose();
     }
   };
 
@@ -167,8 +202,10 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={handleBackdropClick as any}
+          onTouchStart={handleBackdropClick as any}
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          style={{ pointerEvents: 'auto' }}
         />
       )}
 
@@ -183,6 +220,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
         className={`flex fixed left-0 top-0 h-screen bg-[#1A1A1A] border-r border-[#2A2A2A] z-50 lg:z-40 transition-all duration-300 ${
           isCollapsed && !isMobile ? "w-16" : "w-64"
         } ${isMobile ? "shadow-2xl" : ""}`}
+        style={{ pointerEvents: isMobile && !isOpen ? 'none' : 'auto' }}
       >
       <div className="flex flex-col h-full w-full">
         {/* Enhanced Header with Gradient */}
@@ -242,8 +280,12 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={onClose}
-                    className="p-2 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:border border-red-500/30"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onClose?.();
+                    }}
+                    className="p-2 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:border border-red-500/30 z-50"
                     aria-label="Close sidebar"
                   >
                     <X className="w-4 h-4 text-[#AAA] hover:text-red-400 transition-colors" />

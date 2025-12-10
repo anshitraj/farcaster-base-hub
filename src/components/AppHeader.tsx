@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Bell, Search, Plus, Menu, Wallet, Copy, Shield, CheckCircle2, LogOut } from "lucide-react";
 import PointsDisplay from "@/components/PointsDisplay";
 import NotificationSidebar from "@/components/NotificationSidebar";
+import BaseLoginButton from "@/components/BaseLoginButton";
 import { useState, useEffect, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -433,17 +434,22 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             
             {/* Connect Wallet Button/Dropdown - Desktop only, hide in Mini Apps */}
             {loaded && !isInMiniApp && (
-              <div className="hidden md:flex">
+              <div className="hidden md:flex items-center gap-2">
                 {!isConnected ? (
-                  <Button
-                    onClick={handleConnectWallet}
-                    disabled={isConnecting}
-                    className="bg-base-blue hover:bg-base-blue/90 text-white text-xs px-3 py-1.5 h-8"
-                    size="sm"
-                  >
-                    <Wallet className="w-3 h-3 mr-1.5" />
-                    {isConnecting ? "Connecting..." : "Connect Wallet"}
-                  </Button>
+                  <>
+                    <Button
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                      className="bg-base-blue hover:bg-base-blue/90 text-white text-xs px-3 py-1.5 h-8"
+                      size="sm"
+                    >
+                      <Wallet className="w-3 h-3 mr-1.5" />
+                      {isConnecting ? "Connecting..." : "Connect Wallet"}
+                    </Button>
+                    {/* Only show Base login button if not already connected */}
+                    {/* BaseLoginButton component handles its own visibility logic */}
+                    <BaseLoginButton />
+                  </>
                 ) : address ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

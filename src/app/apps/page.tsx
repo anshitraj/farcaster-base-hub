@@ -58,13 +58,8 @@ function AppsPageContent() {
           // On desktop, always open by default
           setSidebarOpen(true);
         } else {
-          // On mobile, check localStorage or default to closed
-          const savedSidebarState = localStorage.getItem('sidebarOpen');
-          if (savedSidebarState !== null) {
-            setSidebarOpen(savedSidebarState === 'true');
-          } else {
-            setSidebarOpen(false);
-          }
+          // On mobile, always start closed
+          setSidebarOpen(false);
         }
       }
     };
@@ -75,9 +70,14 @@ function AppsPageContent() {
     }
     
     const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        // Always show on desktop
-        setSidebarOpen(true);
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1024) {
+          // Always show on desktop
+          setSidebarOpen(true);
+        } else {
+          // On mobile, close sidebar when resizing to mobile
+          setSidebarOpen(false);
+        }
       }
     };
     window.addEventListener("resize", handleResize);

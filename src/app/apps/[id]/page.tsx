@@ -187,6 +187,16 @@ export default function AppDetailPage() {
   const handleOpenApp = useCallback(async (type: "base" | "farcaster") => {
     if (!app) return;
 
+    // For Farcaster, check if URL is configured
+    if (type === "farcaster" && !app.farcasterUrl) {
+      toast({
+        title: "App Unavailable on Farcaster",
+        description: "This app's Farcaster URL has not been configured by the developer.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Open app immediately - don't wait for API calls
     let url: string;
     if (type === "base") {
@@ -202,12 +212,12 @@ export default function AppDetailPage() {
         url = app.url || getBaseDeepLink(app.url);
       }
     } else {
-      // Use farcasterUrl if available, otherwise generate deep link from main URL
-      url = app.farcasterUrl || getFarcasterDeepLink(app.url);
+      // Use farcasterUrl (we already checked it exists above)
+      url = app.farcasterUrl!;
     }
     
     // Track analytics immediately (non-blocking)
-    trackAppInteraction(id, type === "base" ? "open" : "open");
+    trackAppInteraction(id, "open");
     
     // Open app immediately
     window.location.href = url;
@@ -217,7 +227,7 @@ export default function AppDetailPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ type: "open" }),
+      body: JSON.stringify({ type: type === "base" ? "open_base" : "open_farcaster" }),
     }).catch(error => {
       console.error("Error logging event:", error);
     });
@@ -231,7 +241,7 @@ export default function AppDetailPage() {
     }).catch(error => {
       console.error("Error tracking launch:", error);
     });
-  }, [app, id]);
+  }, [app, id, toast]);
 
   if (loading) {
     return <PageLoader message="Loading app..." />;
@@ -416,15 +426,36 @@ export default function AppDetailPage() {
                   </div>
                 )}
 
-                {/* Open App Button - Bottom Right */}
-                <div className="flex justify-end mt-2 md:mt-3">
+                {/* Open App Buttons - Bottom Right */}
+                <div className="flex flex-col sm:flex-row gap-2 justify-end mt-2 md:mt-3">
+                  {/* Open in Base Button */}
                   <button
                     onClick={() => handleOpenApp("base")}
                     className="bg-base-blue hover:bg-base-blue/90 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full font-medium flex items-center justify-center gap-1.5 md:gap-2 min-h-[36px] md:min-h-[40px] transition-colors shadow-lg shadow-base-blue/30 text-xs md:text-sm"
                   >
                     <Play className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                    Open App
+                    Open in Base
                   </button>
+                  
+                  {/* Open in Farcaster Button */}
+                  {app.farcasterUrl ? (
+                    <button
+                      onClick={() => handleOpenApp("farcaster")}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 md:px-5 py-1.5 md:py-2 rounded-full font-medium flex items-center justify-center gap-1.5 md:gap-2 min-h-[36px] md:min-h-[40px] transition-colors shadow-lg shadow-purple-600/30 text-xs md:text-sm"
+                    >
+                      <Play className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                      Open in Farcaster
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="bg-gray-600/50 text-gray-400 px-4 md:px-5 py-1.5 md:py-2 rounded-full font-medium flex items-center justify-center gap-1.5 md:gap-2 min-h-[36px] md:min-h-[40px] cursor-not-allowed text-xs md:text-sm"
+                      title="Farcaster URL not configured by developer"
+                    >
+                      <Play className="w-3.5 h-3.5 md:w-4 md:h-4 opacity-50" />
+                      <span className="text-[10px] md:text-xs">Unavailable on Farcaster</span>
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>

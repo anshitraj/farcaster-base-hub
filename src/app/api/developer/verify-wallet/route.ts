@@ -61,22 +61,58 @@ export async function POST(request: NextRequest) {
       endsWith: signature.substring(Math.max(0, signature.length - 10))
     });
 
+    // Normalize signature: handle different formats from Base App mobile
+    // Base App might return JSON-encoded signatures or other formats
+    let normalizedSignature = signature;
+    
+    // Try to parse as JSON if it looks like JSON (starts with { or [)
+    if ((signature.trim().startsWith("{") || signature.trim().startsWith("[")) && signature.length > 100) {
+      try {
+        const parsed = JSON.parse(signature);
+        // Extract signature from common JSON formats
+        if (parsed.signature) {
+          normalizedSignature = parsed.signature;
+        } else if (parsed.sig) {
+          normalizedSignature = parsed.sig;
+        } else if (typeof parsed === "string") {
+          normalizedSignature = parsed;
+        }
+        console.log("Extracted signature from JSON format");
+      } catch (e) {
+        // Not JSON, continue with original
+      }
+    }
+    
     // Normalize signature: trim whitespace and remove any non-hex characters
-    signature = signature.trim();
+    normalizedSignature = normalizedSignature.trim();
     
     // Remove any whitespace that might have been introduced
-    signature = signature.replace(/\s+/g, "");
+    normalizedSignature = normalizedSignature.replace(/\s+/g, "");
+    
+    // Extract hex string if it's embedded in other text
+    // Look for a pattern that looks like a hex signature (0x followed by hex chars)
+    const hexMatch = normalizedSignature.match(/0x[a-fA-F0-9]{128,132}/);
+    if (hexMatch && normalizedSignature.length > 132) {
+      normalizedSignature = hexMatch[0];
+      console.log("Extracted hex signature from longer string");
+    }
     
     // Ensure it starts with 0x
-    if (!signature.startsWith("0x")) {
-      signature = "0x" + signature;
+    if (!normalizedSignature.startsWith("0x")) {
+      // Try to find hex pattern without 0x prefix
+      const hexWithoutPrefix = normalizedSignature.match(/[a-fA-F0-9]{128,132}/);
+      if (hexWithoutPrefix) {
+        normalizedSignature = "0x" + hexWithoutPrefix[0];
+      } else {
+        normalizedSignature = "0x" + normalizedSignature;
+      }
     }
     
     // Convert to lowercase for consistency (hex is case-insensitive but ethers prefers lowercase)
-    signature = signature.toLowerCase();
+    normalizedSignature = normalizedSignature.toLowerCase();
     
     // Validate signature format - should be a hex string starting with 0x
-    if (!signature.startsWith("0x")) {
+    if (!normalizedSignature.startsWith("0x")) {
       return NextResponse.json(
         { error: "Invalid signature format: must start with 0x" },
         { status: 400 }
@@ -85,26 +121,49 @@ export async function POST(request: NextRequest) {
 
     // Check signature length - should be exactly 132 characters (0x + 130 hex chars)
     // Standard ECDSA signature is 65 bytes = 130 hex characters + 0x prefix
-    if (signature.length !== 132) {
-      console.error("Invalid signature length:", {
-        length: signature.length,
+    // But allow slightly longer signatures and trim if needed (some wallets add extra chars)
+    if (normalizedSignature.length < 132) {
+      console.error("Invalid signature length (too short):", {
+        length: normalizedSignature.length,
         expected: 132,
-        preview: signature.substring(0, 20) + "...",
-        fullLength: signature.length
+        preview: normalizedSignature.substring(0, 20) + "...",
       });
       return NextResponse.json(
-        { error: `Invalid signature: expected 132 characters, got ${signature.length}. Please try signing again.` },
+        { error: `Invalid signature: expected at least 132 characters, got ${normalizedSignature.length}. Please try signing again.` },
         { status: 400 }
       );
     }
     
+    // If signature is longer than 132, try to extract the first 132 characters
+    if (normalizedSignature.length > 132) {
+      // Take first 132 characters (0x + 130 hex)
+      const trimmed = normalizedSignature.substring(0, 132);
+      if (/^0x[a-f0-9]{130}$/.test(trimmed)) {
+        normalizedSignature = trimmed;
+        console.log("Trimmed signature to 132 characters");
+      } else {
+        console.error("Invalid signature length (too long and can't trim):", {
+          length: normalizedSignature.length,
+          expected: 132,
+          preview: normalizedSignature.substring(0, 20) + "...",
+        });
+        return NextResponse.json(
+          { error: `Invalid signature format: expected 132 characters, got ${normalizedSignature.length}. Please try signing again.` },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Validate it's valid hex
-    if (!/^0x[a-f0-9]{130}$/.test(signature)) {
+    if (!/^0x[a-f0-9]{130}$/.test(normalizedSignature)) {
       return NextResponse.json(
         { error: "Invalid signature format: not a valid hex string. Please try signing again." },
         { status: 400 }
       );
     }
+    
+    // Use normalized signature
+    signature = normalizedSignature;
 
     // Verify signature
     try {

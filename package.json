@@ -26,12 +26,14 @@
     "cleanup:png-images": "npx tsx scripts/cleanup-png-images.ts",
     "cleanup:png-images:dry": "npx tsx scripts/cleanup-png-images.ts --dry-run",
     "upload:badge": "npx tsx scripts/upload-badge-image.ts",
+    "upload:logo": "npx tsx scripts/upload-logo-to-blob.ts",
     "optimize:images": "npx tsx scripts/pre-optimize-images.ts",
     "migrate:all-to-blob": "npx tsx scripts/migrate-all-images-to-blob.ts",
     "migrate:uploads-to-blob": "npx tsx scripts/migrate-uploads-to-blob.ts"
   },
   "dependencies": {
     "@coinbase/onchainkit": "^1.1.2",
+    "@farcaster/miniapp-node": "^0.1.11",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@hookform/resolvers": "^3.10.0",

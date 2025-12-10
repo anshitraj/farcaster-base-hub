@@ -111,20 +111,44 @@ export default function UserProfile() {
 
   async function checkAuth() {
     try {
-      // If in Mini App and context is loaded, use Mini App user first
+      // PRIORITY 1: If in Base App with Wagmi connected, use Ethereum address (for Base profile)
+      // This ensures we get Base names and avatars, not Farcaster format
+      if (isConnected && address && /^0x[a-fA-F0-9]{40}$/.test(address)) {
+        const normalizedWallet = address.toLowerCase().trim();
+        // In Base App, use MiniApp user info for avatar/name, but prioritize Base profile
+        const userInfo = miniAppUser ? {
+          username: miniAppUser.username,
+          displayName: miniAppUser.displayName,
+          pfpUrl: miniAppUser.pfpUrl, // Base App provides profile picture
+        } : undefined;
+        // Pass FID but don't treat as Farcaster wallet - use Ethereum address for Base lookups
+        await fetchProfile(normalizedWallet, userInfo, miniAppUser?.fid);
+        setLoading(false);
+        return;
+      }
+
+      // PRIORITY 2: If in Mini App and context is loaded, use Mini App user
       if (isInMiniApp && miniAppLoaded && miniAppContext?.user && miniAppUser) {
         const userCtx = miniAppContext.user as any;
-        const address = userCtx.address || userCtx.custodyAddress;
-        if (address) {
-          const normalizedWallet = address.toLowerCase().trim();
-          // Pass FID if available from MiniApp user
+        // Try to get Ethereum address from context (Base App provides this)
+        const ethAddress = userCtx.address || userCtx.custodyAddress || userCtx.verifiedAddresses?.[0];
+        if (ethAddress && /^0x[a-fA-F0-9]{40}$/.test(ethAddress)) {
+          const normalizedWallet = ethAddress.toLowerCase().trim();
+          // Use Ethereum address for Base profile lookups
           await fetchProfile(normalizedWallet, miniAppUser, miniAppUser.fid);
+          setLoading(false);
+          return;
+        }
+        // Fallback: if no Ethereum address, use Farcaster format
+        if (miniAppUser.fid) {
+          const farcasterWallet = `farcaster:${miniAppUser.fid}`;
+          await fetchProfile(farcasterWallet, miniAppUser, miniAppUser.fid);
           setLoading(false);
           return;
         }
       }
 
-      // Check for Farcaster user from localStorage (FIP-11)
+      // PRIORITY 3: Check for Farcaster user from localStorage (FIP-11)
       const fcUser = getCurrentUser();
       if (fcUser && fcUser.fid) {
         const farcasterWallet = `farcaster:${fcUser.fid}`;
@@ -137,7 +161,7 @@ export default function UserProfile() {
         return;
       }
 
-      // Check for Farcaster session (fid cookie) - fallback
+      // PRIORITY 4: Check for Farcaster session (fid cookie) - fallback
       try {
         const fidRes = await fetch("/api/auth/farcaster/me", {
           credentials: "include",
@@ -155,20 +179,6 @@ export default function UserProfile() {
         }
       } catch (e) {
         // Continue to wallet check if Farcaster check fails
-      }
-
-      // Check Wagmi connection first (for Farcaster Mini App wallet or Base Account)
-      if (isConnected && address) {
-        const normalizedWallet = address.toLowerCase().trim();
-        // If we have MiniApp user info, pass it along with FID
-        const userInfo = miniAppUser ? {
-          username: miniAppUser.username,
-          displayName: miniAppUser.displayName,
-          pfpUrl: miniAppUser.pfpUrl,
-        } : undefined;
-        await fetchProfile(normalizedWallet, userInfo, miniAppUser?.fid);
-        setLoading(false);
-        return;
       }
 
       // Otherwise, check wallet auth from session
@@ -208,49 +218,63 @@ export default function UserProfile() {
       // Normalize wallet address to ensure consistency (declare outside try-catch)
     const normalizedWallet = wallet.toLowerCase().trim();
     
-    // Check if this is a Farcaster wallet
-    const isFarcaster = normalizedWallet.startsWith("farcaster:") || !!fid;
-    let extractedFid: number | null = null;
+    // Check if this is a Farcaster wallet format (farcaster:123)
+    // BUT: If we have an Ethereum address (0x...) even with FID, treat as Base wallet
+    const isFarcasterFormat = normalizedWallet.startsWith("farcaster:");
+    const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(normalizedWallet);
     
-    if (isFarcaster) {
-      if (fid) {
-        extractedFid = fid;
-      } else {
-        const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
-        if (fidMatch) {
-          extractedFid = parseInt(fidMatch[1]);
-        }
+    // If we have Ethereum address, it's a Base wallet (even if user has FID)
+    const isBaseWallet = isEthereumAddress;
+    const isFarcaster = isFarcasterFormat && !isEthereumAddress;
+    
+    let extractedFid: number | null = null;
+    if (fid) {
+      extractedFid = fid;
+    } else if (isFarcasterFormat) {
+      const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+      if (fidMatch) {
+        extractedFid = parseInt(fidMatch[1]);
       }
     }
     
     try {
-      const isBaseWallet = !isFarcaster && await checkIfBaseWallet(normalizedWallet);
-      
       let name: string | null = null;
       let avatar: string | null = null;
       let isAdmin = false;
 
-      // Use Mini App user info if available (highest priority for avatar and name)
-      if (miniAppUser) {
-        avatar = miniAppUser.pfpUrl || null;
-        // For Farcaster users, use displayName/username
-        // For Base users, we'll try to get .minicast name below
-        if (isFarcaster) {
-          name = miniAppUser.displayName || miniAppUser.username || name;
-        } else if (!name) {
-          // For Base, try MiniApp name but .minicast takes priority
-          name = miniAppUser.displayName || miniAppUser.username || null;
+      // PRIORITY 1: For Base wallets (Ethereum addresses), resolve Base profile
+      if (isBaseWallet) {
+        // Try to resolve .minicast or .base.eth name first
+        const baseName = await resolveBaseName(normalizedWallet);
+        if (baseName) {
+          name = baseName; // .minicast or .base.eth name takes highest priority
+        }
+        
+        // Try to get Base avatar from API
+        const baseAvatar = await fetchBaseAvatar(normalizedWallet, name);
+        if (baseAvatar) {
+          avatar = baseAvatar;
         }
       }
 
-      // Always try to resolve .minicast name for Base wallets (even if MiniApp has a name)
-      if (isBaseWallet) {
-        const baseName = await resolveBaseName(wallet);
-        if (baseName) {
-          name = baseName; // .minicast name takes priority
+      // PRIORITY 2: Use Mini App user info (Base App provides profile picture and name)
+      if (miniAppUser) {
+        // For Base wallets, use MiniApp avatar if Base API didn't return one
+        if (isBaseWallet && !avatar && miniAppUser.pfpUrl) {
+          avatar = miniAppUser.pfpUrl;
         }
-        if (!avatar) {
-          avatar = await fetchBaseAvatar(wallet, name);
+        // For Farcaster wallets, use MiniApp avatar
+        if (isFarcaster && !avatar) {
+          avatar = miniAppUser.pfpUrl || null;
+        }
+        
+        // For Base wallets, only use MiniApp name if we don't have Base name
+        if (isBaseWallet && !name) {
+          name = miniAppUser.displayName || miniAppUser.username || null;
+        }
+        // For Farcaster wallets, use MiniApp name
+        if (isFarcaster && !name) {
+          name = miniAppUser.displayName || miniAppUser.username || null;
         }
       }
 
@@ -344,15 +368,20 @@ export default function UserProfile() {
 
   async function resolveBaseName(wallet: string): Promise<string | null> {
     try {
-      // Use our API endpoint to resolve .minicast names
+      // Use our API endpoint to resolve .minicast or .base.eth names
       const res = await fetch(`/api/base/profile?wallet=${encodeURIComponent(wallet)}`, {
         credentials: "include",
       });
       
       if (res.ok) {
         const data = await res.json();
-        if (data.name && data.name.endsWith('.minicast')) {
+        // Return .minicast or .base.eth name
+        if (data.name && (data.name.endsWith('.minicast') || data.name.endsWith('.base.eth'))) {
           return data.name;
+        }
+        // Also check baseEthName field
+        if (data.baseEthName && data.baseEthName.endsWith('.base.eth')) {
+          return data.baseEthName;
         }
       }
     } catch (error) {
@@ -370,7 +399,8 @@ export default function UserProfile() {
       
       if (res.ok) {
         const data = await res.json();
-        if (data.avatar) {
+        // Only use API avatar if it's not a generated one (check if it's from Base source)
+        if (data.avatar && data.source === "base") {
           return data.avatar;
         }
       }
@@ -378,9 +408,9 @@ export default function UserProfile() {
       // Fall through to fallback
     }
     
-    // Fallback: Use a consistent generated avatar based on wallet
-    // This ensures the same wallet always gets the same avatar
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+    // Return null to allow MiniApp user's pfpUrl to be used instead
+    // The generated avatar will be used as final fallback in the component
+    return null;
   }
 
   const connectWallet = async () => {
@@ -624,19 +654,25 @@ export default function UserProfile() {
     );
   }
 
-  // Display name priority: .minicast name > FID > display name > wallet address
-  const displayName = profile.name && profile.name.endsWith('.minicast') 
-    ? profile.name.replace('.minicast', '') // Remove .minicast suffix for display
+  // Display name priority: Base name (.minicast or .base.eth) > Base display name > FID > wallet address
+  const displayName = profile.isBaseWallet && profile.name && (profile.name.endsWith('.minicast') || profile.name.endsWith('.base.eth'))
+    ? profile.name.replace(/\.(minicast|base\.eth)$/, '') // Remove suffix for display
+    : profile.isBaseWallet && profile.name
+    ? profile.name
     : profile.isFarcaster && profile.fid
     ? `FID: ${profile.fid}`
     : profile.name || `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
   
-  const displayAddress = profile.isFarcaster && profile.fid
-    ? `FID: ${profile.fid}`
-    : profile.name && profile.name.endsWith('.minicast')
+  // Display address: Base name > Ethereum address > FID
+  const displayAddress = profile.isBaseWallet && profile.name && (profile.name.endsWith('.minicast') || profile.name.endsWith('.base.eth'))
     ? profile.name
+    : profile.isBaseWallet
+    ? `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`
+    : profile.isFarcaster && profile.fid
+    ? `FID: ${profile.fid}`
     : `${profile.wallet.slice(0, 6)}...${profile.wallet.slice(-4)}`;
   
+  // Avatar priority: profile.avatar (from Base API or MiniApp) > generated fallback
   const avatarUrl = profile.avatar || 
     (profile.isBaseWallet 
       ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
@@ -650,7 +686,11 @@ export default function UserProfile() {
     }
   }, [profile?.avatar]);
 
-  const optimizedAvatarUrl = optimizeDevImage(avatarUrl);
+  // Optimize avatar URL for display (Base App provides full URLs, no optimization needed)
+  const optimizedAvatarUrl = profile.avatar && (profile.avatar.startsWith('http') || profile.avatar.startsWith('data:'))
+    ? profile.avatar // Use Base App/MiniApp avatar as-is
+    : optimizeDevImage(avatarUrl);
+  
   const fallbackAvatarUrl = profile.isBaseWallet 
     ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
     : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=ffffff&hairColor=77311d`;
@@ -726,16 +766,21 @@ export default function UserProfile() {
                     {displayAddress}
                   </p>
                 )}
-                {/* Show Base .minicast name if available */}
-                {profile.isBaseWallet && profile.name && profile.name.endsWith('.minicast') && (
+                {/* Show Base name (.minicast or .base.eth) if available */}
+                {profile.isBaseWallet && profile.name && (profile.name.endsWith('.minicast') || profile.name.endsWith('.base.eth')) && (
                   <p className="text-xs text-base-blue mt-0.5">{profile.name}</p>
                 )}
-                {/* Show FID for Farcaster users */}
-                {profile.isFarcaster && profile.fid && (
+                {/* Show FID for Farcaster users (only if not Base wallet) */}
+                {profile.isFarcaster && profile.fid && !profile.isBaseWallet && (
                   <p className="text-xs text-purple-400 mt-0.5">FID: {profile.fid}</p>
                 )}
-                {profile.isBaseWallet && !profile.name?.endsWith('.minicast') && (
+                {/* Show Base wallet indicator if no name */}
+                {profile.isBaseWallet && !profile.name?.endsWith('.minicast') && !profile.name?.endsWith('.base.eth') && (
                   <p className="text-xs text-base-blue mt-0.5">Base Wallet</p>
+                )}
+                {/* Show FID for Base wallets that also have FID */}
+                {profile.isBaseWallet && profile.fid && (
+                  <p className="text-xs text-purple-400 mt-0.5">FID: {profile.fid}</p>
                 )}
                 <p className="text-xs text-muted-foreground font-mono mt-1 truncate">
                   {profile.wallet}
@@ -743,15 +788,22 @@ export default function UserProfile() {
               </div>
             </div>
           </div>
-          {/* First option: Name with .minicast or FID (if available) */}
-          {profile.name && profile.name.endsWith('.minicast') && (
+          {/* First option: Base name (.minicast or .base.eth) if available */}
+          {profile.isBaseWallet && profile.name && (profile.name.endsWith('.minicast') || profile.name.endsWith('.base.eth')) && (
             <DropdownMenuItem className="cursor-default">
               <User className="w-4 h-4 mr-2" />
               <span className="font-medium">{profile.name}</span>
             </DropdownMenuItem>
           )}
-          {/* Show FID for Farcaster users */}
-          {profile.isFarcaster && profile.fid && (
+          {/* Show FID for Farcaster users (only if not Base wallet) */}
+          {profile.isFarcaster && profile.fid && !profile.isBaseWallet && (
+            <DropdownMenuItem className="cursor-default">
+              <User className="w-4 h-4 mr-2" />
+              <span className="font-medium">FID: {profile.fid}</span>
+            </DropdownMenuItem>
+          )}
+          {/* Show FID for Base wallets that also have FID */}
+          {profile.isBaseWallet && profile.fid && (
             <DropdownMenuItem className="cursor-default">
               <User className="w-4 h-4 mr-2" />
               <span className="font-medium">FID: {profile.fid}</span>

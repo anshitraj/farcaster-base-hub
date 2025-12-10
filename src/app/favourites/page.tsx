@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Star, Heart } from "lucide-react";
+import { Star, Heart, AlertCircle } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
 import FavoriteButton from "@/components/FavoriteButton";
@@ -14,8 +14,53 @@ export const dynamic = 'force-dynamic';
 export default function FavouritesPage() {
   const [favouriteApps, setFavouriteApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
+
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1024) {
+          // On desktop, always open by default
+          setSidebarOpen(true);
+        } else {
+          // On mobile, always start closed
+          setSidebarOpen(false);
+        }
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      checkMobile();
+    }
+    
+    const handleResize = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1024) {
+          // Always show on desktop
+          setSidebarOpen(true);
+        } else {
+          // On mobile, close sidebar when resizing to mobile
+          setSidebarOpen(false);
+        }
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, []);
+
+  // Save sidebar state to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpen', String(sidebarOpen));
+    }
+  }, [sidebarOpen]);
 
   const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
@@ -23,36 +68,104 @@ export default function FavouritesPage() {
   };
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     async function fetchFavourites() {
       try {
-        const res = await fetch("/api/collections", {
-          credentials: "include",
+        setError(null);
+        setLoading(true);
+        
+        // Add timeout to prevent hanging (increased to 30 seconds for slow connections)
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Request timeout")), 30000);
         });
+        
+        const fetchPromise = fetch("/api/collections", {
+          credentials: "include",
+          cache: "no-store", // Force fresh data
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        });
+        
+        const res = await Promise.race([fetchPromise, timeoutPromise]) as Response;
         
         if (res.ok) {
           const data = await res.json();
+          
+          // Debug logging
+          console.log("Collections API response:", {
+            collectionsCount: data.collections?.length || 0,
+            collections: data.collections?.map((c: any) => ({
+              type: c.type,
+              itemsCount: c.items?.length || 0,
+            })),
+          });
+          
           // Find the favorites collection
           const favoritesCollection = data.collections?.find(
             (col: any) => col.type === "favorites"
           );
+          
+          if (!favoritesCollection) {
+            console.warn("No favorites collection found in response");
+            setFavouriteApps([]);
+            return;
+          }
+          
           // Get items from the favorites collection
           const items = favoritesCollection?.items || [];
-          setFavouriteApps(items);
+          
+          console.log("Favorites items:", {
+            totalItems: items.length,
+            items: items.map((item: any) => ({
+              id: item.id,
+              appId: item.miniApp?.id,
+              appName: item.miniApp?.name,
+            })),
+          });
+          
+          // Filter out any items without a valid miniApp (in case app was deleted)
+          const validItems = items.filter((item: any) => item.miniApp && item.miniApp.id);
+          
+          console.log("Valid items after filtering:", validItems.length);
+          
+          setFavouriteApps(validItems);
+        } else if (res.status === 401) {
+          setError("Please sign in to view your saved apps");
+        } else {
+          const errorData = await res.json().catch(() => ({}));
+          console.error("Collections API error:", res.status, errorData);
+          setError(errorData.error || "Failed to load saved apps. Please try again.");
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching favourites:", error);
+        if (error.message === "Request timeout") {
+          setError("Request timed out. Please check your connection and try again.");
+        } else {
+          setError("Failed to load saved apps. Please try again.");
+        }
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     }
 
     fetchFavourites();
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   return (
     <div className="flex min-h-screen bg-black">
       {/* Sidebar */}
-      <Sidebar onCollapseChange={handleSidebarChange} />
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+      />
 
       {/* Main Content */}
       <main className={`flex-1 min-h-screen w-full pb-20 lg:pb-0 transition-all duration-300 ${
@@ -62,7 +175,7 @@ export default function FavouritesPage() {
             ? "lg:ml-16 ml-0" 
             : "lg:ml-64 ml-0"
       }`}>
-        <AppHeader />
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
         {/* Page Header */}
         <div className="sticky top-[73px] z-40 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50">
@@ -87,6 +200,24 @@ export default function FavouritesPage() {
                 <div key={i} className="h-48 bg-gray-900 rounded-2xl animate-pulse" />
               ))}
             </div>
+          ) : error ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-20"
+            >
+              <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Error Loading Saved Apps</h2>
+              <p className="text-gray-400 mb-6">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-block px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition-colors"
+              >
+                Try Again
+              </button>
+            </motion.div>
           ) : favouriteApps.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {favouriteApps.map((item, index) => (
