@@ -22,4 +22,8 @@ export * from "./notification";
 export * from "./advertisement";
 export * from "./referral";
 export * from "./promo";
+export * from "./questcompletion";
+export * from "./socialpost";
+export * from "./xtweet";
+export * from "./basediscoverpost";
 

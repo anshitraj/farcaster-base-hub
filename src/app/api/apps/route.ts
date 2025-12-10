@@ -118,8 +118,14 @@ export async function GET(request: NextRequest) {
       // Fix /uploads paths by falling back to original URLs from farcasterJson or placeholder
       let iconUrl = app.iconUrl;
       let headerImageUrl = app.headerImageUrl;
+      let screenshots = app.screenshots || [];
       
-      if ((iconUrl?.startsWith("/uploads") || headerImageUrl?.startsWith("/uploads")) && app.farcasterJson) {
+      // Check if we need to fix any /uploads paths
+      const hasUploadsPaths = iconUrl?.startsWith("/uploads") || 
+                              headerImageUrl?.startsWith("/uploads") ||
+                              (Array.isArray(screenshots) && screenshots.some((s: string) => s?.startsWith("/uploads")));
+      
+      if (hasUploadsPaths && app.farcasterJson) {
         try {
           const farcasterData = JSON.parse(app.farcasterJson);
           if (iconUrl?.startsWith("/uploads")) {
@@ -128,21 +134,49 @@ export async function GET(request: NextRequest) {
           if (headerImageUrl?.startsWith("/uploads")) {
             headerImageUrl = farcasterData.splashImageUrl || null;
           }
+          // Fix screenshots array
+          if (Array.isArray(screenshots)) {
+            screenshots = screenshots.map((screenshot: string) => {
+              if (screenshot?.startsWith("/uploads/screenshots")) {
+                return "/placeholder.svg";
+              }
+              return screenshot;
+            });
+          }
         } catch (e) {
           // Parsing failed, use placeholder
           if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
           if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+          // Fix screenshots array
+          if (Array.isArray(screenshots)) {
+            screenshots = screenshots.map((screenshot: string) => {
+              if (screenshot?.startsWith("/uploads/screenshots")) {
+                return "/placeholder.svg";
+              }
+              return screenshot;
+            });
+          }
         }
-      } else {
+      } else if (hasUploadsPaths) {
         // No farcasterJson but has /uploads paths, use placeholder
         if (iconUrl?.startsWith("/uploads")) iconUrl = "/placeholder.svg";
         if (headerImageUrl?.startsWith("/uploads")) headerImageUrl = null;
+        // Fix screenshots array
+        if (Array.isArray(screenshots)) {
+          screenshots = screenshots.map((screenshot: string) => {
+            if (screenshot?.startsWith("/uploads/screenshots")) {
+              return "/placeholder.svg";
+            }
+            return screenshot;
+          });
+        }
       }
       
       return {
         ...app,
         iconUrl,
         headerImageUrl,
+        screenshots,
         developer,
         events: eventsMap[app.id] || [],
       };

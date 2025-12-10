@@ -45,12 +45,14 @@ const ReviewForm = ({ appId, onReviewSubmitted }: ReviewFormProps) => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to submit review");
+        // Handle specific error messages
+        const errorMessage = data.error || "Failed to submit review";
+        throw new Error(errorMessage);
       }
 
-      // Check for specific error about rating own app
-      if (data.error && data.error.includes("cannot rate your own")) {
-        throw new Error("You cannot rate your own app");
+      // Double-check for errors in response even if status is ok
+      if (data.error) {
+        throw new Error(data.error);
       }
 
       // Show success message with points if awarded

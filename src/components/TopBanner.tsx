@@ -49,32 +49,61 @@ export default function TopBanner({ apps }: TopBannerProps) {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Preload only next slide for smoother transitions (reduce initial load)
+  // Preload first slide images immediately for LCP optimization
   useEffect(() => {
     if (typeof window === "undefined" || apps.length === 0) return;
 
-    // Only preload current and next slide
+    // Preload first slide images immediately (LCP optimization)
+    const firstApp = apps[0];
+    if (firstApp) {
+      // Preload first banner image (LCP element)
+      if (firstApp.headerImageUrl) {
+        const optimizedUrl = optimizeBannerImage(firstApp.headerImageUrl);
+        const link = document.createElement("link");
+        link.rel = "preload";
+        link.as = "image";
+        link.href = optimizedUrl;
+        link.fetchPriority = "high";
+        document.head.appendChild(link);
+      }
+      
+      // Preload first icon
+      if (firstApp.iconUrl) {
+        const optimizedUrl = optimizeDevImage(firstApp.iconUrl);
+        const link = document.createElement("link");
+        link.rel = "preload";
+        link.as = "image";
+        link.href = optimizedUrl;
+        link.fetchPriority = "high";
+        document.head.appendChild(link);
+      }
+    }
+  }, [apps]); // Only run once when apps are loaded
+
+  // Preload next slide for smoother transitions
+  useEffect(() => {
+    if (typeof window === "undefined" || apps.length === 0) return;
+
+    // Only preload next slide (not current, already loaded)
     const nextIndex = (currentIndex + 1) % apps.length;
-    const slidesToPreload = [currentIndex, nextIndex];
+    if (nextIndex === 0) return; // Already preloaded first slide
     
-    slidesToPreload.forEach((index) => {
-      const app = apps[index];
-      if (!app) return;
-      
-      // Preload next banner image
-      if (app.headerImageUrl && index === nextIndex) {
-        const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
-        const img = new window.Image();
-        img.src = optimizedUrl;
-      }
-      
-      // Preload next icon
-      if (app.iconUrl && index === nextIndex) {
-        const optimizedUrl = optimizeDevImage(app.iconUrl);
-        const img = new window.Image();
-        img.src = optimizedUrl;
-      }
-    });
+    const app = apps[nextIndex];
+    if (!app) return;
+    
+    // Preload next banner image
+    if (app.headerImageUrl) {
+      const optimizedUrl = optimizeBannerImage(app.headerImageUrl);
+      const img = new window.Image();
+      img.src = optimizedUrl;
+    }
+    
+    // Preload next icon
+    if (app.iconUrl) {
+      const optimizedUrl = optimizeDevImage(app.iconUrl);
+      const img = new window.Image();
+      img.src = optimizedUrl;
+    }
   }, [apps, currentIndex]);
 
 
@@ -165,11 +194,11 @@ export default function TopBanner({ apps }: TopBannerProps) {
                 className="object-cover object-center z-0"
                 unoptimized={needsUnoptimized(optimizeBannerImage(currentApp.headerImageUrl))}
                 priority={currentIndex === 0}
-                quality={85}
+                quality={currentIndex === 0 ? 90 : 75} // Higher quality for first slide (LCP)
                 loading={currentIndex === 0 ? "eager" : "lazy"}
                 fetchPriority={currentIndex === 0 ? "high" : "auto"}
                 sizes="100vw"
-                decoding="async"
+                decoding={currentIndex === 0 ? "sync" : "async"} // Sync decoding for LCP
                 data-original={currentApp.headerImageUrl}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
@@ -207,8 +236,8 @@ export default function TopBanner({ apps }: TopBannerProps) {
                     width={128}
                     height={128}
                     className="w-full h-full object-contain rounded-xl sm:rounded-2xl"
-                    quality={85}
-                    decoding="async"
+                    quality={currentIndex === 0 ? 90 : 75} // Higher quality for first slide
+                    decoding={currentIndex === 0 ? "sync" : "async"} // Sync decoding for LCP
                     sizes="(max-width: 768px) 64px, (max-width: 1024px) 96px, 128px"
                     data-original={currentApp.iconUrl}
                     unoptimized={needsUnoptimized(optimizeDevImage(currentApp.iconUrl))}

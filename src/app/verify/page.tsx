@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +16,15 @@ import { getInjectedProvider } from "@/lib/wallet";
 import { trackPageView } from "@/lib/analytics";
 import { useAccount, useSignMessage } from "wagmi";
 import { useMiniApp } from "@/components/MiniAppProvider";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useAuthenticate } from "@coinbase/onchainkit/minikit";
 
-const VERIFICATION_MESSAGE = "Verify your developer account for Mini App Store";
+// Domain binding for security - ensures signature is for this specific domain
+const getVerificationMessage = (domain?: string) => {
+  const baseMessage = "Verify your developer account for Mini App Store";
+  const appDomain = domain || (typeof window !== "undefined" ? window.location.hostname : "minicast.store");
+  return `${baseMessage}\n\nDomain: ${appDomain}`;
+};
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -32,6 +41,15 @@ export default function VerifyPage() {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { isInMiniApp } = useMiniApp();
+  let miniKitContext: any = null;
+  try {
+    const miniKit = useMiniKit();
+    miniKitContext = miniKit?.context || null;
+  } catch (e) {
+    // MiniKit not available during build/prerender
+  }
+  // useAuthenticate is available for future SIWF integration if needed
+  // const { signIn: signInWithFarcaster } = useAuthenticate();
 
   useEffect(() => {
     trackPageView("/verify");
@@ -93,8 +111,12 @@ export default function VerifyPage() {
       let walletAddress: string;
       let signature: string;
 
-      // Use Wagmi for Mini Apps (Base/Farcaster) or if already connected
-      if (isInMiniApp || (isConnected && address)) {
+      // Check if we have a verified user from MiniKit (Base App)
+      // In Base App, we can use the context to get the wallet address
+      if (miniKitContext && (miniKitContext.user as any)?.verifiedAddresses?.[0]) {
+        walletAddress = (miniKitContext.user as any).verifiedAddresses[0];
+      } else if (isInMiniApp || (isConnected && address)) {
+        // Use Wagmi for Mini Apps (Base/Farcaster) or if already connected
         if (!address) {
           toast({
             title: "No Wallet Connected",
@@ -105,16 +127,6 @@ export default function VerifyPage() {
           return;
         }
         walletAddress = address;
-
-        // Use Wagmi's signMessageAsync for Mini Apps
-        try {
-          signature = await signMessageAsync({ message: VERIFICATION_MESSAGE });
-        } catch (e: any) {
-          if (e.code === 4001 || e.message?.includes("reject") || e.message?.includes("User rejected")) {
-            throw new Error("Signature request rejected");
-          }
-          throw new Error(e.message || "Failed to get signature");
-        }
       } else {
         // Fallback to injected provider for desktop/regular browsers
         const provider = getInjectedProvider();
@@ -138,27 +150,113 @@ export default function VerifyPage() {
         }
 
         walletAddress = accounts[0];
+      }
 
-        // Request signature using injected provider
+      // Request signature - use Wagmi's signMessageAsync for better Base App compatibility
+      try {
+        // Ensure we have a connected wallet
+        if (!walletAddress) {
+          throw new Error("No wallet address available");
+        }
+
+        // Get the current domain for domain binding
+        const currentDomain = typeof window !== "undefined" ? window.location.hostname : undefined;
+        const verificationMessage = getVerificationMessage(currentDomain);
+
+        // Use Wagmi's signMessageAsync which works better with Base App
+        const rawSignature = await signMessageAsync({ 
+          message: verificationMessage,
+        });
+        
+        // Validate signature format
+        if (!rawSignature || typeof rawSignature !== "string") {
+          throw new Error("Invalid signature received from wallet");
+        }
+        
+        // Normalize signature: trim, ensure lowercase hex, and validate format
+        let normalizedSig = rawSignature.trim();
+        
+        // Ensure it starts with 0x
+        if (!normalizedSig.startsWith("0x")) {
+          normalizedSig = "0x" + normalizedSig;
+        }
+        
+        // Convert to lowercase for consistency
+        normalizedSig = normalizedSig.toLowerCase();
+        
+        // Validate signature length - should be 132 characters (0x + 130 hex chars)
+        // Standard ECDSA signature is 65 bytes = 130 hex characters + 0x prefix
+        if (normalizedSig.length !== 132) {
+          console.error("Invalid signature length:", normalizedSig.length, "Expected: 132");
+          console.error("Signature preview:", normalizedSig.substring(0, 20) + "...");
+          throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}. Please try signing again.`);
+        }
+        
+        // Validate it's valid hex
+        if (!/^0x[a-f0-9]{130}$/.test(normalizedSig)) {
+          throw new Error("Invalid signature format: not a valid hex string. Please try again.");
+        }
+        
+        signature = normalizedSig;
+      } catch (e: any) {
+        // If Wagmi fails, try fallback to injected provider
+        if (e.code === 4001 || e.message?.includes("reject") || e.message?.includes("User rejected")) {
+          throw new Error("Signature request rejected");
+        }
+        
+        // Fallback to injected provider for desktop/regular browsers
         try {
-          signature = await provider.request({
-            method: "personal_sign",
-            params: [VERIFICATION_MESSAGE, walletAddress],
-          });
-        } catch (e: any) {
-          if (e.code === 4001 || e.message?.includes("reject")) {
-            throw new Error("Signature request rejected");
+          const provider = getInjectedProvider();
+          if (provider) {
+            // Get the current domain for domain binding
+            const currentDomain = typeof window !== "undefined" ? window.location.hostname : undefined;
+            const verificationMessage = getVerificationMessage(currentDomain);
+            
+            const rawSignature = await provider.request({
+              method: "personal_sign",
+              params: [verificationMessage, walletAddress],
+            }) as string;
+            
+            if (!rawSignature || typeof rawSignature !== "string") {
+              throw new Error("Invalid signature received from wallet");
+            }
+            
+            let normalizedSig = rawSignature.trim();
+            if (!normalizedSig.startsWith("0x")) {
+              normalizedSig = "0x" + normalizedSig;
+            }
+            normalizedSig = normalizedSig.toLowerCase();
+            
+            if (normalizedSig.length !== 132 || !/^0x[a-f0-9]{130}$/.test(normalizedSig)) {
+              throw new Error(`Invalid signature format: expected 132 characters, got ${normalizedSig.length}.`);
+            }
+            
+            signature = normalizedSig;
+          } else {
+            throw e; // Re-throw original error if no fallback
           }
-          throw new Error(e.message || "Failed to get signature");
+        } catch (fallbackError: any) {
+          throw new Error(e.message || fallbackError.message || "Failed to get signature");
         }
       }
 
-      // Verify wallet
+      // Log signature before sending (for debugging)
+      console.log("Sending signature:", {
+        length: signature.length,
+        preview: signature.substring(0, 20) + "...",
+        isValidFormat: /^0x[a-f0-9]{130}$/.test(signature)
+      });
+
+      // Verify wallet - include domain for server-side verification
+      const domain = typeof window !== "undefined" ? window.location.hostname : undefined;
       const res = await fetch("/api/developer/verify-wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ signature }),
+        body: JSON.stringify({ 
+          signature: signature, // Explicitly pass the normalized signature
+          domain: domain, // Include domain for server-side verification
+        }),
       });
 
       const data = await res.json();

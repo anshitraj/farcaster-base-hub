@@ -4,7 +4,7 @@ import { getSessionFromCookies } from "@/lib/auth";
 import { MiniApp, Developer, Badge } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { mintCastYourAppBadge, mintAppDeveloperBadge, findBadgeTransactionHash } from "@/lib/badgeContract";
+import { mintBadge, findBadgeTransactionHash, hasClaimedBadge, getTokensOf, getBadgeApp } from "@/lib/badgeContract";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
@@ -35,10 +35,12 @@ function appIdToUint256(appId: string): string {
  */
 async function generateCastBadgeMetadata(appId: string, appName: string): Promise<string> {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  // Use WebP for better performance and smaller file size
+  const badgeImageUrl = `${baseUrl}/badges/castyourapptransparent.webp`;
   const metadata = {
     name: "Cast Your App Badge",
     description: "Awarded for publishing an approved app on MiniCast Store.",
-    image: `${baseUrl}/badges/castyourapptransparent.png`
+    image: badgeImageUrl
   };
 
   // Ensure metadata directory exists
@@ -132,6 +134,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // PRIORITY: Check on-chain first (source of truth) - database may have old records from previous contract
+      const alreadyClaimedOnChain = await hasClaimedBadge(wallet, appIdUint256);
+      
       // Check if Badge record already exists
       const existingBadge = await db.select()
         .from(Badge)
@@ -144,14 +149,26 @@ export async function POST(request: NextRequest) {
         )
         .limit(1);
 
-      if (existingBadge.length > 0) {
-        console.log("[Badge Claim] Badge record already exists, returning success");
+      // Only block if BOTH on-chain and database say claimed
+      if (existingBadge.length > 0 && alreadyClaimedOnChain) {
+        console.log("[Badge Claim] Badge record already exists and claimed on-chain, returning success");
         return NextResponse.json({
           success: true,
           txHash: existingBadge[0].txHash,
           badgeType: "cast",
           message: "Cast Your App badge already claimed",
         }, { status: 200 });
+      }
+      
+      // If database has old record but not claimed on-chain, we'll proceed with minting
+      // (This handles the case where user claimed on old contract)
+      if (existingBadge.length > 0 && !alreadyClaimedOnChain) {
+        console.log("[Badge Claim] Database has old record but badge not claimed on-chain, proceeding with new claim");
+      }
+      
+      if (alreadyClaimedOnChain && existingBadge.length === 0) {
+        // Badge exists on-chain but not in database - will sync below
+        console.log("[Badge Claim] Badge on-chain but missing from database, will sync...");
       }
 
       // If flag is set but no Badge record exists, create the record without minting
@@ -174,9 +191,11 @@ export async function POST(request: NextRequest) {
         
         try {
           // Create Badge record with found txHash or null
+          // Use WebP for better performance
+          const badgeImageUrl = `${baseUrl}/badges/castyourapptransparent.webp`;
           const [newBadge] = await db.insert(Badge).values({
             name: "Verified Mini Cast Store Badge",
-            imageUrl: `${baseUrl}/badges/castapp.webp`,
+            imageUrl: badgeImageUrl,
             appName: app.name,
             appId: validated.appId,
             developerId: developer.id,
@@ -223,15 +242,125 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Generate metadata
-      const metadataUri = await generateCastBadgeMetadata(validated.appId, app.name);
+      if (alreadyClaimedOnChain) {
+        console.log("[Badge Claim] Badge already claimed on-chain, checking database...");
+        
+        // Check if we have it in the database
+        const existingBadge = await db.select()
+          .from(Badge)
+          .where(
+            and(
+              eq(Badge.appId, validated.appId),
+              eq(Badge.badgeType, "cast_your_app"),
+              eq(Badge.developerId, developer.id)
+            )
+          )
+          .limit(1);
+        
+        if (existingBadge.length > 0) {
+          // Badge exists in both on-chain and database
+          return NextResponse.json({
+            success: true,
+            txHash: existingBadge[0].txHash,
+            badgeType: "cast",
+            message: "Cast Your App badge already claimed",
+          }, { status: 200 });
+        }
+        
+        // Badge exists on-chain but not in database - try to find tx hash and sync
+        console.log("[Badge Claim] Badge on-chain but missing from database, attempting to sync...");
+        try {
+          // Get all tokens for this wallet
+          const tokenIds = await getTokensOf(wallet);
+          
+          // Find the token that matches this appId
+          let matchingTokenId: bigint | null = null;
+          for (const tokenId of tokenIds) {
+            const tokenAppId = await getBadgeApp(tokenId);
+            if (tokenAppId && tokenAppId.toString() === appIdUint256.toString()) {
+              matchingTokenId = tokenId;
+              break;
+            }
+          }
+          
+          // Try to find transaction hash
+          let txHash: string | null = null;
+          if (matchingTokenId) {
+            txHash = await findBadgeTransactionHash(wallet, appIdUint256.toString(), "cast_your_app");
+          }
+          
+          // Create database record even without tx hash
+          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+          const badgeImageUrl = `${baseUrl}/badges/castyourapptransparent.webp`;
+          const metadataUri = await generateCastBadgeMetadata(validated.appId, app.name);
+          
+          await db.insert(Badge).values({
+            name: "Verified Mini Cast Store Badge",
+            imageUrl: badgeImageUrl,
+            appName: app.name,
+            appId: validated.appId,
+            developerId: developer.id,
+            badgeType: "cast_your_app",
+            txHash: txHash || undefined,
+            claimed: true,
+            metadataUri,
+            claimedAt: new Date(),
+          });
+          
+          return NextResponse.json({
+            success: true,
+            txHash: txHash || undefined,
+            badgeType: "cast",
+            message: "Badge synced from blockchain",
+          }, { status: 200 });
+        } catch (syncError: any) {
+          console.error("[Badge Claim] Error syncing badge:", syncError);
+          return NextResponse.json(
+            { 
+              error: "Badge already claimed on-chain but could not sync to database",
+              details: "The badge exists on the blockchain. Please contact support if you need assistance.",
+              onChain: true
+            },
+            { status: 409 }
+          );
+        }
+      }
 
-      // Mint badge
+      // Badge not claimed on-chain, proceed with minting
       let txHash: string;
       try {
-        txHash = await mintCastYourAppBadge(wallet, appIdUint256, metadataUri);
+        txHash = await mintBadge(wallet, appIdUint256);
       } catch (error: any) {
         console.error("[Badge Claim] Cast badge mint error:", error);
+        
+        // Check if the error is because badge was already claimed (race condition)
+        if (error?.message?.includes("Badge already claimed") || error?.reason?.includes("Badge already claimed")) {
+          // Retry the on-chain check and sync
+          const retryClaimed = await hasClaimedBadge(wallet, appIdUint256);
+          if (retryClaimed) {
+            // Badge was just minted, try to sync
+            const existingBadge = await db.select()
+              .from(Badge)
+              .where(
+                and(
+                  eq(Badge.appId, validated.appId),
+                  eq(Badge.badgeType, "cast_your_app"),
+                  eq(Badge.developerId, developer.id)
+                )
+              )
+              .limit(1);
+            
+            if (existingBadge.length > 0) {
+              return NextResponse.json({
+                success: true,
+                txHash: existingBadge[0].txHash,
+                badgeType: "cast",
+                message: "Cast Your App badge already claimed",
+              }, { status: 200 });
+            }
+          }
+        }
+        
         return NextResponse.json(
           { 
             error: "Failed to mint Cast Your App badge",
@@ -248,9 +377,12 @@ export async function POST(request: NextRequest) {
 
       // Create Badge record in database
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      // Use WebP for better performance
+      const badgeImageUrl = `${baseUrl}/badges/castyourapptransparent.webp`;
+      const metadataUri = await generateCastBadgeMetadata(validated.appId, app.name);
       await db.insert(Badge).values({
         name: "Verified Mini Cast Store Badge",
-        imageUrl: `${baseUrl}/badges/castapp.webp`,
+        imageUrl: badgeImageUrl,
         appName: app.name,
         appId: validated.appId,
         developerId: developer.id,
@@ -282,6 +414,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // PRIORITY: Check on-chain first (source of truth) - database may have old records from previous contract
+      const alreadyClaimedOnChain = await hasClaimedBadge(wallet, appIdUint256);
+      
       // Check if Badge record already exists
       const existingBadge = await db.select()
         .from(Badge)
@@ -294,13 +429,20 @@ export async function POST(request: NextRequest) {
         )
         .limit(1);
 
-      if (existingBadge.length > 0) {
+      // Only block if BOTH on-chain and database say claimed
+      if (existingBadge.length > 0 && alreadyClaimedOnChain) {
         return NextResponse.json({
           success: true,
           txHash: existingBadge[0].txHash,
           badgeType: "developer",
           message: "Developer badge already claimed",
         }, { status: 200 });
+      }
+      
+      // If database has old record but not claimed on-chain, we'll proceed with minting
+      // (This handles the case where user claimed on old contract)
+      if (existingBadge.length > 0 && !alreadyClaimedOnChain) {
+        console.log("[Badge Claim] Database has old developer badge record but not claimed on-chain, proceeding with new claim");
       }
 
       // If flag is set but no Badge record exists, create the record without minting
@@ -366,13 +508,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Generate metadata
-      const metadataUri = await generateDeveloperBadgeMetadata(validated.appId, app.name);
-
-      // Mint badge
+      // Mint badge using new contract (no metadata URI needed - uses fixed IPFS URL)
       let txHash: string;
       try {
-        txHash = await mintAppDeveloperBadge(wallet, appIdUint256, metadataUri);
+        txHash = await mintBadge(wallet, appIdUint256);
       } catch (error: any) {
         console.error("[Badge Claim] Developer badge mint error:", error);
         return NextResponse.json(
@@ -392,6 +531,7 @@ export async function POST(request: NextRequest) {
       // Create Badge record in database
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
       const developerBadgeImage = app.developerBadgeImage || `${baseUrl}/badges/${validated.appId}-dev.png`;
+      const metadataUri = await generateDeveloperBadgeMetadata(validated.appId, app.name);
       await db.insert(Badge).values({
         name: `${app.name} Developer Badge`,
         imageUrl: developerBadgeImage,

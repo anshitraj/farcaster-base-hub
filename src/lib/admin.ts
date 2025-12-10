@@ -19,9 +19,17 @@ export async function getAdminRole(): Promise<AdminRole> {
     } else {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
+      
+      // First try walletAddress cookie
       const walletFromCookie = cookieStore.get("walletAddress")?.value;
       if (walletFromCookie) {
         wallet = walletFromCookie;
+      } else {
+        // Fallback: check Farcaster session cookie
+        const farcasterFid = cookieStore.get("farcasterSession")?.value;
+        if (farcasterFid) {
+          wallet = `farcaster:${farcasterFid}`;
+        }
       }
     }
     
@@ -29,9 +37,12 @@ export async function getAdminRole(): Promise<AdminRole> {
       return null;
     }
 
+    // Normalize wallet to lowercase for consistent database queries
+    const normalizedWallet = wallet.toLowerCase().trim();
+
     const developerResult = await db.select({ adminRole: Developer.adminRole })
       .from(Developer)
-      .where(eq(Developer.wallet, wallet.toLowerCase()))
+      .where(eq(Developer.wallet, normalizedWallet))
       .limit(1);
     const developer = developerResult[0];
 
@@ -113,9 +124,17 @@ export async function isAdminOrLevel5(): Promise<boolean> {
     } else {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
+      
+      // First try walletAddress cookie
       const walletFromCookie = cookieStore.get("walletAddress")?.value;
       if (walletFromCookie) {
         wallet = walletFromCookie;
+      } else {
+        // Fallback: check Farcaster session cookie
+        const farcasterFid = cookieStore.get("farcasterSession")?.value;
+        if (farcasterFid) {
+          wallet = `farcaster:${farcasterFid}`;
+        }
       }
     }
     
@@ -123,12 +142,15 @@ export async function isAdminOrLevel5(): Promise<boolean> {
       return false;
     }
 
+    // Normalize wallet to lowercase for consistent database queries
+    const normalizedWallet = wallet.toLowerCase().trim();
+
     const developerResult = await db.select({ 
       adminRole: Developer.adminRole,
       developerLevel: Developer.developerLevel 
     })
       .from(Developer)
-      .where(eq(Developer.wallet, wallet.toLowerCase()))
+      .where(eq(Developer.wallet, normalizedWallet))
       .limit(1);
     const developer = developerResult[0];
 

@@ -5,15 +5,17 @@
 
 import { ethers } from "ethers";
 
-const COINBASE_PAYMASTER_URL = process.env.COINBASE_PAYMASTER_URL || "https://paymaster.base.org";
-const COINBASE_PAYMASTER_API_KEY = process.env.COINBASE_PAYMASTER_API_KEY;
-const BADGE_CONTRACT_ADDRESS = process.env.BADGE_CONTRACT_ADDRESS;
+const COINBASE_PAYMASTER_URL = process.env.COINBASE_PAYMASTER || process.env.COINBASE_PAYMASTER_URL || "https://paymaster.base.org";
+const COINBASE_PAYMASTER_API_KEY = process.env.COINBASE_API_KEY_ID || process.env.COINBASE_PAYMASTER_API_KEY;
+const BADGE_CONTRACT_ADDRESS = process.env.BADGE_CONTRACT || process.env.BADGE_CONTRACT_ADDRESS;
 const ALCHEMY_BASE_URL = process.env.ALCHEMY_BASE_URL || process.env.COINBASE_BASE_RPC;
 
-// SBT Contract ABI - minimal for mintBadge
+// MiniCastBadgeSBT Contract ABI - updated for new contract
 const SBT_ABI = [
-  "function mintBadge(address to, string uri) external",
-  "function balanceOf(address owner) external view returns (uint256)",
+  "function mintBadge(address to, uint256 appId) external returns (uint256)",
+  "function ownerOf(uint256 tokenId) external view returns (address)",
+  "function tokensOf(address wallet) external view returns (uint256[])",
+  "function hasClaimed(address wallet, uint256 appId) external view returns (bool)",
 ];
 
 interface PaymasterRequest {
@@ -125,10 +127,11 @@ export async function createGaslessTransaction(
 /**
  * Mint SBT badge with gas-free transaction using Paymaster
  * This is a simplified version - in production, use a proper AA wallet
+ * Updated for new MiniCastBadgeSBT contract (uses appId instead of metadataUri)
  */
 export async function mintSBTWithPaymaster(
   to: string,
-  metadataUri: string,
+  appId: string | number,
   contractAddress: string
 ): Promise<string> {
   if (!BADGE_CONTRACT_ADDRESS || !ALCHEMY_BASE_URL) {
@@ -138,9 +141,12 @@ export async function mintSBTWithPaymaster(
   const provider = new ethers.JsonRpcProvider(ALCHEMY_BASE_URL);
   const contract = new ethers.Contract(contractAddress, SBT_ABI, provider);
 
-  // Encode the mintBadge function call
+  // Convert appId to BigInt/uint256
+  const appIdBigInt = typeof appId === "string" ? BigInt(appId) : BigInt(appId);
+
+  // Encode the mintBadge function call (new signature: address, uint256 appId)
   const iface = new ethers.Interface(SBT_ABI);
-  const data = iface.encodeFunctionData("mintBadge", [to, metadataUri]);
+  const data = iface.encodeFunctionData("mintBadge", [to, appIdBigInt]);
 
   try {
     // For now, we'll use a simpler approach with ethers and Paymaster
@@ -158,7 +164,7 @@ export async function mintSBTWithPaymaster(
     const wallet = new ethers.Wallet(process.env.BADGE_ADMIN_PRIVATE_KEY!, provider);
     const contractWithSigner = contract.connect(wallet) as any;
     
-    const tx = await contractWithSigner.mintBadge(to, metadataUri, {
+    const tx = await contractWithSigner.mintBadge(to, appIdBigInt, {
       // Paymaster will sponsor if configured
     });
     
@@ -191,9 +197,11 @@ export async function mintSBTWithPaymaster(
 
 /**
  * Check if a user has already claimed a badge for an app
+ * Updated for new MiniCastBadgeSBT contract
  */
 export async function hasClaimedBadge(
   userAddress: string,
+  appId: string | number,
   contractAddress: string
 ): Promise<boolean> {
   if (!ALCHEMY_BASE_URL || !contractAddress) {
@@ -203,10 +211,11 @@ export async function hasClaimedBadge(
   try {
     const provider = new ethers.JsonRpcProvider(ALCHEMY_BASE_URL);
     const contract = new ethers.Contract(contractAddress, SBT_ABI, provider);
-    const balance = await contract.balanceOf(userAddress);
-    return balance > BigInt(0);
+    const appIdBigInt = typeof appId === "string" ? BigInt(appId) : BigInt(appId);
+    const claimed = await contract.hasClaimed(userAddress, appIdBigInt);
+    return claimed;
   } catch (error) {
-    console.error("Error checking badge balance:", error);
+    console.error("Error checking badge claim status:", error);
     return false;
   }
 }

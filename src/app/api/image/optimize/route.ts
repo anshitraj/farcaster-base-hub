@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return optimized WebP image
-    return new NextResponse(webpBuffer, {
+    return new NextResponse(webpBuffer as any, {
       headers: {
         "Content-Type": "image/webp",
         "Cache-Control": "public, max-age=31536000, immutable", // Cache for 1 year

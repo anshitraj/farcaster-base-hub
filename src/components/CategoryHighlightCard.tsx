@@ -41,7 +41,7 @@ export function CategoryHighlightCard({
         const params = new URLSearchParams();
         if (category) params.set("category", category);
         if (tag) params.set("tag", tag);
-        params.set("limit", "8"); // Get up to 8 apps for icons
+        params.set("limit", "10"); // Get up to 10 apps for icons
         
         const res = await fetch(`/api/apps?${params.toString()}`);
         if (res.ok) {
@@ -63,7 +63,7 @@ export function CategoryHighlightCard({
     app.name.toLowerCase().includes(featuredApp.toLowerCase())
   ) || categoryApps[0];
   
-  const appIcons = categoryApps.slice(0, 5); // Show max 5 icons with names
+  const appIcons = categoryApps.slice(0, 9); // Show 9 apps (5 in first row, 4 in second row + "Show more")
 
   const content = (
     <motion.div
@@ -83,9 +83,9 @@ export function CategoryHighlightCard({
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              quality={75}
-              priority={false}
-              loading="lazy"
+              quality={80}
+              priority={true}
+              loading="eager"
               unoptimized={needsUnoptimized(optimizeDevImage(backgroundImage))}
             />
           </div>
@@ -110,23 +110,24 @@ export function CategoryHighlightCard({
           {title}
         </h3>
 
-        {/* App Icons Row with Names - Centered */}
+        {/* App Icons Grid with Names - Centered */}
         <div className="flex-1 flex items-center justify-center mb-4">
           {loading ? (
-            <div className="flex gap-3">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex flex-col items-center gap-1">
+            <div className="grid grid-cols-5 gap-2.5 w-full max-w-md">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-1.5">
                   <div className="w-12 h-12 rounded-2xl bg-white/20 animate-pulse" />
                   <div className="w-12 h-3 rounded bg-white/20 animate-pulse" />
                 </div>
               ))}
             </div>
           ) : appIcons.length > 0 ? (
-            <div className="flex items-center justify-center gap-2.5 flex-wrap">
-              {appIcons.map((app) => (
+            <div className="grid grid-cols-5 gap-2.5 w-full max-w-md">
+              {/* First row: 5 apps */}
+              {appIcons.slice(0, 5).map((app) => (
                 <div
                   key={app.id}
-                  className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                  className="flex flex-col items-center gap-1.5"
                 >
                   {/* App Icon */}
                   <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 overflow-hidden shadow-md hover:scale-105 transition-transform duration-200">
@@ -163,15 +164,56 @@ export function CategoryHighlightCard({
                   </p>
                 </div>
               ))}
-              {/* Show More Button */}
-              {categoryApps.length > 5 && href && (
+              {/* Second row: 4 apps */}
+              {appIcons.slice(5, 9).map((app) => (
+                <div
+                  key={app.id}
+                  className="flex flex-col items-center gap-1.5"
+                >
+                  {/* App Icon */}
+                  <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 overflow-hidden shadow-md hover:scale-105 transition-transform duration-200">
+                    {app.iconUrl ? (
+                      <Image
+                        src={optimizeDevImage(app.iconUrl)}
+                        data-original={app.iconUrl}
+                        unoptimized={needsUnoptimized(optimizeDevImage(app.iconUrl))}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          const originalUrl = target.getAttribute("data-original");
+                          if (originalUrl) {
+                            target.src = originalUrl;
+                          } else {
+                            target.src = "/placeholder.svg";
+                          }
+                        }}
+                        alt={app.name}
+                        width={56}
+                        height={56}
+                        className="w-full h-full object-cover"
+                        quality={75}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-white/5">
+                        <div className="w-8 h-8 rounded-lg bg-white/20" />
+                      </div>
+                    )}
+                  </div>
+                  {/* App Name */}
+                  <p className="text-white text-xs font-medium text-center max-w-[50px] md:max-w-[60px] truncate drop-shadow-lg">
+                    {app.name}
+                  </p>
+                </div>
+              ))}
+              {/* Show More Button - 5th item in second row */}
+              {categoryApps.length > 9 && href && (
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     window.location.href = href;
                   }}
-                  className="flex flex-col items-center gap-1.5 flex-shrink-0 group"
+                  className="flex flex-col items-center gap-1.5 group"
                 >
                   <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-white/20 backdrop-blur-sm border-2 border-white/30 border-dashed overflow-hidden shadow-md hover:scale-105 hover:bg-white/30 transition-all duration-200 flex items-center justify-center">
                     <span className="text-white text-lg font-bold group-hover:scale-110 transition-transform">+</span>

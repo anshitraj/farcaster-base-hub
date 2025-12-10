@@ -5,23 +5,13 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import AppHeader from "@/components/AppHeader";
+import Sidebar from "@/components/Sidebar";
 import CategoryChips from "@/components/CategoryChips";
 import nextDynamic from "next/dynamic";
 
-// Dynamically import framer-motion to reduce initial bundle size
-const MotionDiv = nextDynamic(
-  () => import("framer-motion").then((mod) => mod.motion.div),
-  { ssr: false }
-);
 import { trackPageView, trackEvent } from "@/lib/analytics";
-import { Star, X, CheckCircle2, Flame, Sparkles } from "lucide-react";
-import FavoriteButton from "@/components/FavoriteButton";
-import VerifiedBadge from "@/components/VerifiedBadge";
-import RatingStars from "@/components/RatingStars";
-import { shortenDescription } from "@/lib/description-utils";
-import Image from "next/image";
-import OptimizedImage from "@/components/OptimizedImage";
-import { optimizeDevImage } from "@/utils/optimizeDevImage";
+import { X } from "lucide-react";
+import AppCard from "@/components/AppCard";
 
 // Keep dynamic for search/filter functionality
 export const dynamic = 'force-dynamic';
@@ -43,6 +33,9 @@ function AppsPageContent() {
   const [loading, setLoading] = useState(true);
   const [showAllTags, setShowAllTags] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarHidden, setSidebarHidden] = useState(false);
 
   useEffect(() => {
     // Check for reduced motion preference client-side
@@ -56,6 +49,52 @@ function AppsPageContent() {
     mediaQuery.addEventListener("change", handleChange);
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
+
+  // Sidebar state management - same as home page
+  useEffect(() => {
+    const checkMobile = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1024) {
+          // On desktop, always open by default
+          setSidebarOpen(true);
+        } else {
+          // On mobile, check localStorage or default to closed
+          const savedSidebarState = localStorage.getItem('sidebarOpen');
+          if (savedSidebarState !== null) {
+            setSidebarOpen(savedSidebarState === 'true');
+          } else {
+            setSidebarOpen(false);
+          }
+        }
+      }
+    };
+    
+    // Set initial state immediately
+    if (typeof window !== 'undefined') {
+      checkMobile();
+    }
+    
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        // Always show on desktop
+        setSidebarOpen(true);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []); // Only run once on mount
+
+  // Save sidebar state to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpen', String(sidebarOpen));
+    }
+  }, [sidebarOpen]);
+
+  const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
+    setSidebarCollapsed(collapsed);
+    setSidebarHidden(hidden);
+  };
 
   useEffect(() => {
     trackPageView("/apps");
@@ -160,9 +199,24 @@ function AppsPageContent() {
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
-    <div className="min-h-screen bg-[#0D0F1A] pb-24">
-      <AppHeader />
-      <div className="pt-8 pb-8">
+    <div className="flex min-h-screen bg-[#0D0F1A]">
+      {/* Sidebar */}
+      <Sidebar 
+        onCollapseChange={handleSidebarChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+
+      {/* Main Content */}
+      <main className={`flex-1 min-h-screen w-full pb-24 transition-all duration-300 ${
+        sidebarHidden 
+          ? "ml-0" 
+          : sidebarCollapsed 
+            ? "lg:ml-16 ml-0" 
+            : "lg:ml-64 ml-0"
+      }`}>
+        <AppHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        <div className="pt-8 pb-8">
         <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
           <div className="mb-8">
             <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
@@ -236,106 +290,24 @@ function AppsPageContent() {
           ) : apps.length > 0 ? (
             <>
               <div className="space-y-2">
-                {apps.map((app, index) => {
-                  const rating = app.ratingAverage || 0;
-                  
-                  const AppCard = prefersReducedMotion ? "div" : MotionDiv;
-                  const cardProps = prefersReducedMotion
-                    ? {}
-                    : {
-                        initial: { opacity: 0, x: -20 },
-                        animate: { opacity: 1, x: 0 },
-                        transition: { duration: 0.4, delay: index * 0.03 },
-                      };
-
-                  return (
-                    <AppCard
-                      key={app.id}
-                      {...cardProps}
-                      className="group relative bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-gray-700 transition-all duration-300"
-                    >
-                      <div className="flex items-center gap-4">
-                        {/* App Icon */}
-                        <div className="flex-shrink-0">
-                          {app.iconUrl ? (
-                            <div className="w-20 h-20 rounded-xl bg-gray-800 p-2 border border-gray-700">
-                              <OptimizedImage
-                                src={optimizeDevImage(app.iconUrl)}
-                                alt={app.name}
-                                width={80}
-                                height={80}
-                                className="w-full h-full object-contain rounded-lg"
-                                sizes="(max-width: 640px) 80px, 80px"
-                                priority={false}
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-20 h-20 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
-                              <span className="text-3xl font-bold text-gray-500">
-                                {app.name.charAt(0)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* App Info */}
-                        <div className="flex-1 min-w-0 relative">
-                          {/* Favorite Button - Always Top Right */}
-                          <div className="absolute top-0 right-0 z-10">
-                            <FavoriteButton 
-                              appId={app.id} 
-                              size="md" 
-                              className="flex-shrink-0" 
-                            />
-                          </div>
-                          <div className="pr-10">
-                            <div className="flex items-start justify-between gap-3 mb-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1 mb-1">
-                                  <h3 className="text-lg font-bold text-white line-clamp-1">
-                                    {app.name}
-                                  </h3>
-                                  {app.verified && (
-                                    <Image
-                                      src="/verify.svg"
-                                      alt="Verified"
-                                      width={18}
-                                      height={18}
-                                      className="w-[18px] h-[18px] flex-shrink-0 ml-0.5 inline-block"
-                                      title="Verified App"
-                                    />
-                                  )}
-                                </div>
-                                <p className="text-sm text-gray-400 line-clamp-2 leading-relaxed">
-                                  {shortenDescription(app.description) || "No description available"}
-                                </p>
-                              </div>
-                            </div>
-
-                            {/* Rating and Action Button Row */}
-                            <div className="flex items-center justify-between mt-3">
-                              <div className="flex items-center gap-2">
-                                <RatingStars 
-                                  rating={rating} 
-                                  ratingCount={app.ratingCount || 0} 
-                                  size={14} 
-                                  showNumber 
-                                />
-                              </div>
-
-                              <Link
-                                href={`/apps/${app.id}`}
-                                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-semibold transition-all duration-300"
-                              >
-                                Open
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </AppCard>
-                  );
-                })}
+                {apps.map((app) => (
+                  <AppCard
+                    key={app.id}
+                    id={app.id}
+                    name={app.name}
+                    description={app.description || "No description available"}
+                    iconUrl={app.iconUrl || ""}
+                    category={app.category || ""}
+                    ratingAverage={app.ratingAverage || 0}
+                    ratingCount={app.ratingCount || 0}
+                    verified={app.verified || false}
+                    tags={app.tags || []}
+                    variant="horizontal"
+                    url={app.url}
+                    farcasterUrl={app.farcasterUrl}
+                    baseMiniAppUrl={app.baseMiniAppUrl}
+                  />
+                ))}
               </div>
               
               {totalPages > 1 && (
@@ -354,7 +326,8 @@ function AppsPageContent() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -362,9 +335,9 @@ function AppsPageContent() {
 export default function AppsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0D0F1A] pb-24">
+      <div className="flex min-h-screen bg-[#0D0F1A]">
         <AppHeader />
-        <div className="pt-8 pb-8">
+        <div className="flex-1 pt-8 pb-8">
           <div className="max-w-7xl mx-auto px-6" style={{ padding: "24px" }}>
             <div className="space-y-2">
               {[...Array(6)].map((_, i) => (

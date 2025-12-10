@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import { requireModerator, requireAdminOnly } from "@/lib/admin";
 import { MiniApp, Developer, Badge } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { convertAndSaveImage, shouldConvertToWebP } from "@/lib/image-optimization";
 
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     await requireModerator();
@@ -63,6 +64,15 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Get existing app first to compare image URLs
+    const [existingApp] = await db.select().from(MiniApp).where(eq(MiniApp.id, appId)).limit(1);
+    if (!existingApp) {
+      return NextResponse.json(
+        { error: "App not found" },
+        { status: 404 }
+      );
+    }
+
     const updateData: any = {};
     if (typeof verified === "boolean") {
       updateData.verified = verified;
@@ -84,8 +94,28 @@ export async function PATCH(request: NextRequest) {
     }
     if (baseMiniAppUrl !== undefined) updateData.baseMiniAppUrl = baseMiniAppUrl || null;
     if (farcasterUrl !== undefined) updateData.farcasterUrl = farcasterUrl || null;
-    if (iconUrl !== undefined) updateData.iconUrl = iconUrl || null;
-    if (headerImageUrl !== undefined) updateData.headerImageUrl = headerImageUrl || null;
+    
+    // Convert images to WebP and upload to Vercel Blob if they're PNG/JPG
+    if (iconUrl !== undefined) {
+      if (iconUrl && iconUrl !== existingApp.iconUrl && shouldConvertToWebP(iconUrl)) {
+        const tempId = `admin-update-${appId}-${Date.now()}`;
+        const convertedIcon = await convertAndSaveImage(iconUrl, "icons", tempId);
+        updateData.iconUrl = convertedIcon || iconUrl;
+      } else {
+        updateData.iconUrl = iconUrl || null;
+      }
+    }
+    
+    if (headerImageUrl !== undefined) {
+      if (headerImageUrl && headerImageUrl !== existingApp.headerImageUrl && shouldConvertToWebP(headerImageUrl)) {
+        const tempId = `admin-update-${appId}-${Date.now()}`;
+        const convertedHeader = await convertAndSaveImage(headerImageUrl, "headers", tempId);
+        updateData.headerImageUrl = convertedHeader || headerImageUrl;
+      } else {
+        updateData.headerImageUrl = headerImageUrl || null;
+      }
+    }
+    
     if (category) updateData.category = category;
     if (typeof contractVerified === "boolean") {
       updateData.contractVerified = contractVerified;
@@ -99,13 +129,24 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Check if app is being approved - create claimable badge
-    const [existingApp] = await db.select().from(MiniApp).where(eq(MiniApp.id, appId)).limit(1);
-    const isBeingApproved = existingApp && existingApp.status !== "approved" && updateData.status === "approved";
+    const isBeingApproved = existingApp.status !== "approved" && updateData.status === "approved";
     if (typeof featuredInBanner === "boolean") {
       updateData.featuredInBanner = featuredInBanner;
     }
+    
     if (Array.isArray(screenshots)) {
-      updateData.screenshots = screenshots;
+      // Convert screenshots if they're PNG/JPG
+      const tempId = `admin-update-${appId}-${Date.now()}`;
+      const convertedScreenshots = await Promise.all(
+        screenshots.map(async (url: string) => {
+          if (url && shouldConvertToWebP(url) && !url.includes("blob.vercel-storage.com")) {
+            const converted = await convertAndSaveImage(url, "screenshots", tempId);
+            return converted || url;
+          }
+          return url;
+        })
+      );
+      updateData.screenshots = convertedScreenshots;
     }
 
     if (Object.keys(updateData).length === 0) {

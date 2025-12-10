@@ -34,6 +34,8 @@ export default function UserProfile() {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   const { toast } = useToast();
   const { user: miniAppUser, context: miniAppContext, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
   
@@ -640,19 +642,43 @@ export default function UserProfile() {
       ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
       : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=ffffff&hairColor=77311d`);
 
+  // Reset image loading state when avatar URL changes
+  useEffect(() => {
+    if (profile?.avatar) {
+      setImageLoading(true);
+      setImageError(false);
+    }
+  }, [profile?.avatar]);
+
+  const optimizedAvatarUrl = optimizeDevImage(avatarUrl);
+  const fallbackAvatarUrl = profile.isBaseWallet 
+    ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
+    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=ffffff&hairColor=77311d`;
+
   return (
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-base-blue/50 rounded-full p-1">
             <div className="relative">
+              {imageLoading && !imageError && (
+                <div className="absolute inset-0 w-9 h-9 rounded-full bg-muted animate-pulse border-2 border-white/20" />
+              )}
               <Image
-                src={optimizeDevImage(avatarUrl)}
+                src={imageError ? fallbackAvatarUrl : optimizedAvatarUrl}
                 alt={displayName}
                 width={36}
                 height={36}
-                className="w-9 h-9 rounded-full border-2 border-white/20 shadow-lg"
-                unoptimized={needsUnoptimized(optimizeDevImage(avatarUrl))}
+                className={`w-9 h-9 rounded-full border-2 border-white/20 shadow-lg transition-opacity duration-200 ${
+                  imageLoading ? "opacity-0" : "opacity-100"
+                }`}
+                unoptimized={needsUnoptimized(optimizedAvatarUrl)}
+                priority
+                onLoad={() => setImageLoading(false)}
+                onError={() => {
+                  setImageError(true);
+                  setImageLoading(false);
+                }}
               />
               {profile.isBaseWallet && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-base-blue rounded-full flex items-center justify-center border-2 border-[#0B0F19] shadow-md">
@@ -668,14 +694,27 @@ export default function UserProfile() {
         <DropdownMenuContent align="end" className="glass-card border-white/10 w-64">
           <div className="px-4 py-3 border-b border-white/10">
             <div className="flex items-center gap-3">
-              <Image
-                src={optimizeDevImage(avatarUrl)}
-                alt={displayName}
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full border-2 border-base-blue/50"
-                unoptimized={needsUnoptimized(optimizeDevImage(avatarUrl))}
-              />
+              <div className="relative">
+                {imageLoading && !imageError && (
+                  <div className="absolute inset-0 w-12 h-12 rounded-full bg-muted animate-pulse border-2 border-base-blue/50" />
+                )}
+                <Image
+                  src={imageError ? fallbackAvatarUrl : optimizedAvatarUrl}
+                  alt={displayName}
+                  width={48}
+                  height={48}
+                  className={`w-12 h-12 rounded-full border-2 border-base-blue/50 transition-opacity duration-200 ${
+                    imageLoading ? "opacity-0" : "opacity-100"
+                  }`}
+                  unoptimized={needsUnoptimized(optimizedAvatarUrl)}
+                  priority
+                  onLoad={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageError(true);
+                    setImageLoading(false);
+                  }}
+                />
+              </div>
               <div className="flex-1 min-w-0">
                 {profile.name && (
                   <p className="text-sm font-semibold truncate">

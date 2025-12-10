@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { trackQuestCompletion } from "@/lib/quest-helpers";
 import { Developer, MiniApp } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
@@ -350,14 +351,48 @@ export async function POST(request: NextRequest) {
             updatedVerified = false;
           }
           
+          // Convert PNG/JPG images to WebP before saving (for updates too)
+          let finalIconUrl = (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : existingApp.iconUrl;
+          let finalHeaderImageUrl = (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : existingApp.headerImageUrl;
+          let finalScreenshots = updatedScreenshots || existingApp.screenshots || [];
+
+          // Generate a temporary ID for filename prefix
+          const tempId = `update-${existingApp.id}-${Date.now()}`;
+
+          // Convert icon if PNG/JPG and it's a new URL (not already a Vercel Blob URL)
+          if (finalIconUrl && finalIconUrl !== existingApp.iconUrl && shouldConvertToWebP(finalIconUrl)) {
+            const convertedIcon = await convertAndSaveImage(finalIconUrl, "icons", tempId);
+            if (convertedIcon) finalIconUrl = convertedIcon;
+          }
+
+          // Convert header if PNG/JPG and it's a new URL
+          if (finalHeaderImageUrl && finalHeaderImageUrl !== existingApp.headerImageUrl && shouldConvertToWebP(finalHeaderImageUrl)) {
+            const convertedHeader = await convertAndSaveImage(finalHeaderImageUrl, "headers", tempId);
+            if (convertedHeader) finalHeaderImageUrl = convertedHeader;
+          }
+
+          // Convert screenshots if PNG/JPG
+          if (finalScreenshots && finalScreenshots.length > 0) {
+            finalScreenshots = await Promise.all(
+              finalScreenshots.map(async (url) => {
+                // Only convert if it's not already a Vercel Blob URL and needs conversion
+                if (url && shouldConvertToWebP(url) && !url.includes("blob.vercel-storage.com")) {
+                  const converted = await convertAndSaveImage(url, "screenshots", tempId);
+                  return converted || url;
+                }
+                return url;
+              })
+            );
+          }
+          
           // Update existing app
           const updateData: any = {
             name: validated.name,
             description: validated.description,
             baseMiniAppUrl: (validated.baseMiniAppUrl && validated.baseMiniAppUrl.trim() !== "") ? validated.baseMiniAppUrl : existingApp.baseMiniAppUrl,
             farcasterUrl: (validated.farcasterUrl && validated.farcasterUrl.trim() !== "") ? validated.farcasterUrl : existingApp.farcasterUrl,
-            iconUrl: (validated.iconUrl && validated.iconUrl.trim() !== "") ? validated.iconUrl : existingApp.iconUrl,
-            headerImageUrl: (validated.headerImageUrl && validated.headerImageUrl.trim() !== "") ? validated.headerImageUrl : existingApp.headerImageUrl,
+            iconUrl: finalIconUrl,
+            headerImageUrl: finalHeaderImageUrl,
             category: validated.category,
             status: updatedStatus, // Update status (approved if owner matches, otherwise keep existing)
             verified: updatedVerified, // Update verified status
@@ -367,7 +402,7 @@ export async function POST(request: NextRequest) {
             tags: (validated.tags && validated.tags.length > 0) ? validated.tags.map(t => t.toLowerCase().trim()).filter(t => t.length > 0) : existingApp.tags || [],
             contractAddress: (validated.contractAddress && validated.contractAddress.trim() !== "") ? validated.contractAddress.toLowerCase() : existingApp.contractAddress,
             farcasterJson: updatedFarcasterMetadata || existingApp.farcasterJson,
-            screenshots: updatedScreenshots || existingApp.screenshots || [],
+            screenshots: finalScreenshots,
             lastUpdatedAt: new Date(),
           };
           
@@ -594,6 +629,14 @@ export async function POST(request: NextRequest) {
         description: `Earned ${APP_SUBMISSION_POINTS} points for listing "${validated.name}"`,
         referenceId: app.id,
       });
+
+      // Track quest completion for submitting an app
+      try {
+        await trackQuestCompletion(developer.wallet, "submit");
+      } catch (questError) {
+        console.error("Error tracking quest completion:", questError);
+        // Don't fail the submission if quest tracking has an error
+      }
     } catch (pointsError) {
       // Don't fail the submission if points system has an error
       console.error("Error awarding submission points:", pointsError);

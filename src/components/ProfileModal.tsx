@@ -57,6 +57,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   const { user: miniAppUser, context: miniAppContext, isInMiniApp, loaded: miniAppLoaded } = useMiniApp();
@@ -81,7 +83,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setProfile(null);
       setLoading(true);
       setHasAuthenticated(false);
+      setImageLoading(true);
+      setImageError(false);
       return;
+    }
+    
+    // Reset image loading when profile changes
+    if (profile?.avatar) {
+      setImageLoading(true);
+      setImageError(false);
     }
     
     let mounted = true;
@@ -616,15 +626,25 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               {/* Profile Header */}
               <div className="flex items-center gap-4">
                 <div className="relative flex-shrink-0">
+                  {imageLoading && !imageError && (
+                    <div className="absolute inset-0 w-20 h-20 rounded-full bg-gray-800 animate-pulse border-2 border-base-blue" />
+                  )}
                   <Image
-                    src={profile.avatar || "/default-avatar.png"}
+                    src={imageError 
+                      ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
+                      : profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`
+                    }
                     alt={displayName}
                     width={80}
                     height={80}
-                    className="rounded-full border-2 border-base-blue object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                    className={`rounded-full border-2 border-base-blue object-cover transition-opacity duration-200 ${
+                      imageLoading ? "opacity-0" : "opacity-100"
+                    }`}
+                    priority
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => {
+                      setImageError(true);
+                      setImageLoading(false);
                     }}
                   />
                   {profile.isBaseWallet && (

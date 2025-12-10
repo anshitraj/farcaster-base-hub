@@ -196,9 +196,9 @@ export default function AppBadgeSection({ app, currentWallet }: AppBadgeSectionP
       {/* Cast Your App Badge */}
       <Card className="glass-card p-6">
         <div className="flex flex-col items-center text-center">
-          <div className="relative w-32 h-32 mb-4 rounded-xl overflow-hidden">
+          <div className="relative w-48 h-48 mb-4 rounded-xl overflow-hidden">
             <Image
-              src="/badges/castapp.webp"
+              src={process.env.NEXT_PUBLIC_CAST_BADGE_IMAGE_URL || "/badges/castyourapptransparent.webp"}
               alt="Cast Your App Badge"
               fill
               className="object-contain"

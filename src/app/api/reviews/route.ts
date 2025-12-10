@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { convertReferralForUser } from "@/lib/referral-helpers";
+import { trackQuestCompletion } from "@/lib/quest-helpers";
 import { MiniApp, Developer, Review, UserPoints, PointsTransaction } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
@@ -21,6 +22,26 @@ const replySchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
+    
+    // Fallback: check walletAddress cookie if DB session doesn't exist
+    let wallet: string | null = null;
+    if (session) {
+      wallet = session.wallet;
+    } else {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const walletFromCookie = cookieStore.get("walletAddress")?.value;
+      if (walletFromCookie) {
+        wallet = walletFromCookie;
+      } else {
+        // Fallback: check Farcaster session cookie
+        const farcasterFid = cookieStore.get("farcasterSession")?.value;
+        if (farcasterFid) {
+          wallet = `farcaster:${farcasterFid}`;
+        }
+      }
+    }
+    
     const body = await request.json();
     const validated = reviewSchema.parse(body);
 
@@ -40,9 +61,9 @@ export async function POST(request: NextRequest) {
     const appDeveloper = developerResult[0];
 
     // Prevent developers from rating their own apps
-    if (session) {
+    if (wallet) {
       const developerResult2 = await db.select().from(Developer)
-        .where(eq(Developer.wallet, session.wallet.toLowerCase()))
+        .where(eq(Developer.wallet, wallet.toLowerCase()))
         .limit(1);
       const developer = developerResult2[0];
       
@@ -57,12 +78,12 @@ export async function POST(request: NextRequest) {
     // Get current rating before update
     const previousRating = app.ratingAverage;
 
-    // Get or create developer if session exists and fetch/update avatar
+    // Get or create developer if wallet exists and fetch/update avatar
     let developerId: string | undefined;
     let reviewerAvatar: string | null = null;
     
-    if (session) {
-      const normalizedWallet = session.wallet.toLowerCase();
+    if (wallet) {
+      const normalizedWallet = wallet.toLowerCase();
       let developerResult = await db.select().from(Developer)
         .where(eq(Developer.wallet, normalizedWallet))
         .limit(1);
@@ -151,42 +172,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if user already reviewed this app
-    let existingReview: any = null;
-    let isNewReview = true;
-    if (session && developerId) {
-      const existingReviewResult = await db.select().from(Review)
-        .where(and(
-          eq(Review.miniAppId, validated.miniAppId),
-          eq(Review.developerId, developerId)
-        ))
-        .limit(1);
-      existingReview = existingReviewResult[0];
+    // Require authentication for submitting reviews
+    if (!wallet) {
+      return NextResponse.json(
+        { error: "Authentication required. Please connect your wallet to submit a review." },
+        { status: 401 }
+      );
     }
 
-    // Update existing review or create new one
-    let review;
-    if (existingReview) {
-      // Update existing review (user can change their rating)
-      isNewReview = false;
-      const [updatedReview] = await db.update(Review)
-        .set({
-          rating: validated.rating,
-          comment: validated.comment || null,
-        })
-        .where(eq(Review.id, existingReview.id))
-        .returning();
-      review = updatedReview;
-    } else {
-      // Create new review
-      const [newReview] = await db.insert(Review).values({
-        miniAppId: validated.miniAppId,
-        rating: validated.rating,
-        comment: validated.comment,
-        developerId,
-      }).returning();
-      review = newReview;
+    if (!developerId) {
+      return NextResponse.json(
+        { error: "Unable to identify user. Please try again." },
+        { status: 400 }
+      );
     }
+
+    // Check if user already reviewed this app - prevent duplicate submissions
+    const existingReviewResult = await db.select().from(Review)
+      .where(and(
+        eq(Review.miniAppId, validated.miniAppId),
+        eq(Review.developerId, developerId)
+      ))
+      .limit(1);
+    const existingReview = existingReviewResult[0];
+
+    if (existingReview) {
+      return NextResponse.json(
+        { error: "You have already submitted a review for this app. Each user can only submit one review per app." },
+        { status: 409 }
+      );
+    }
+
+    // Create new review
+    const [review] = await db.insert(Review).values({
+      miniAppId: validated.miniAppId,
+      rating: validated.rating,
+      comment: validated.comment,
+      developerId,
+    }).returning();
 
     // Recalculate rating
     const reviews = await db.select({ rating: Review.rating })
@@ -206,13 +229,13 @@ export async function POST(request: NextRequest) {
 
     // Award 10 points for rating (Rate 2 Earn)
     let pointsAwarded = 0;
-    if (session && isNewReview) {
-      // Only award points if this is a new review (not an update)
+    if (wallet) {
+      // Award points for new review
       const RATING_POINTS = 10; // Changed from 100 to 10
       
       try {
         // Find or create user points record
-        const walletLower = session.wallet.toLowerCase();
+        const walletLower = wallet.toLowerCase();
         let userPointsResult = await db.select().from(UserPoints)
           .where(eq(UserPoints.wallet, walletLower))
           .limit(1);
@@ -289,7 +312,34 @@ export async function POST(request: NextRequest) {
         }
 
         // Convert referral if user came from a referral link
-        await convertReferralForUser(session.wallet);
+        await convertReferralForUser(wallet);
+
+        // Track quest completions
+        try {
+          // Check reviews BEFORE this one (to see if this is first or 10th)
+          // Note: review is already inserted above, so we need to check before insertion
+          // Actually, the review was inserted before this point, so we check current count
+          const allReviewsResult = await db.select({ count: count() })
+            .from(Review)
+            .where(eq(Review.developerId, developerId));
+          const totalReviews = Number(allReviewsResult[0]?.count || 0);
+          
+          if (totalReviews === 1) {
+            // First review - complete "review" quest
+            await trackQuestCompletion(wallet, "review");
+          }
+          
+          // Check if this is the 10th review (for "rate-multiple" quest)
+          if (totalReviews === 10) {
+            await trackQuestCompletion(wallet, "rate-multiple");
+          }
+
+          // Track daily review quest (always try, function handles duplicates)
+          await trackQuestCompletion(wallet, "daily-review");
+        } catch (questError) {
+          console.error("Error tracking quest completion:", questError);
+          // Don't fail the review if quest tracking has an error
+        }
       } catch (pointsError) {
         // Don't fail the review if points system has an error
         console.error("Error awarding points:", pointsError);
@@ -391,7 +441,26 @@ export async function PATCH(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
     
-    if (!session) {
+    // Fallback: check walletAddress cookie if DB session doesn't exist
+    let wallet: string | null = null;
+    if (session) {
+      wallet = session.wallet;
+    } else {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const walletFromCookie = cookieStore.get("walletAddress")?.value;
+      if (walletFromCookie) {
+        wallet = walletFromCookie;
+      } else {
+        // Fallback: check Farcaster session cookie
+        const farcasterFid = cookieStore.get("farcasterSession")?.value;
+        if (farcasterFid) {
+          wallet = `farcaster:${farcasterFid}`;
+        }
+      }
+    }
+    
+    if (!wallet) {
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -426,7 +495,7 @@ export async function PATCH(request: NextRequest) {
     // Verify that the authenticated developer owns the app
     const developerResult = await db.select()
       .from(Developer)
-      .where(eq(Developer.wallet, session.wallet.toLowerCase()))
+      .where(eq(Developer.wallet, wallet.toLowerCase()))
       .limit(1);
 
     const developer = developerResult[0];

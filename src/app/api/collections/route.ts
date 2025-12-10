@@ -14,7 +14,9 @@ const createCollectionSchema = z.object({
 });
 
 
-export const runtime = "edge";
+export const runtime = "nodejs"; // Use nodejs for better database performance
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSessionFromCookies();
@@ -74,7 +76,11 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({ collections });
+    return NextResponse.json({ collections }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
+    });
   } catch (error) {
     console.error("Error fetching collections:", error);
     return NextResponse.json(

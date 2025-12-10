@@ -207,6 +207,16 @@ export async function GET(request: NextRequest) {
       path: "/",
     });
 
+    // Set walletAddress cookie for consistency with regular wallet auth
+    // This ensures admin checks work properly
+    cookieStore.set("walletAddress", farcasterWallet.toLowerCase(), {
+      httpOnly: false, // Allow JS to read it as fallback
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
+
     return NextResponse.redirect(new URL("/", request.url));
   } catch (error: any) {
     console.error("Farcaster callback error:", error);

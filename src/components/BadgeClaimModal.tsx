@@ -202,25 +202,25 @@ export default function BadgeClaimModal({
         <div className="mt-6 space-y-6">
           {/* Badge Preview */}
           <div className="flex justify-center">
-            <div className="relative w-64 h-64 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 p-4">
+            <div className="relative w-80 h-80 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-2 border-blue-500/30 p-4">
               <div className="w-full h-full rounded-xl bg-[#1A1A1A] flex items-center justify-center relative overflow-hidden">
                 {app.badgeType === "cast_your_app" ? (
                   // Show Cast Your App badge image
                   <Image
-                    src="/badges/castapp.webp"
+                    src={process.env.NEXT_PUBLIC_CAST_BADGE_IMAGE_URL || "/badges/castyourapptransparent.webp"}
                     alt="Cast Your App Badge"
-                    width={200}
-                    height={200}
+                    width={320}
+                    height={320}
                     className="object-contain w-auto h-auto"
-                    sizes="200px"
+                    sizes="320px"
                   />
                 ) : app.iconUrl ? (
                   // Show app icon for SBT badges
                   <Image
                     src={app.iconUrl}
                     alt={app.name}
-                    width={200}
-                    height={200}
+                    width={256}
+                    height={256}
                     className="object-contain"
                   />
                 ) : (

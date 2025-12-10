@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import BadgeClaimModal from "@/components/BadgeClaimModal";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
+import { convertBadgeImageToWebP } from "@/utils/optimizeDevImage";
 
 interface ClaimableApp {
   id: string;
@@ -112,7 +113,7 @@ export default function CollectiblesSection() {
                   {app.badgeType === "cast_your_app" ? (
                     <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30">
                       <Image
-                        src="/badges/castapp.webp"
+                        src={process.env.NEXT_PUBLIC_CAST_BADGE_IMAGE_URL || "/badges/castyourapptransparent.webp"}
                         alt="Cast Your App Badge"
                         fill
                         className="object-contain p-2"
@@ -198,20 +199,44 @@ export default function CollectiblesSection() {
                 key={badge.id}
                 className="bg-[#1A1A1A] rounded-lg border border-gray-800 p-4 hover:border-yellow-500/50 transition-colors"
               >
-                <div className="aspect-square rounded-lg bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30 mb-3 flex items-center justify-center overflow-hidden">
-                  {badge.imageUrl ? (
-                    <Image
-                      src={badge.imageUrl}
-                      alt={badge.name}
-                      width={200}
-                      height={200}
-                      className="w-full h-full object-contain"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                  ) : (
-                    <Trophy className="h-16 w-16 text-blue-400" />
-                  )}
-                </div>
+                {badge.txHash ? (
+                  <a
+                    href={`https://basescan.org/tx/${badge.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block cursor-pointer"
+                  >
+                    <div className="aspect-square rounded-lg bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30 mb-3 flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity">
+                      {badge.imageUrl ? (
+                        <Image
+                          src={convertBadgeImageToWebP(badge.imageUrl)}
+                          alt={badge.name}
+                          width={256}
+                          height={256}
+                          className="w-full h-full object-contain"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        />
+                      ) : (
+                        <Trophy className="h-20 w-20 text-blue-400" />
+                      )}
+                    </div>
+                  </a>
+                ) : (
+                  <div className="aspect-square rounded-lg bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-500/30 mb-3 flex items-center justify-center overflow-hidden">
+                    {badge.imageUrl ? (
+                      <Image
+                        src={convertBadgeImageToWebP(badge.imageUrl)}
+                        alt={badge.name}
+                        width={256}
+                        height={256}
+                        className="w-full h-full object-contain"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                    ) : (
+                      <Trophy className="h-20 w-20 text-blue-400" />
+                    )}
+                  </div>
+                )}
                 <h3 className="font-semibold text-white mb-1">{badge.appName}</h3>
                 <p className="text-xs text-gray-400 mb-2">
                   {badge.badgeType === "sbt" ? "SBT Badge" : "Verified Mini Cast Store Badge"}

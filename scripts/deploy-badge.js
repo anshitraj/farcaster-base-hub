@@ -18,7 +18,7 @@ async function main() {
   console.log("\n✅ BadgeSBT deployed successfully!");
   console.log("Contract address:", address);
   console.log("\n📝 Add this to your .env.local file:");
-  console.log(`BADGE_CONTRACT_ADDRESS="${address}"`);
+  console.log(`BADGE_CONTRACT="${address}"`);
   console.log(`BADGE_ADMIN_PRIVATE_KEY="your_private_key_here"`);
   console.log("\n⚠️  Make sure BADGE_ADMIN_PRIVATE_KEY matches the deployer address:", deployer.address);
   

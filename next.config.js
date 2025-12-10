@@ -17,6 +17,15 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'images.unsplash.com',
       },
+      // Vercel Blob Storage patterns for fast CDN delivery
+      {
+        protocol: 'https',
+        hostname: '*.public.blob.vercel-storage.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.blob.vercel-storage.com',
+      },
     ],
     // Allow localhost for development
     domains: ['localhost'],
@@ -29,6 +38,9 @@ const nextConfig = {
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     // Handle upstream image errors gracefully
     unoptimized: false,
+    // Optimize loading performance
+    loader: 'default',
+    loaderFile: undefined,
   },
   // Suppress upstream image errors in production
   onDemandEntries: {

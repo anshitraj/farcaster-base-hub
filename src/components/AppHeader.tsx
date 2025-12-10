@@ -409,7 +409,7 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
               >
                 <Plus className="w-3 h-3 md:w-4 md:h-4" />
                 <span className="hidden sm:inline">List your mini app</span>
-                <span className="sm:hidden">List App</span>
+                <span className="sm:hidden">List</span>
               </motion.button>
             </Link>
 
@@ -428,8 +428,8 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
                 </span>
               )}
             </motion.button>
-            {/* Points Display - Hide in Mini Apps (Farcaster/Base) to save space, show in regular browsers */}
-            {loaded && !isInMiniApp && <PointsDisplay />}
+            {/* Points Display - Show in all contexts including Base/Farcaster */}
+            {loaded && <PointsDisplay />}
             
             {/* Connect Wallet Button/Dropdown - Desktop only, hide in Mini Apps */}
             {loaded && !isInMiniApp && (

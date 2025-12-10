@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { UserPoints, PointsTransaction } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // Mark as dynamic since it uses cookies
@@ -30,9 +30,9 @@ export async function GET(request: NextRequest) {
 
     const walletLower = wallet.toLowerCase();
     
-    // OPTIMIZE: Fetch points and transactions in parallel (2 queries -> 1 parallel call)
+    // OPTIMIZE: Fetch points and transactions in parallel (3 queries -> 1 parallel call)
     try {
-      const [pointsResult, transactionsResult] = await Promise.all([
+      const [pointsResult, transactionsResult, calculatedTotalResult] = await Promise.all([
         db
           .select({ totalPoints: UserPoints.totalPoints })
           .from(UserPoints)
@@ -50,10 +50,52 @@ export async function GET(request: NextRequest) {
           .where(eq(PointsTransaction.wallet, walletLower))
           .orderBy(desc(PointsTransaction.createdAt))
           .limit(10),
+        // Calculate total from all transactions to verify stored total
+        db
+          .select({
+            calculatedTotal: sql<number>`COALESCE(SUM(${PointsTransaction.points}), 0)::int`.as('calculatedTotal'),
+          })
+          .from(PointsTransaction)
+          .where(eq(PointsTransaction.wallet, walletLower)),
       ]);
 
       let userPoints = pointsResult[0];
       const transactions = transactionsResult || [];
+      const calculatedTotal = Number(calculatedTotalResult[0]?.calculatedTotal || 0);
+      const storedTotal = userPoints?.totalPoints || 0;
+
+      // If calculated total doesn't match stored total, fix it
+      if (calculatedTotal !== storedTotal && calculatedTotal >= 0) {
+        console.warn(`Points mismatch for ${walletLower}: stored=${storedTotal}, calculated=${calculatedTotal}. Fixing...`);
+        
+        // Update stored total to match calculated total
+        if (!userPoints) {
+          try {
+            const [newPoints] = await db.insert(UserPoints).values({
+              wallet: walletLower,
+              totalPoints: calculatedTotal,
+            }).returning();
+            userPoints = newPoints;
+          } catch (insertError: any) {
+            // Handle race condition - another request might have created it
+            if (insertError?.code !== '23505') { // Not a unique constraint violation
+              throw insertError;
+            }
+            // Try to fetch again
+            const retryResult = await db
+              .select({ totalPoints: UserPoints.totalPoints })
+              .from(UserPoints)
+              .where(eq(UserPoints.wallet, walletLower))
+              .limit(1);
+            userPoints = retryResult[0] || { totalPoints: calculatedTotal };
+          }
+        } else {
+          await db.update(UserPoints)
+            .set({ totalPoints: calculatedTotal })
+            .where(eq(UserPoints.wallet, walletLower));
+          userPoints = { totalPoints: calculatedTotal };
+        }
+      }
 
       // If no points record exists, create one with 0 points (non-blocking)
       if (!userPoints) {
@@ -80,6 +122,7 @@ export async function GET(request: NextRequest) {
 
       const response = NextResponse.json({
         totalPoints: userPoints?.totalPoints || 0,
+        calculatedTotal, // Include calculated total for verification
         transactions,
       });
       

@@ -61,6 +61,9 @@ const ReviewCard = ({
                 width={48}
                 height={48}
                 className="w-full h-full rounded-full object-cover"
+                loading="lazy"
+                quality={75}
+                sizes="48px"
                 onError={(e) => {
                   // Fallback to a default avatar if image fails to load
                   const target = e.target as HTMLImageElement;

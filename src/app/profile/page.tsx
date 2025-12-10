@@ -16,10 +16,12 @@ import {
   Wallet, 
   ExternalLink,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { NotificationSettings } from "@/components/NotificationSettings";
 
 interface UserProfileData {
   wallet: string;
@@ -639,6 +641,11 @@ export default function ProfilePage() {
                   )}
                 </Button>
               </div>
+            </div>
+
+            {/* Notification Settings */}
+            <div className="pt-4 border-t border-gray-800">
+              <NotificationSettings />
             </div>
 
             {/* Actions */}

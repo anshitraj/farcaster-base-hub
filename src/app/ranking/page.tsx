@@ -11,6 +11,7 @@ import { trackPageView } from "@/lib/analytics";
 import { Trophy, Medal, Award, CheckCircle2, X, Zap, ChevronDown } from "lucide-react";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import { useMiniApp } from "@/components/MiniAppProvider";
+import { getRankFromLevel, getRankColor } from "@/lib/rank-utils";
 
 export default function RankingPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -238,58 +239,73 @@ export default function RankingPage() {
               </div>
 
               {/* Current User Entry (Highlighted) */}
-              {currentUserEntry && currentUserIndex >= 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-green-500/10 border-l-4 border-green-500 p-4 mx-4 my-4 rounded-lg"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0">
-                      {getRankDisplay(currentUserIndex + 1)}
-                    </div>
-                    <div className="flex-shrink-0">
-                      {currentUserEntry.avatar ? (
-                        <Image
-                          src={currentUserEntry.avatar}
-                          alt={currentUserEntry.name || "You"}
-                          width={48}
-                          height={48}
-                          className="rounded-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserEntry.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
-                          }}
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
-                          <span className="text-lg font-bold text-gray-300">
-                            {(currentUserEntry.name || "U").charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">You</span>
-                        {currentUserEntry.verified && (
-                          <VerifiedBadge type="developer" iconOnly size="sm" />
+              {currentUserEntry && currentUserIndex >= 0 && (() => {
+                const points = currentUserEntry.totalPoints || 0;
+                const level = Math.floor(points / 100) + 1;
+                const userRank = getRankFromLevel(level);
+                const rankColor = getRankColor(userRank);
+                return (
+                  <div className="px-4 pt-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-green-500/10 border-l-4 border-green-500 p-4 rounded-lg"
+                    >
+                    <div className="flex items-center gap-4">
+                      <div className="flex-shrink-0">
+                        {getRankDisplay(currentUserIndex + 1)}
+                      </div>
+                      <div className="flex-shrink-0">
+                        {currentUserEntry.avatar ? (
+                          <Image
+                            src={currentUserEntry.avatar}
+                            alt={currentUserEntry.name || "You"}
+                            width={48}
+                            height={48}
+                            className="rounded-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUserEntry.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+                            }}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                            <span className="text-lg font-bold text-gray-300">
+                              {(currentUserEntry.name || "U").charAt(0).toUpperCase()}
+                            </span>
+                          </div>
                         )}
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">You</span>
+                          {currentUserEntry.verified && (
+                            <VerifiedBadge type="developer" iconOnly size="sm" />
+                          )}
+                        </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Zap className="w-3 h-3 text-green-400 fill-green-400" />
-                        <span className="text-xs text-gray-400">1 day streak</span>
+                        <span className="text-xs text-gray-400">
+                          {currentUserEntry.streak || 0} {currentUserEntry.streak === 1 ? 'day' : 'days'} streak
+                        </span>
+                      </div>
+                        <div className="mt-1">
+                          <span className={`text-xs font-bold ${rankColor}`} style={{ fontFamily: 'monospace' }}>
+                            {userRank}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-green-400 text-lg">
+                          {points.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-400">points</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-green-400 text-lg">
-                        {(currentUserEntry.totalPoints || 0).toLocaleString()}
-                      </div>
-                      <div className="text-xs text-gray-400">points</div>
-                    </div>
+                    </motion.div>
                   </div>
-                </motion.div>
-              )}
+                );
+              })()}
 
               {/* Top 3 Users */}
               <div className="px-4 pb-4 space-y-3">
@@ -298,6 +314,10 @@ export default function RankingPage() {
                   // Generate temp username if no name found
                   const displayName = user.name || user.baseName || (user.wallet ? generateTempUsername(user.wallet) : "User");
                   const points = user.totalPoints || 0;
+                  // Calculate level: 100 points per level
+                  const level = Math.floor(points / 100) + 1;
+                  const userRank = getRankFromLevel(level);
+                  const rankColor = getRankColor(userRank);
                   
                   return (
                     <motion.div
@@ -345,15 +365,15 @@ export default function RankingPage() {
                           </div>
                           <div className="flex items-center gap-2 mt-1">
                             <Zap className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            <span className="text-xs text-gray-400">149 day streak</span>
+                            <span className="text-xs text-gray-400">
+                              {user.streak || 0} {user.streak === 1 ? 'day' : 'days'} streak
+                            </span>
                           </div>
-                          {rank <= 3 && (
-                            <div className="mt-1">
-                              <span className="text-xs font-bold text-green-400" style={{ fontFamily: 'monospace' }}>
-                                Merch Mogul
-                              </span>
-                            </div>
-                          )}
+                          <div className="mt-1">
+                            <span className={`text-xs font-bold ${rankColor}`} style={{ fontFamily: 'monospace' }}>
+                              {userRank}
+                            </span>
+                          </div>
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-white text-lg">

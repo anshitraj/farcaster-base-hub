@@ -93,123 +93,123 @@ const AppCard = ({
     router.push(`/apps/${id}`);
   }, [router, id]);
 
-  // Mobile horizontal card (default) - Play Store style
+  // Mobile horizontal card (default) - Compact Play Store style
   if (variant === "horizontal") {
-    // Format tags for display (e.g., "Games • Spin • Win")
+    // Format tags for display (e.g., "NFT • Blindbox • Base • Warplets")
     const formattedTags = tags && tags.length > 0 
       ? tags.slice(0, 4).map(tag => tag.charAt(0).toUpperCase() + tag.slice(1)).join(" • ")
       : category;
 
     return (
-      <div className="block min-w-[280px]">
+      <div className="block w-full">
         <motion.div
           whileTap={isMobile ? {} : { scale: 0.98 }}
           transition={{ duration: 0.1 }}
         >
-          <Card 
-            className="bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 hover:border-white/20 hover-glow transition-all duration-100 cursor-pointer rounded-lg touch-manipulation h-[90px]"
+          <div 
+            className="flex items-center justify-between p-3 rounded-2xl bg-[#10131B] border border-[#1A1F2E] hover:border-[#2A2F3E] transition-all duration-100 cursor-pointer touch-manipulation"
             onClick={handleCardClick}
-            style={{ WebkitTapHighlightColor: 'transparent' }}
+            style={{ WebkitTapHighlightColor: 'transparent', maxHeight: '130px' }}
           >
-            <CardContent className="p-2 relative">
-              <div className="flex items-center gap-2 pr-14">
-                {/* Logo - Small 44px × 44px on left */}
-                {iconUrl && (
-                  <div className="flex-shrink-0">
-                    <Image
-                      src={iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`}
-                      alt={name}
-                      width={44}
-                      height={44}
-                      className="w-11 h-11 rounded-lg bg-background-secondary"
-                      loading={featured ? "eager" : "lazy"}
-                      fetchPriority={featured ? "high" : "auto"}
-                      priority={featured}
-                      quality={70}
-                      sizes="44px"
-                      placeholder="blur"
-                      blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQ0IiBoZWlnaHQ9IjQ0IiBmaWxsPSIjMTIxMjEyIi8+PC9zdmc+"
-                      unoptimized={needsUnoptimized(iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`)}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        const originalSrc = iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`;
-                        console.error(`[AppCard] Image failed to load:`, {
-                          originalUrl: iconUrl,
-                          optimizedUrl: originalSrc,
-                          currentSrc: target.src,
-                          appId: id,
-                          appName: name,
-                          isApiRoute: needsUnoptimized(originalSrc),
-                        });
-                        target.src = '/placeholder.svg';
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Content - Right side (Play Store style) */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  {/* Line 1: App Name + Verified Badge + Rating */}
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <h3 className="font-semibold text-sm text-white truncate">
-                      {name}
-                    </h3>
-                    {verified ? (
-                      <Image
-                        src="/verify.svg"
-                        alt="Verified"
-                        width={12}
-                        height={12}
-                        className="w-3 h-3 flex-shrink-0"
-                        title="Verified App"
-                      />
-                    ) : (
-                      <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0" />
-                    )}
-                    {ratingCount > 0 && ratingAverage > 0 ? (
-                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                        <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
-                        <span className="text-[10px] text-gray-300">
-                          {ratingAverage % 1 === 0 ? ratingAverage.toString() : ratingAverage.toFixed(1)}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-green-400 font-medium flex-shrink-0">
-                        New
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Line 2: Category Tags - Medium gray */}
-                  <p className="text-[10px] mb-0.5 truncate" style={{ color: '#9CA3AF' }}>
-                    {formattedTags}
-                  </p>
-
-                  {/* Line 3: Description - Muted, single line with ellipsis */}
-                  <p className="text-[10px] truncate leading-tight" style={{ color: '#9CA3AF' }}>
-                    {description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Save button - Top right */}
-              {!hideSaveButton && (
-                <div className="absolute top-1 right-1 flex-shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
-                  <FavoriteButton appId={id} size="sm" />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {/* App Icon - 52px */}
+              {iconUrl && (
+                <div className="flex-shrink-0">
+                  <Image
+                    src={iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`}
+                    alt={name}
+                    width={52}
+                    height={52}
+                    className="w-[52px] h-[52px] rounded-xl object-cover bg-background-secondary"
+                    loading={featured ? "eager" : "lazy"}
+                    fetchPriority={featured ? "high" : "auto"}
+                    priority={featured}
+                    quality={70}
+                    sizes="52px"
+                    placeholder="blur"
+                    blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTIiIGhlaWdodD0iNTIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUyIiBoZWlnaHQ9IjUyIiBmaWxsPSIjMTAxMzFCIi8+PC9zdmc+"
+                    unoptimized={needsUnoptimized(iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`)}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      const originalSrc = iconUrl ? optimizeDevImage(iconUrl) : `/api/icon?id=${id}`;
+                      console.error(`[AppCard] Image failed to load:`, {
+                        originalUrl: iconUrl,
+                        optimizedUrl: originalSrc,
+                        currentSrc: target.src,
+                        appId: id,
+                        appName: name,
+                        isApiRoute: needsUnoptimized(originalSrc),
+                      });
+                      target.src = '/placeholder.svg';
+                    }}
+                  />
                 </div>
               )}
 
-              {/* Open button - Bottom right */}
+              {/* Content Section */}
+              <div className="flex flex-col justify-center space-y-0.5 overflow-hidden flex-1 min-w-0">
+                {/* Title Row: Title + Verified + Rating */}
+                <div className="flex items-center gap-1 overflow-hidden">
+                  <h3 className="text-white font-semibold text-[14px] overflow-hidden text-ellipsis whitespace-nowrap">
+                    {name}
+                  </h3>
+                  {verified ? (
+                    <Image
+                      src="/verify.svg"
+                      alt="Verified"
+                      width={14}
+                      height={14}
+                      className="w-[14px] h-[14px] flex-shrink-0"
+                      title="Verified App"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0" />
+                  )}
+                  {ratingCount > 0 && ratingAverage > 0 ? (
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                      <span className="text-yellow-400 text-[12px]">
+                        {ratingAverage % 1 === 0 ? ratingAverage.toString() : ratingAverage.toFixed(1)}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Tags Row */}
+                {formattedTags && (
+                  <p className="text-[11px] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+                    {formattedTags}
+                  </p>
+                )}
+
+                {/* Description Row */}
+                <p className="text-xs text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap">
+                  {description}
+                </p>
+              </div>
+            </div>
+
+            {/* Right Side: Save Icon + Open Button */}
+            <div className="flex flex-col items-end gap-2 ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+              {/* Save button - Top right */}
+              {!hideSaveButton && (
+                <div className="z-10">
+                  <FavoriteButton appId={id} size="sm" />
+                </div>
+              )}
+              
+              {/* Open button - Right center */}
               <Link
                 href={`/apps/${id}`}
-                className="absolute right-2 bottom-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors flex-shrink-0 z-10"
+                className="px-3 py-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white text-sm rounded-xl font-medium flex items-center gap-1 transition-colors z-10"
                 onClick={(e) => e.stopPropagation()}
               >
-                <ExternalLink className="w-2.5 h-2.5" />
+                <ExternalLink className="w-3 h-3" />
                 Open
               </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       </div>
     );
@@ -280,6 +280,7 @@ const AppCard = ({
                               height={20}
                               className="w-5 h-5 flex-shrink-0 ml-0.5"
                               title="Verified App"
+                              loading="lazy"
                             />
                           ) : (
                             <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0 ml-0.5" />
@@ -411,6 +412,7 @@ const AppCard = ({
                       height={18}
                       className="w-[18px] h-[18px] flex-shrink-0 ml-0.5"
                       title="Verified App"
+                      loading="lazy"
                     />
                   ) : (
                     <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0 ml-0.5" />

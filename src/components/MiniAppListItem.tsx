@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Star, ExternalLink } from "lucide-react";
 import FavoriteButton from "./FavoriteButton";
+import UnverifiedBadge from "./UnverifiedBadge";
 import { optimizeDevImage, needsUnoptimized } from "@/utils/optimizeDevImage";
 
 interface MiniAppListItemProps {
@@ -48,18 +49,17 @@ export function MiniAppListItem({
   // Removed handleOpenApp function that directly opened the app
 
   return (
-    <div className="relative flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-2 hover:bg-white/10 hover:border-white/20 transition-all group overflow-hidden w-full h-[90px]">
-      {/* Save button - Top right */}
-      <div className="absolute top-1 right-1 flex-shrink-0 z-10" onClick={(e) => e.stopPropagation()}>
-        <FavoriteButton appId={id} size="sm" />
-      </div>
-
+    <div 
+      className="flex items-center justify-between p-3 rounded-2xl bg-[#10131B] border border-[#1A1F2E] hover:border-[#2A2F3E] transition-all duration-100 cursor-pointer touch-manipulation w-full"
+      style={{ WebkitTapHighlightColor: 'transparent', maxHeight: '130px' }}
+      onClick={onClick}
+    >
       <Link
         href={`/apps/${id}`}
-        onClick={onClick}
-        className="flex items-center gap-2 w-full cursor-pointer pr-14"
+        className="flex items-center gap-3 flex-1 min-w-0"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Left side - Small Logo (44px × 44px) */}
+        {/* App Icon - 52px */}
         <div className="relative flex-shrink-0">
           <Image
             src={optimizeDevImage(icon)}
@@ -75,71 +75,78 @@ export function MiniAppListItem({
               }
             }}
             alt={name}
-            width={44}
-            height={44}
-            className="w-11 h-11 rounded-lg object-cover"
+            width={52}
+            height={52}
+            className="w-[52px] h-[52px] rounded-xl object-cover bg-background-secondary"
             loading="lazy"
             quality={75}
-            sizes="44px"
+            sizes="52px"
           />
         </div>
         
-        {/* Middle - Text block (Play Store style) */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden justify-center">
-          {/* Line 1: App Name + Verified Badge + Rating */}
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <h3 className="text-white font-semibold text-sm leading-tight truncate">
+        {/* Content Section */}
+        <div className="flex flex-col justify-center space-y-0.5 overflow-hidden flex-1 min-w-0">
+          {/* Title Row: Title + Verified + Rating */}
+          <div className="flex items-center gap-1 overflow-hidden">
+            <h3 className="text-white font-semibold text-[14px] overflow-hidden text-ellipsis whitespace-nowrap">
               {name}
             </h3>
-            {verified && (
+            {verified ? (
               <Image
                 src="/verify.svg"
                 alt="Verified"
-                width={12}
-                height={12}
-                className="w-3 h-3 flex-shrink-0"
+                width={14}
+                height={14}
+                className="w-[14px] h-[14px] flex-shrink-0"
                 title="Verified App"
+                loading="lazy"
               />
+            ) : (
+              <UnverifiedBadge iconOnly size="sm" className="flex-shrink-0" />
             )}
-            {hasRating ? (
+            {hasRating && (
               <div className="flex items-center gap-0.5 flex-shrink-0">
-                <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
-                <span className="text-[10px] text-gray-300">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-yellow-400 text-[12px]">
                   {(ratingAverage % 1 === 0) ? ratingAverage.toString() : ratingAverage.toFixed(1)}
                 </span>
               </div>
-            ) : (
-              <span className="text-[10px] text-green-400 font-medium flex-shrink-0">
-                New
-              </span>
             )}
           </div>
 
-          {/* Line 2: Categories/Tags - Medium gray */}
+          {/* Tags Row */}
           {formattedTags && (
-            <p className="text-[10px] mb-0.5 truncate" style={{ color: '#9CA3AF' }}>
+            <p className="text-[11px] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
               {formattedTags}
             </p>
           )}
 
-          {/* Line 3: Description - Muted, single line with ellipsis */}
+          {/* Description Row */}
           {description && (
-            <p className="text-[10px] text-gray-400 truncate leading-tight" style={{ color: '#9CA3AF' }}>
+            <p className="text-xs text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap">
               {description}
             </p>
           )}
         </div>
       </Link>
 
-      {/* Open button - Bottom right */}
-      <Link
-        href={`/apps/${id}`}
-        className="absolute right-2 bottom-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white px-2 py-0.5 rounded-md text-[10px] font-medium flex items-center gap-1 transition-colors flex-shrink-0 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ExternalLink className="w-2.5 h-2.5" />
-        Open
-      </Link>
+      {/* Right Side: Save Icon + Open Button */}
+      <div className="flex flex-col items-end gap-2 ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        {/* Save button - Top right */}
+        <div className="z-10">
+          <FavoriteButton appId={id} size="sm" />
+        </div>
+        
+        {/* Open button - Right center */}
+        <Link
+          href={`/apps/${id}`}
+          className="px-3 py-1.5 bg-[#0052FF] hover:bg-[#0040CC] text-white text-sm rounded-xl font-medium flex items-center gap-1 transition-colors z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLink className="w-3 h-3" />
+          Open
+        </Link>
+      </div>
     </div>
   );
 }

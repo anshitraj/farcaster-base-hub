@@ -132,7 +132,7 @@ export default function FeatureCard({
                   className="w-6 h-6 flex-shrink-0 ml-0.5 inline-block"
                   title="Verified App"
                   quality={90}
-                  priority={false}
+                  loading="lazy"
                 />
               )}
             </motion.div>

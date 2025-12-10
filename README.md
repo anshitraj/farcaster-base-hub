@@ -68,7 +68,7 @@ Required variables in `.env.local`:
 - `NEXT_PUBLIC_BASE_URL` - Your app's public URL
 
 Optional (for badge minting):
-- `BADGE_CONTRACT_ADDRESS` - SBT contract address
+- `BADGE_CONTRACT` - SBT contract address (or `BADGE_CONTRACT_ADDRESS` for backward compatibility)
 - `BADGE_ADMIN_PRIVATE_KEY` - Admin wallet private key
 
 ### 3. Database Setup

@@ -41,10 +41,27 @@ export async function GET(
     let { app, developer } = result;
 
     // Fix /uploads paths by falling back to original URLs from farcasterJson or placeholder
-    if (app.iconUrl?.startsWith("/uploads") || app.headerImageUrl?.startsWith("/uploads")) {
+    if (app.iconUrl?.startsWith("/uploads") || app.headerImageUrl?.startsWith("/uploads") || 
+        (app.screenshots && Array.isArray(app.screenshots) && app.screenshots.some((s: string) => s?.startsWith("/uploads")))) {
       if (app.farcasterJson) {
         try {
           const farcasterData = JSON.parse(app.farcasterJson);
+          // Fix screenshots array - try to get from farcasterJson or use placeholder
+          let fixedScreenshots = app.screenshots || [];
+          if (Array.isArray(fixedScreenshots)) {
+            fixedScreenshots = fixedScreenshots.map((screenshot: string) => {
+              if (screenshot?.startsWith("/uploads/screenshots")) {
+                // Try to get original screenshot URLs from farcasterJson
+                // Screenshots might be in screenshotUrls or screenshots array
+                const originalScreenshots = farcasterData.screenshotUrls || farcasterData.screenshots || [];
+                // Try to match by index or just use first available
+                // For now, return placeholder - screenshots are less critical than icons
+                return "/placeholder.svg";
+              }
+              return screenshot;
+            });
+          }
+          
           app = {
             ...app,
             iconUrl: app.iconUrl?.startsWith("/uploads") 
@@ -53,21 +70,44 @@ export async function GET(
             headerImageUrl: app.headerImageUrl?.startsWith("/uploads") 
               ? (farcasterData.splashImageUrl || null) 
               : app.headerImageUrl,
+            screenshots: fixedScreenshots,
           };
         } catch (e) {
           // Parsing failed, use placeholder
+          let fixedScreenshots = app.screenshots || [];
+          if (Array.isArray(fixedScreenshots)) {
+            fixedScreenshots = fixedScreenshots.map((screenshot: string) => {
+              if (screenshot?.startsWith("/uploads/screenshots")) {
+                return "/placeholder.svg";
+              }
+              return screenshot;
+            });
+          }
+          
           app = {
             ...app,
             iconUrl: app.iconUrl?.startsWith("/uploads") ? "/placeholder.svg" : app.iconUrl,
             headerImageUrl: app.headerImageUrl?.startsWith("/uploads") ? null : app.headerImageUrl,
+            screenshots: fixedScreenshots,
           };
         }
       } else {
         // No farcasterJson, use placeholder
+        let fixedScreenshots = app.screenshots || [];
+        if (Array.isArray(fixedScreenshots)) {
+          fixedScreenshots = fixedScreenshots.map((screenshot: string) => {
+            if (screenshot?.startsWith("/uploads/screenshots")) {
+              return "/placeholder.svg";
+            }
+            return screenshot;
+          });
+        }
+        
         app = {
           ...app,
           iconUrl: app.iconUrl?.startsWith("/uploads") ? "/placeholder.svg" : app.iconUrl,
           headerImageUrl: app.headerImageUrl?.startsWith("/uploads") ? null : app.headerImageUrl,
+          screenshots: fixedScreenshots,
         };
       }
     }

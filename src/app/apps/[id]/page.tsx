@@ -480,6 +480,8 @@ export default function AppDetailPage() {
                             fill
                             className="object-cover transition-transform group-hover:scale-105"
                             sizes="(max-width: 768px) 192px, 256px"
+                            loading={index === 0 ? "eager" : "lazy"}
+                            quality={85}
                             unoptimized={false}
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />

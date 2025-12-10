@@ -153,6 +153,18 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
+    // Fallback: check Farcaster session cookie
+    const farcasterFid = cookieStore.get("farcasterSession")?.value;
+    if (farcasterFid) {
+      const farcasterWallet = `farcaster:${farcasterFid}`;
+      const response = NextResponse.json({
+        wallet: farcasterWallet.toLowerCase(),
+        fid: farcasterFid,
+      });
+      response.headers.set('Cache-Control', 'private, max-age=60');
+      return response;
+    }
+
     return NextResponse.json(
       { error: "Not authenticated" },
       { status: 401 }
@@ -165,6 +177,18 @@ export async function GET(request: NextRequest) {
       if (walletFromCookie) {
         const response = NextResponse.json({
           wallet: walletFromCookie,
+        });
+        response.headers.set('Cache-Control', 'private, max-age=60');
+        return response;
+      }
+      
+      // Also try Farcaster session
+      const farcasterFid = cookieStore.get("farcasterSession")?.value;
+      if (farcasterFid) {
+        const farcasterWallet = `farcaster:${farcasterFid}`;
+        const response = NextResponse.json({
+          wallet: farcasterWallet.toLowerCase(),
+          fid: farcasterFid,
         });
         response.headers.set('Cache-Control', 'private, max-age=60');
         return response;

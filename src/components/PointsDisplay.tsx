@@ -135,7 +135,7 @@ export default function PointsDisplay() {
             }}
           >
             <Image 
-              src="/points.webp" 
+              src={process.env.NEXT_PUBLIC_POINTS_IMAGE_URL || "https://9ous0xezrwvbetof.public.blob.vercel-storage.com/static/points.webp"} 
               alt="Points" 
               width={16} 
               height={16} 

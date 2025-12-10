@@ -21,7 +21,17 @@ function cleanDatabaseUrl(url: string): string {
 
 const cleanedUrl = process.env.DATABASE_URL 
   ? cleanDatabaseUrl(process.env.DATABASE_URL)
-  : process.env.DATABASE_URL!;
+  : undefined;
+
+// Provide a meaningful error if DATABASE_URL is missing
+// Note: This file should only be imported in server-side code (API routes, server components)
+// Client components should use @/lib/rank-utils instead of importing quest-helpers
+if (!cleanedUrl) {
+  throw new Error(
+    "DATABASE_URL environment variable is required. " +
+    "Please set it in your .env.local file or environment configuration."
+  );
+}
 
 const sql = neon(cleanedUrl);
 export const db = drizzle(sql, { schema });

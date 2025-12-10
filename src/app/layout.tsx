@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "@/components/ui/toaster";
 import { MiniAppProvider } from "@/components/MiniAppProvider";
 import { WagmiProvider } from "@/components/WagmiProvider";
+import { OnchainKitProviderWrapper } from "@/components/OnchainKitProviderWrapper";
 import "@/lib/suppress-console-errors";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -50,6 +51,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        {/* Resource Hints for Performance - Preconnect to external domains */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+        <link rel="dns-prefetch" href="https://plausible.io" />
+        {/* Preconnect to Vercel Blob storage for faster image loading */}
+        <link rel="preconnect" href="https://*.public.blob.vercel-storage.com" />
+        <link rel="dns-prefetch" href="https://*.public.blob.vercel-storage.com" />
         {/* Custom Favicon */}
         <link rel="icon" href="/image.ico" type="image/x-icon" />
         <link rel="shortcut icon" href="/image.ico" type="image/x-icon" />
@@ -82,18 +91,20 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <WagmiProvider>
-          <MiniAppProvider>
-        <ErrorBoundary>
-          <main className="min-h-screen pb-20 lg:pb-0" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
-            {children}
-          </main>
-          <Footer />
-          {/* Mobile Bottom Navigation - Show on all pages */}
-          <BottomNav />
-          <Toaster />
-          <SpeedInsights />
-        </ErrorBoundary>
-          </MiniAppProvider>
+          <OnchainKitProviderWrapper>
+            <MiniAppProvider>
+              <ErrorBoundary>
+                <main className="min-h-screen pb-20 lg:pb-0" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
+                  {children}
+                </main>
+                <Footer />
+                {/* Mobile Bottom Navigation - Show on all pages */}
+                <BottomNav />
+                <Toaster />
+                <SpeedInsights />
+              </ErrorBoundary>
+            </MiniAppProvider>
+          </OnchainKitProviderWrapper>
         </WagmiProvider>
       </body>
     </html>

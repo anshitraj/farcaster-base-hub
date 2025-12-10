@@ -44,13 +44,17 @@ async function migrateUploadsToBlob() {
   console.log("🔄 Starting migration of /uploads URLs to Vercel Blob...\n");
 
   try {
-    // Find all apps with /uploads URLs
-    const appsWithUploads = await db
-      .select()
-      .from(MiniApp)
-      .where(
-        sql`${MiniApp.iconUrl} LIKE '/uploads/%' OR ${MiniApp.headerImageUrl} LIKE '/uploads/%'`
-      );
+    // Find all apps with /uploads URLs (icons, headers, or screenshots)
+    const allApps = await db.select().from(MiniApp);
+    
+    // Filter apps that have /uploads paths in iconUrl, headerImageUrl, or screenshots
+    const appsWithUploads = allApps.filter(app => {
+      const hasIconUpload = app.iconUrl?.startsWith("/uploads");
+      const hasHeaderUpload = app.headerImageUrl?.startsWith("/uploads");
+      const hasScreenshotUploads = Array.isArray(app.screenshots) && 
+        app.screenshots.some((s: string) => s?.startsWith("/uploads"));
+      return hasIconUpload || hasHeaderUpload || hasScreenshotUploads;
+    });
 
     console.log(`📦 Found ${appsWithUploads.length} apps with /uploads URLs\n`);
 
@@ -69,6 +73,7 @@ async function migrateUploadsToBlob() {
       try {
         let newIconUrl = app.iconUrl;
         let newHeaderUrl = app.headerImageUrl;
+        let newScreenshots = app.screenshots || [];
 
         // Process icon
         if (app.iconUrl?.startsWith("/uploads")) {
@@ -139,13 +144,70 @@ async function migrateUploadsToBlob() {
           }
         }
 
+        // Process screenshots array
+        if (Array.isArray(app.screenshots) && app.screenshots.length > 0) {
+          const screenshotsToMigrate = app.screenshots.filter((s: string) => s?.startsWith("/uploads"));
+          
+          if (screenshotsToMigrate.length > 0) {
+            console.log(`  📥 Screenshots: ${screenshotsToMigrate.length} to migrate`);
+            
+            const migratedScreenshots = await Promise.all(
+              app.screenshots.map(async (screenshot: string) => {
+                // If it's not an /uploads path, keep it as-is
+                if (!screenshot?.startsWith("/uploads")) {
+                  return screenshot;
+                }
+
+                try {
+                  // Read file from local public folder
+                  const filePath = join(process.cwd(), "public", screenshot);
+                  const buffer = await readFile(filePath);
+
+                  // Extract filename
+                  const pathParts = screenshot.split("/");
+                  const filename = pathParts[pathParts.length - 1];
+                  const subfolder = pathParts[pathParts.length - 2] || "screenshots";
+
+                  // Upload to Vercel Blob
+                  const blobPath = `uploads/${subfolder}/${filename}`;
+                  const blob = await put(blobPath, buffer, {
+                    access: "public",
+                    contentType: filename.endsWith(".webp") 
+                      ? "image/webp" 
+                      : filename.endsWith(".png")
+                      ? "image/png"
+                      : filename.endsWith(".jpg") || filename.endsWith(".jpeg")
+                      ? "image/jpeg"
+                      : "image/webp",
+                  });
+
+                  console.log(`    ✅ Screenshot uploaded: ${blob.url}`);
+                  return blob.url;
+                } catch (screenshotError: any) {
+                  console.error(`    ❌ Failed to process screenshot ${screenshot}:`, screenshotError.message);
+                  // Return placeholder on error
+                  return "/placeholder.svg";
+                }
+              })
+            );
+
+            newScreenshots = migratedScreenshots;
+            console.log(`  ✅ All screenshots processed`);
+          }
+        }
+
         // Update database if we got new URLs
-        if (newIconUrl !== app.iconUrl || newHeaderUrl !== app.headerImageUrl) {
+        const iconChanged = newIconUrl !== app.iconUrl;
+        const headerChanged = newHeaderUrl !== app.headerImageUrl;
+        const screenshotsChanged = JSON.stringify(newScreenshots) !== JSON.stringify(app.screenshots || []);
+
+        if (iconChanged || headerChanged || screenshotsChanged) {
           await db
             .update(MiniApp)
             .set({
               iconUrl: newIconUrl,
               headerImageUrl: newHeaderUrl,
+              screenshots: newScreenshots,
             })
             .where(eq(MiniApp.id, app.id));
 

@@ -13,7 +13,7 @@ import XPProgressBar from "@/components/XPProgressBar";
 import DailyClaimCard from "@/components/DailyClaimCard";
 import StatsCard from "@/components/StatsCard";
 import QuickShortcuts from "@/components/QuickShortcuts";
-import { TrendingUp, Users, Star, Award, ExternalLink, Shield, CheckCircle2, XCircle, Settings, Save, Smartphone, Trophy, DollarSign, Loader2 } from "lucide-react";
+import { TrendingUp, Users, Star, Award, ExternalLink, Shield, CheckCircle2, XCircle, Smartphone, Trophy, DollarSign, Loader2 } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import VerifiedBadge from "@/components/VerifiedBadge";
 import WalletBalance from "@/components/WalletBalance";
@@ -41,9 +41,6 @@ const DashboardBadgesSection = dynamic(() => import("./DashboardBadgesSection"),
   loading: () => <div className="h-48 bg-gray-900 rounded-xl animate-pulse" />,
 });
 
-const DashboardProfileSettings = dynamic(() => import("./DashboardProfileSettings"), {
-  loading: () => <div className="h-64 bg-gray-900 rounded-xl animate-pulse" />,
-});
 
 // Monetization Toggle Component
 function MonetizationToggle({ appId, enabled, onToggle }: { appId: string; enabled: boolean; onToggle: () => void }) {
@@ -115,7 +112,6 @@ export default function DashboardPageContent() {
   const [developerStatus, setDeveloperStatus] = useState<any>(null);
   const [xpData, setXpData] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [profileName, setProfileName] = useState("");
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [displayAvatar, setDisplayAvatar] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -277,7 +273,6 @@ export default function DashboardPageContent() {
               fetch(`/api/developer/profile`, { credentials: "include" }).then(res => res.ok ? res.json() : null).then(data => {
                 if (mounted && data?.developer) {
                   setProfile(data.developer);
-                  setProfileName(data.developer.name || "");
                 }
               }).catch(() => {}),
               
@@ -690,9 +685,13 @@ export default function DashboardPageContent() {
               </Card>
             </AppsCard>
 
-            {developerStatus?.developer?.badges && developerStatus.developer.badges.length > 0 && (
+            {(developerStatus?.developer?.apps && developerStatus.developer.apps.length > 0) && (
               <div id="badges-section" className="mt-6">
-                <DashboardBadgesSection badges={developerStatus.developer.badges} />
+                <DashboardBadgesSection 
+                  badges={developerStatus.developer.badges || []} 
+                  apps={developerStatus.developer.apps || []}
+                  wallet={wallet}
+                />
               </div>
             )}
 
@@ -704,16 +703,6 @@ export default function DashboardPageContent() {
                 />
               </div>
             )}
-
-            <div className="mt-6">
-              <DashboardProfileSettings
-                initialName={profileName}
-                onUpdate={(name) => {
-                  setProfileName(name);
-                  setDisplayName(name || null);
-                }}
-              />
-            </div>
 
             <div className="mt-6 text-center">
               <Link href="/submit">

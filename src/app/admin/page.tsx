@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import GlowButton from "@/components/GlowButton";
 import PageLoader from "@/components/PageLoader";
 import AppHeader from "@/components/AppHeader";
-import { Shield, Users, Package, Settings } from "lucide-react";
+import { Shield, Users, Package, Settings, MessageSquare } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -173,6 +173,22 @@ export default function AdminPage() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
                     Configure feature flags and system settings
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/social-posts">
+              <Card className="glass-card hover:bg-white/10 transition-colors cursor-pointer h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-cyan-400" />
+                    Social Posts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Manage social feed posts and Twitter integration
                   </p>
                 </CardContent>
               </Card>

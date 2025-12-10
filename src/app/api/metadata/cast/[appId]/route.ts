@@ -26,7 +26,7 @@ export async function GET(
       const defaultMetadata = {
         name: "Cast Your App Badge",
         description: "Awarded for publishing an approved app on MiniCast Store.",
-        image: `${baseUrl}/badges/castyourapptransparent.png`
+        image: `${baseUrl}/badges/castyourapptransparent.webp`
       };
       
       return NextResponse.json(defaultMetadata, {

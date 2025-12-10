@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
 import { convertReferralForUser } from "@/lib/referral-helpers";
+import { trackQuestCompletion } from "@/lib/quest-helpers";
 import { MiniApp, Developer, AppLaunchEvent, PremiumSubscription, UserPoints, PointsTransaction, XPLog } from "@/db/schema";
 import { eq, and, gte, count, sql } from "drizzle-orm";
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
     const app = { ...appData.app, developer: appData.developer };
 
     // Check cooldown if wallet is available
+    let previousLaunchCount = 0;
     if (wallet) {
       const fiveMinutesAgo = new Date(Date.now() - LAUNCH_COOLDOWN_MINUTES * 60 * 1000);
       const walletLower = wallet.toLowerCase();
@@ -80,6 +82,12 @@ export async function POST(request: NextRequest) {
           { status: 429 }
         );
       }
+
+      // Check previous launch count BEFORE inserting (for quest tracking)
+      const previousLaunchesResult = await db.select({ count: count() })
+        .from(AppLaunchEvent)
+        .where(eq(AppLaunchEvent.wallet, walletLower));
+      previousLaunchCount = Number(previousLaunchesResult[0]?.count || 0);
     }
 
     // Create launch event
@@ -175,6 +183,28 @@ export async function POST(request: NextRequest) {
 
         // Convert referral if user came from a referral link
         await convertReferralForUser(wallet);
+
+        // Track quest completions
+        try {
+          // This launch makes it previousLaunchCount + 1
+          const totalLaunches = previousLaunchCount + 1;
+          
+          if (totalLaunches === 1) {
+            // First launch - complete "launch" quest
+            await trackQuestCompletion(wallet, "launch");
+          }
+          
+          // Check if this is the 5th launch (for "launch-multiple" quest)
+          if (totalLaunches === 5) {
+            await trackQuestCompletion(wallet, "launch-multiple");
+          }
+
+          // Track daily launch quest (always try, function handles duplicates)
+          await trackQuestCompletion(wallet, "daily-launch");
+        } catch (questError) {
+          console.error("Error tracking quest completion:", questError);
+          // Don't fail the launch if quest tracking has an error
+        }
       } catch (pointsError) {
         console.error("Error awarding launch XP:", pointsError);
         // Don't fail the launch if points system has an error

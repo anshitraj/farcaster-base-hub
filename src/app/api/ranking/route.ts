@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { UserPoints, Developer, UserProfile } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { calculateStreak } from "@/lib/quest-helpers";
 
 export const dynamic = 'force-dynamic';
 export const runtime = "edge";
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
     // Fetch developer info for each user to get name, avatar, Base name, etc.
     const usersWithInfo = await Promise.all(
       users.map(async (user) => {
+        // Calculate streak for this user
+        const streak = await calculateStreak(user.wallet);
+        
         const developerResult = await db.select({
           name: Developer.name,
           avatar: Developer.avatar,
@@ -101,6 +105,7 @@ export async function GET(request: NextRequest) {
           baseName: baseName,
           avatar: avatar,
           verified: developer?.verified || false,
+          streak: streak,
         };
       })
     );

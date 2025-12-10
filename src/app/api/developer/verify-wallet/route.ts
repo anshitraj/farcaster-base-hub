@@ -5,7 +5,14 @@ import { verifyMessage } from "ethers";
 import { Developer } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-const VERIFICATION_MESSAGE = "Verify your developer account for Mini App Store";
+// Domain binding for security - ensures signature is for this specific domain
+const getVerificationMessage = (domain?: string) => {
+  const baseMessage = "Verify your developer account for Mini App Store";
+  const appDomain = domain || process.env.NEXT_PUBLIC_BASE_URL || "minicast.store";
+  return `${baseMessage}\n\nDomain: ${appDomain}`;
+};
+
+const VERIFICATION_MESSAGE = getVerificationMessage();
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +39,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { signature } = body;
+    let { signature, domain } = body;
+    
+    // Get the domain from request body, headers, or use default
+    // The domain should match what the client used when signing
+    const requestDomain = domain || request.headers.get("host")?.split(':')[0] || process.env.NEXT_PUBLIC_BASE_URL?.replace(/^https?:\/\//, '').split(':')[0] || "minicast.store";
+    const verificationMessage = getVerificationMessage(requestDomain);
 
     if (!signature || typeof signature !== "string") {
       return NextResponse.json(
@@ -41,9 +53,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Log raw signature for debugging (first 50 chars only for security)
+    console.log("Received signature:", {
+      type: typeof signature,
+      length: signature.length,
+      preview: signature.substring(0, 50) + "...",
+      endsWith: signature.substring(Math.max(0, signature.length - 10))
+    });
+
+    // Normalize signature: trim whitespace and remove any non-hex characters
+    signature = signature.trim();
+    
+    // Remove any whitespace that might have been introduced
+    signature = signature.replace(/\s+/g, "");
+    
+    // Ensure it starts with 0x
+    if (!signature.startsWith("0x")) {
+      signature = "0x" + signature;
+    }
+    
+    // Convert to lowercase for consistency (hex is case-insensitive but ethers prefers lowercase)
+    signature = signature.toLowerCase();
+    
+    // Validate signature format - should be a hex string starting with 0x
+    if (!signature.startsWith("0x")) {
+      return NextResponse.json(
+        { error: "Invalid signature format: must start with 0x" },
+        { status: 400 }
+      );
+    }
+
+    // Check signature length - should be exactly 132 characters (0x + 130 hex chars)
+    // Standard ECDSA signature is 65 bytes = 130 hex characters + 0x prefix
+    if (signature.length !== 132) {
+      console.error("Invalid signature length:", {
+        length: signature.length,
+        expected: 132,
+        preview: signature.substring(0, 20) + "...",
+        fullLength: signature.length
+      });
+      return NextResponse.json(
+        { error: `Invalid signature: expected 132 characters, got ${signature.length}. Please try signing again.` },
+        { status: 400 }
+      );
+    }
+    
+    // Validate it's valid hex
+    if (!/^0x[a-f0-9]{130}$/.test(signature)) {
+      return NextResponse.json(
+        { error: "Invalid signature format: not a valid hex string. Please try signing again." },
+        { status: 400 }
+      );
+    }
+
     // Verify signature
     try {
-      const recoveredAddress = verifyMessage(VERIFICATION_MESSAGE, signature).toLowerCase();
+      // Use the normalized signature with domain-bound message
+      const recoveredAddress = verifyMessage(verificationMessage, signature).toLowerCase();
       
       if (recoveredAddress !== wallet.toLowerCase()) {
         return NextResponse.json(
@@ -52,8 +118,29 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (error: any) {
+      // Provide more helpful error messages
+      let errorMessage = "Invalid signature";
+      if (error.message?.includes("invalid raw signature length")) {
+        errorMessage = "Invalid signature format. The signature appears to be corrupted. Please try signing the message again.";
+      } else if (error.message?.includes("invalid signature")) {
+        errorMessage = `Invalid signature. Please ensure you're signing the correct message with domain binding: '${verificationMessage}'`;
+      } else if (error.message?.includes("malformed")) {
+        errorMessage = "Invalid signature format. Please try signing the message again.";
+      } else {
+        errorMessage = `Invalid signature: ${error.message || "Unknown error"}`;
+      }
+      
+      console.error("Signature verification error:", {
+        error: error.message,
+        errorCode: error.code,
+        signatureLength: signature.length,
+        signaturePrefix: signature.substring(0, 20),
+        signatureSuffix: signature.substring(signature.length - 10),
+        isValidHex: /^0x[a-f0-9]{130}$/.test(signature),
+      });
+      
       return NextResponse.json(
-        { error: `Invalid signature: ${error.message}` },
+        { error: errorMessage },
         { status: 400 }
       );
     }

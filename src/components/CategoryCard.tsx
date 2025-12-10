@@ -61,8 +61,9 @@ export default function CategoryCard({
               fill
               className="object-cover"
               sizes="(max-width: 768px) 50vw, (max-width: 1200px) 25vw, 20vw"
-              quality={75}
-              loading="lazy"
+              quality={80}
+              priority={false}
+              loading="eager"
               unoptimized={needsUnoptimized(optimizeDevImage(backgroundImage))}
             />
             <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-300" />

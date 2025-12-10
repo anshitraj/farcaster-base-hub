@@ -13,9 +13,12 @@ import {
   ChevronDown,
   ChevronUp,
   Compass,
-  TrendingUp,
   Trophy,
   Award,
+  LayoutDashboard,
+  PlusCircle,
+  BadgeCheck,
+  Settings,
 } from "lucide-react";
 import GasPriceDisplay from "@/components/GasPriceDisplay";
 import { motion, AnimatePresence } from "framer-motion";
@@ -38,19 +41,21 @@ const collapsibleSections: CollapsibleSection[] = [
     items: [
       { href: "/apps", label: "All Apps" },
       { href: "/apps?category=Games", label: "Games" },
-      { href: "/apps?category=Social", label: "Social" },
       { href: "/apps?category=Finance", label: "Finance" },
-      { href: "/apps?category=DeFi", label: "DeFi" },
+      { href: "/apps/trending", label: "Hot Mini Apps" },
+      { href: "/apps?sort=installs", label: "Popular Apps" },
+      { href: "/apps?sort=newest", label: "Newest Apps" },
       { href: "#", label: "Paid Developer Apps (Soon)" },
     ],
   },
   {
-    label: "Trending now",
-    icon: TrendingUp,
+    label: "Developer Tools",
+    icon: Settings,
     items: [
-      { href: "/apps/trending", label: "Hot Mini Apps" },
-      { href: "/apps?sort=installs", label: "Popular Apps" },
-      { href: "/apps?sort=newest", label: "Newest Apps" },
+      { href: "/developer-dashboard", label: "Developer Dashboard" },
+      { href: "/submit", label: "List Your Mini App" },
+      { href: "/badges", label: "Claim Your Badge" },
+      { href: "/developer-dashboard", label: "Manage Apps" },
     ],
   },
   {
@@ -96,7 +101,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
   }, []);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "Explore Web3": true, // Default to expanded
-    "Trending now": true, // Default to expanded
+    "Developer Tools": true, // Default to expanded
     "Rewards": true, // Default to expanded
   });
 
@@ -288,7 +293,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
               
               return (
                 <motion.div
-                  key={item.href}
+                  key={`${item.href}-${item.label}`}
                   whileHover={{ x: 4 }}
                   transition={{ type: "spring", stiffness: 400 }}
                 >
@@ -360,8 +365,8 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                             
                             if (isComingSoon) {
                               return (
-                                <div
-                                  key={item.href}
+                              <div
+                                key={`${item.href}-${item.label}`}
                                   className="block px-4 py-2 rounded-lg text-sm opacity-60 cursor-not-allowed text-[#666]"
                                 >
                                   {item.label}
@@ -371,7 +376,7 @@ export default function Sidebar({ onCollapseChange, isOpen = true, onClose }: Si
                             
                             return (
                               <Link
-                                key={item.href}
+                              key={`${item.href}-${item.label}`}
                                 href={item.href}
                                 onClick={handleLinkClick}
                                 className={`block px-4 py-2 rounded-lg text-sm transition-all duration-300 ${

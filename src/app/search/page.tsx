@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { Search, Mic, Gamepad2, Grid3x3, Zap, Users, CheckSquare, MessageSquare, Music, GraduationCap, Puzzle, Gift, TrendingUp, Coins, Newspaper, ShoppingBag } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import { trackPageView } from "@/lib/analytics";
 import Sidebar from "@/components/Sidebar";
 import { useDebounce } from "@/hooks/use-debounce";
 import CategoryCard from "@/components/CategoryCard";
+import { motion } from "framer-motion";
 
 // Game categories with icons
 const gameCategories = [
@@ -48,16 +48,45 @@ function SearchPageContent() {
   // On mobile, it starts closed
   useEffect(() => {
     const checkMobile = () => {
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(true); // Always open on desktop
-      } else {
-        setSidebarOpen(false); // Closed by default on mobile
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1024) {
+          // On desktop, always open by default
+          setSidebarOpen(true);
+        } else {
+          // On mobile, check localStorage or default to closed
+          const savedSidebarState = localStorage.getItem('sidebarOpen');
+          if (savedSidebarState !== null) {
+            setSidebarOpen(savedSidebarState === 'true');
+          } else {
+            setSidebarOpen(false);
+          }
+        }
       }
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    
+    if (typeof window !== 'undefined') {
+      checkMobile();
+    }
+    
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+        // Always show on desktop
+        setSidebarOpen(true);
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
   }, []);
+
+  // Save sidebar state to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebarOpen', String(sidebarOpen));
+    }
+  }, [sidebarOpen]);
 
   // Check if speech recognition is supported
   useEffect(() => {
@@ -103,27 +132,27 @@ function SearchPageContent() {
     }
   }, [searchParams]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
+  const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       router.push(`/apps?search=${encodeURIComponent(searchQuery.trim())}`);
     }
-  };
+  }, [searchQuery, router]);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-  };
+  }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       if (searchQuery.trim()) {
         router.push(`/apps?search=${encodeURIComponent(searchQuery.trim())}`);
       }
     }
-  };
+  }, [searchQuery, router]);
 
-  const handleVoiceSearch = () => {
+  const handleVoiceSearch = useCallback(() => {
     if (!isSpeechSupported || !recognition) {
       return;
     }
@@ -140,12 +169,12 @@ function SearchPageContent() {
         setIsListening(false);
       }
     }
-  };
+  }, [isSpeechSupported, recognition, isListening, router, searchQuery]);
 
-  const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
+  const handleSidebarChange = useCallback((collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
     setSidebarHidden(hidden);
-  };
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-black">

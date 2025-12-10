@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         appName: Badge.appName,
         appId: Badge.appId,
         developerId: Badge.developerId,
+        badgeType: Badge.badgeType,
         txHash: Badge.txHash,
         claimed: Badge.claimed,
         metadataUri: Badge.metadataUri,
@@ -118,24 +119,27 @@ export async function GET(request: NextRequest) {
       }));
 
     // Format earned badges
-    const earned = earnedBadges.map(({ badge, app }) => ({
-      id: badge.id,
-      name: badge.name,
-      imageUrl: badge.imageUrl,
-      appName: badge.appName,
-      appId: badge.appId,
-      // badgeType: badge.badgeType, // Commented out - column doesn't exist in DB yet
-      txHash: badge.txHash,
-      claimed: badge.claimed,
-      claimedAt: badge.claimedAt,
-      app: app ? {
-        id: app.id,
-        name: app.name,
-        iconUrl: app.iconUrl,
-        category: app.category,
-        url: app.url,
-      } : null,
-    }));
+    const earned = earnedBadges.map(({ badge, app }) => {
+      console.log(`[Badge API] Badge ${badge.id}: txHash=${badge.txHash}, badgeType=${badge.badgeType}`);
+      return {
+        id: badge.id,
+        name: badge.name,
+        imageUrl: badge.imageUrl,
+        appName: badge.appName,
+        appId: badge.appId,
+        badgeType: badge.badgeType,
+        txHash: badge.txHash,
+        claimed: badge.claimed,
+        claimedAt: badge.claimedAt,
+        app: app ? {
+          id: app.id,
+          name: app.name,
+          iconUrl: app.iconUrl,
+          category: app.category,
+          url: app.url,
+        } : null,
+      };
+    });
 
     return NextResponse.json({
       earned,

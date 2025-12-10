@@ -1,27 +1,32 @@
 "use client";
 
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AppHeader from "@/components/AppHeader";
-import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { ChevronRight, Zap, Puzzle, Gift, TrendingUp, Coins, DollarSign, Wrench, Flame, Sparkles, Crown, MessageSquare, TrendingDown, Briefcase, AlertTriangle, X } from "lucide-react";
 import { trackPageView } from "@/lib/analytics";
-import NotificationSidebar from "@/components/NotificationSidebar";
-import HorizontalAppCard from "@/components/HorizontalAppCard";
-import { CategoryHighlightCard } from "@/components/CategoryHighlightCard";
-import CategoryCard from "@/components/CategoryCard";
-import PromoSection from "@/components/PromoSection";
-
-// Lazy load heavy components (only load when needed)
-const TopBanner = lazy(() => import("@/components/TopBanner"));
 import { useMiniApp } from "@/components/MiniAppProvider";
 import { useToast } from "@/hooks/use-toast";
 import { optimizeDevImage, optimizeBannerImage } from "@/utils/optimizeDevImage";
+import { preloadOptimizedImage } from "@/lib/image-optimizer";
 
-// Lazy load heavy components
+// Lazy load heavy components (only load when needed)
+const TopBanner = lazy(() => import("@/components/TopBanner"));
 const ComingSoonPremiumSection = lazy(() => import("@/components/ComingSoonPremiumSection"));
+const NotificationSidebar = lazy(() => import("@/components/NotificationSidebar"));
+const HorizontalAppCard = lazy(() => import("@/components/HorizontalAppCard"));
+const CategoryHighlightCard = lazy(() => import("@/components/CategoryHighlightCard").then(mod => ({ default: mod.CategoryHighlightCard })));
+const CategoryCard = lazy(() => import("@/components/CategoryCard"));
+const PromoSection = lazy(() => import("@/components/PromoSection"));
+const SocialSectionWrapper = lazy(() => import("@/components/SocialSectionWrapper").then(mod => ({ default: mod.SocialSectionWrapper })));
+const PromotedEventsSection = lazy(() => import("@/components/PromotedEventsSection").then(mod => ({ default: mod.PromotedEventsSection })));
+const DiscoverBase = lazy(() => import("@/components/DiscoverBase").then(mod => ({ default: mod.DiscoverBase })));
+
+// Import framer-motion directly (it's already code-split by Next.js)
+import { motion } from "framer-motion";
 
 // All app categories with icons (including game genres)
 const appCategories = [
@@ -96,13 +101,31 @@ function HomePageContent() {
     }
   }, [sidebarOpen]);
 
-  const handleSidebarChange = (collapsed: boolean, hidden: boolean) => {
+  const handleSidebarChange = useCallback((collapsed: boolean, hidden: boolean) => {
     setSidebarCollapsed(collapsed);
     setSidebarHidden(hidden);
-  };
+  }, []);
 
   useEffect(() => {
     trackPageView("/");
+    
+    // Preload popular card background images for faster loading
+    const backgroundImages = [
+      "/category-bg/game-bg.webp",
+      "/category-bg/social-bg.webp",
+      "/category-bg/shopping-bg.webp",
+      "/category-bg/finance-bg.webp",
+      "/category-bg/utility-bg.webp",
+      "/category-bg/tech-bg.webp",
+      "/category-bg/entertainment-bg.webp",
+      "/category-bg/news-bg.webp",
+      "/category-bg/art-bg.webp",
+      "/category-bg/tools-bg.webp",
+    ];
+    
+    backgroundImages.forEach((img) => {
+      preloadOptimizedImage(optimizeDevImage(img));
+    });
   }, []);
 
   // Handle referral links from homepage
@@ -211,12 +234,13 @@ function HomePageContent() {
       try {
         const fetchWithErrorHandling = async (url: string, fallback: any = [], options: RequestInit = {}) => {
           try {
+            // Use cache-first strategy with stale-while-revalidate
             const res = await fetch(url, { 
               credentials: "include",
               ...options,
+              cache: 'force-cache', // Use browser cache
               headers: {
                 ...options.headers,
-                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120'
               }
             });
             if (res.ok) {
@@ -230,17 +254,13 @@ function HomePageContent() {
         };
 
         // Fetch trending apps - top 10 for banner carousel and trending section
-        // Use cache to reduce TTFB - cache for 60 seconds
-        const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10", [], {
-          next: { revalidate: 60 }
-        });
+        // API route handles caching, so we can use force-cache here
+        const trendingData = await fetchWithErrorHandling("/api/apps/trending?limit=10", []);
         let allTrendingApps = trendingData.apps || [];
         
         // If no trending apps, fetch recent approved apps as fallback
         if (allTrendingApps.length === 0) {
-          const recentData = await fetchWithErrorHandling("/api/apps?limit=10&sort=newest", [], {
-            next: { revalidate: 60 }
-          });
+          const recentData = await fetchWithErrorHandling("/api/apps?limit=10&sort=newest", []);
           allTrendingApps = recentData.apps || [];
         }
         
@@ -323,12 +343,13 @@ function HomePageContent() {
         {/* Content Area */}
         <div className="w-full max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Top Banner - Top 10 Trending Apps Carousel */}
-          {loading ? (
-            <div className="h-[200px] sm:h-[220px] md:h-64 bg-gray-900 rounded-3xl animate-pulse mb-6 md:mb-8" />
-          ) : topApps.length > 0 ? (
+          {/* Show skeleton immediately, then replace with content */}
+          {topApps.length > 0 ? (
             <Suspense fallback={<div className="h-[200px] sm:h-[220px] md:h-64 bg-gray-900 rounded-3xl animate-pulse mb-6 md:mb-8" />}>
               <TopBanner apps={topApps} />
             </Suspense>
+          ) : loading ? (
+            <div className="h-[200px] sm:h-[220px] md:h-64 bg-gray-900 rounded-3xl animate-pulse mb-6 md:mb-8" />
           ) : null}
 
           {/* Promo Section */}
@@ -479,6 +500,33 @@ function HomePageContent() {
                 backgroundImage="/category-bg/art-bg.webp"
               />
             </div>
+          </motion.section>
+
+          {/* Base Social Feed Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.28 }}
+          >
+            <SocialSectionWrapper />
+          </motion.section>
+
+          {/* Discover Base Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.30 }}
+          >
+            <DiscoverBase />
+          </motion.section>
+
+          {/* Promoted Events Section */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.32 }}
+          >
+            <PromotedEventsSection />
           </motion.section>
 
           {/* Explore Apps Section - Lazy loaded below fold */}

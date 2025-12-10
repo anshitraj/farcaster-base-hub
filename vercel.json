@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/fetch-x-tweet",
+      "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/cron/fetch-social-casts",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
+

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSessionFromCookies } from "@/lib/auth";
+import { trackQuestCompletion } from "@/lib/quest-helpers";
 import { cookies } from "next/headers";
 import { MiniApp, Developer, Collection, CollectionItem, Notification } from "@/db/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, count } from "drizzle-orm";
 import { z } from "zod";
 
 const addItemSchema = z.object({
@@ -132,12 +133,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add item to collection
-    try {
-      const [item] = await db.insert(CollectionItem).values({
-        collectionId: collection.id,
-        appId: validated.miniAppId,
-      }).returning();
+      // Track quest completion for saving/favoriting apps (BEFORE inserting)
+      let previousFavoritesCount = 0;
+      if (validated.collectionType === "favorites") {
+        try {
+          // Check if this is the first favorite (for "save" quest)
+          const favoritesCollectionResult = await db.select({ id: Collection.id })
+            .from(Collection)
+            .where(and(
+              eq(Collection.developerId, developer.id),
+              eq(Collection.type, "favorites")
+            ))
+            .limit(1);
+          const favoritesCollection = favoritesCollectionResult[0];
+          
+          if (favoritesCollection) {
+            // Check count BEFORE inserting (this item makes it +1)
+            const previousFavoritesResult = await db.select({ count: count() })
+              .from(CollectionItem)
+              .where(eq(CollectionItem.collectionId, favoritesCollection.id));
+            previousFavoritesCount = Number(previousFavoritesResult[0]?.count || 0);
+          }
+        } catch (questError) {
+          console.error("Error checking favorites count:", questError);
+        }
+      }
+
+      // Add item to collection
+      try {
+        const [item] = await db.insert(CollectionItem).values({
+          collectionId: collection.id,
+          appId: validated.miniAppId,
+        }).returning();
+
+        // Track quest completion for saving/favoriting apps (AFTER inserting)
+        if (validated.collectionType === "favorites") {
+          try {
+            const totalFavorites = previousFavoritesCount + 1;
+            
+            if (totalFavorites === 1) {
+              // First favorite - complete "save" quest
+              await trackQuestCompletion(wallet, "save");
+            }
+          } catch (questError) {
+            console.error("Error tracking quest completion:", questError);
+            // Don't fail the favorite operation if quest tracking has an error
+          }
+        }
 
       // Fetch app with developer for notification
       const appWithDevResult = await db.select({
