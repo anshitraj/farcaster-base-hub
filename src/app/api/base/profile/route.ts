@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     // Names are stored in the developer profile when users verify their account
     let baseName: string | null = null;
     let baseEthName: string | null = null;
+    let avatar: string | null = null;
     
     try {
       const { db } = await import("@/lib/db");
@@ -49,6 +50,11 @@ export async function GET(request: NextRequest) {
         } else if (developer.name.endsWith('.base.eth')) {
           baseEthName = developer.name;
         }
+      }
+      
+      // Get avatar from developer profile if available
+      if (developer?.avatar && !developer.avatar.includes('dicebear')) {
+        avatar = developer.avatar;
       }
     } catch (error) {
       console.error("Error fetching developer profile:", error);
@@ -71,15 +77,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Use a consistent generated avatar based on wallet address
-    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedWallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
+    // Fallback to generated avatar if no avatar found
+    const avatarUrl = avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedWallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;
 
     return NextResponse.json({
       wallet: normalizedWallet,
       name: baseName || baseEthName,
       baseEthName: baseEthName, // Separate field for .base.eth name
       avatar: avatarUrl,
-      source: (baseName || baseEthName) ? "base" : "generated",
+      source: avatar ? "base" : ((baseName || baseEthName) ? "base" : "generated"),
     });
   } catch (error: any) {
     console.error("Base profile fetch error:", error);

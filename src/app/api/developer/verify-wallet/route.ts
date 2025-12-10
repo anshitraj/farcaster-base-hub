@@ -165,10 +165,46 @@ export async function POST(request: NextRequest) {
     // Use normalized signature
     signature = normalizedSignature;
 
+    // Normalize signature for Base App compatibility
+    // Base App may return signatures with high-s values that need normalization
+    // Signature format: 0x + r (32 bytes) + s (32 bytes) + v (1 byte)
+    let normalizedSigForVerification = signature;
+    if (signature.length === 132) {
+      try {
+        const r = signature.slice(2, 66);
+        const s = signature.slice(66, 130);
+        const v = signature.slice(130, 132);
+        
+        // Convert s to BigInt to check if it's high
+        const sBigInt = BigInt("0x" + s);
+        // secp256k1 curve order (n) = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
+        const CURVE_N = BigInt("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141");
+        const HALF_CURVE_N = CURVE_N / BigInt(2);
+        
+        // If s is high, normalize to low-s (canonical form)
+        if (sBigInt > HALF_CURVE_N) {
+          const normalizedS = (CURVE_N - sBigInt).toString(16).padStart(64, '0');
+          // Adjust v: if we flipped s, we need to flip v (27 <-> 28, 0 <-> 1)
+          const vInt = parseInt(v, 16);
+          let normalizedV: number;
+          if (vInt >= 27) {
+            normalizedV = vInt === 27 ? 28 : 27;
+          } else {
+            normalizedV = vInt === 0 ? 1 : 0;
+          }
+          normalizedSigForVerification = "0x" + r + normalizedS + normalizedV.toString(16).padStart(2, '0');
+          console.log("Normalized signature (high-s to low-s) for Base App compatibility");
+        }
+      } catch (normalizeError) {
+        // If normalization fails, use original signature
+        console.warn("Could not normalize signature, using original:", normalizeError);
+      }
+    }
+
     // Verify signature
     try {
       // Use the normalized signature with domain-bound message
-      const recoveredAddress = verifyMessage(verificationMessage, signature).toLowerCase();
+      const recoveredAddress = verifyMessage(verificationMessage, normalizedSigForVerification).toLowerCase();
       
       if (recoveredAddress !== wallet.toLowerCase()) {
         return NextResponse.json(
@@ -177,31 +213,76 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (error: any) {
-      // Provide more helpful error messages
-      let errorMessage = "Invalid signature";
-      if (error.message?.includes("invalid raw signature length")) {
-        errorMessage = "Invalid signature format. The signature appears to be corrupted. Please try signing the message again.";
-      } else if (error.message?.includes("invalid signature")) {
-        errorMessage = `Invalid signature. Please ensure you're signing the correct message with domain binding: '${verificationMessage}'`;
-      } else if (error.message?.includes("malformed")) {
-        errorMessage = "Invalid signature format. Please try signing the message again.";
+      // If verification fails with normalized signature, try original as fallback
+      if (normalizedSigForVerification !== signature) {
+        try {
+          const recoveredAddress = verifyMessage(verificationMessage, signature).toLowerCase();
+          if (recoveredAddress === wallet.toLowerCase()) {
+            // Original signature works, continue
+            console.log("Original signature verified successfully");
+          } else {
+            throw new Error("Signature does not match wallet address");
+          }
+        } catch (fallbackError: any) {
+          // Both failed, return error
+          let errorMessage = "Invalid signature";
+          if (error.message?.includes("s must be") || error.message?.includes("CURVE.n")) {
+            errorMessage = "Invalid signature: signature format is not compatible. Please try signing again from Base App.";
+          } else if (error.message?.includes("invalid raw signature length")) {
+            errorMessage = "Invalid signature format. The signature appears to be corrupted. Please try signing the message again.";
+          } else if (error.message?.includes("invalid signature")) {
+            errorMessage = `Invalid signature. Please ensure you're signing the correct message with domain binding: '${verificationMessage}'`;
+          } else if (error.message?.includes("malformed")) {
+            errorMessage = "Invalid signature format. Please try signing the message again.";
+          } else {
+            errorMessage = `Invalid signature: ${error.message || "Unknown error"}`;
+          }
+          
+          console.error("Signature verification error:", {
+            error: error.message,
+            fallbackError: fallbackError.message,
+            errorCode: error.code,
+            signatureLength: signature.length,
+            normalizedLength: normalizedSigForVerification.length,
+            signaturePrefix: signature.substring(0, 20),
+            signatureSuffix: signature.substring(signature.length - 10),
+            isValidHex: /^0x[a-f0-9]{130}$/.test(signature),
+          });
+          
+          return NextResponse.json(
+            { error: errorMessage },
+            { status: 400 }
+          );
+        }
       } else {
-        errorMessage = `Invalid signature: ${error.message || "Unknown error"}`;
+        // Provide more helpful error messages
+        let errorMessage = "Invalid signature";
+        if (error.message?.includes("s must be") || error.message?.includes("CURVE.n")) {
+          errorMessage = "Invalid signature: signature format is not compatible. Please try signing again from Base App.";
+        } else if (error.message?.includes("invalid raw signature length")) {
+          errorMessage = "Invalid signature format. The signature appears to be corrupted. Please try signing the message again.";
+        } else if (error.message?.includes("invalid signature")) {
+          errorMessage = `Invalid signature. Please ensure you're signing the correct message with domain binding: '${verificationMessage}'`;
+        } else if (error.message?.includes("malformed")) {
+          errorMessage = "Invalid signature format. Please try signing the message again.";
+        } else {
+          errorMessage = `Invalid signature: ${error.message || "Unknown error"}`;
+        }
+        
+        console.error("Signature verification error:", {
+          error: error.message,
+          errorCode: error.code,
+          signatureLength: signature.length,
+          signaturePrefix: signature.substring(0, 20),
+          signatureSuffix: signature.substring(signature.length - 10),
+          isValidHex: /^0x[a-f0-9]{130}$/.test(signature),
+        });
+        
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: 400 }
+        );
       }
-      
-      console.error("Signature verification error:", {
-        error: error.message,
-        errorCode: error.code,
-        signatureLength: signature.length,
-        signaturePrefix: signature.substring(0, 20),
-        signatureSuffix: signature.substring(signature.length - 10),
-        isValidHex: /^0x[a-f0-9]{130}$/.test(signature),
-      });
-      
-      return NextResponse.json(
-        { error: errorMessage },
-        { status: 400 }
-      );
     }
 
     const walletLower = wallet.toLowerCase();

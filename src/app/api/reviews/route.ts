@@ -99,75 +99,79 @@ export async function POST(request: NextRequest) {
       
       developerId = developer.id;
       
-      // Fetch avatar from Base or Farcaster if developer doesn't have one
-      if (!developer.avatar) {
-        try {
-          const isFarcaster = normalizedWallet.startsWith("farcaster:");
-          
-          if (isFarcaster) {
-            // Fetch from Farcaster/Neynar API
-            const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
-            if (fidMatch) {
-              const fid = fidMatch[1];
-              try {
-                const neynarRes = await fetch(
-                  `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
-                  {
-                    headers: {
-                      "apikey": process.env.NEYNAR_API_KEY || "",
-                      "Content-Type": "application/json",
-                    },
-                  }
-                );
-                
-                if (neynarRes.ok) {
-                  const neynarData = await neynarRes.json();
-                  const user = neynarData.users?.[0];
-                  if (user?.pfp_url) {
-                    reviewerAvatar = user.pfp_url;
-                    // Update developer with avatar and name if available
-                    await db.update(Developer)
-                      .set({
-                        avatar: reviewerAvatar,
-                        name: user.display_name || user.username || developer.name,
-                      })
-                      .where(eq(Developer.id, developer.id));
-                  }
-                }
-              } catch (neynarError) {
-                console.error("Error fetching Farcaster avatar:", neynarError);
-              }
-            }
-          } else {
-            // Fetch from Base profile API
+      // ALWAYS fetch avatar from Base or Farcaster to ensure we have the latest profile picture
+      try {
+        const isFarcaster = normalizedWallet.startsWith("farcaster:");
+        
+        if (isFarcaster) {
+          // Fetch from Farcaster/Neynar API
+          const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+          if (fidMatch) {
+            const fid = fidMatch[1];
             try {
-              const baseRes = await fetch(
-                `${request.nextUrl.origin}/api/base/profile?wallet=${encodeURIComponent(normalizedWallet)}`,
+              const neynarRes = await fetch(
+                `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
                 {
                   headers: {
+                    "apikey": process.env.NEYNAR_API_KEY || "",
                     "Content-Type": "application/json",
                   },
                 }
               );
               
-              if (baseRes.ok) {
-                const baseData = await baseRes.json();
-                if (baseData.avatar) {
-                  reviewerAvatar = baseData.avatar;
-                  // Update developer with avatar
+              if (neynarRes.ok) {
+                const neynarData = await neynarRes.json();
+                const user = neynarData.users?.[0];
+                if (user?.pfp_url) {
+                  reviewerAvatar = user.pfp_url;
+                  // Update developer with avatar and name if available
                   await db.update(Developer)
-                    .set({ avatar: reviewerAvatar })
+                    .set({
+                      avatar: reviewerAvatar,
+                      name: user.display_name || user.username || developer.name,
+                    })
                     .where(eq(Developer.id, developer.id));
                 }
               }
-            } catch (baseError) {
-              console.error("Error fetching Base avatar:", baseError);
+            } catch (neynarError) {
+              console.error("Error fetching Farcaster avatar:", neynarError);
             }
           }
-        } catch (avatarError) {
-          console.error("Error fetching avatar:", avatarError);
+        } else {
+          // ALWAYS fetch from Base profile API for Base wallets to get latest avatar
+          try {
+            const baseRes = await fetch(
+              `${request.nextUrl.origin}/api/base/profile?wallet=${encodeURIComponent(normalizedWallet)}`,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            
+            if (baseRes.ok) {
+              const baseData = await baseRes.json();
+              if (baseData.avatar) {
+                reviewerAvatar = baseData.avatar;
+                // Update developer with avatar and name
+                await db.update(Developer)
+                  .set({ 
+                    avatar: reviewerAvatar,
+                    name: baseData.name || baseData.baseEthName || developer.name,
+                  })
+                  .where(eq(Developer.id, developer.id));
+              }
+            }
+          } catch (baseError) {
+            console.error("Error fetching Base avatar:", baseError);
+          }
         }
-      } else {
+      } catch (avatarError) {
+        console.error("Error fetching avatar:", avatarError);
+      }
+      
+      // Fallback to existing avatar if fetch failed
+      if (!reviewerAvatar) {
         reviewerAvatar = developer.avatar;
       }
     }
@@ -408,18 +412,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch the created review with developer info to return immediately
+    const createdReviewData = await db.select({
+      review: Review,
+      developer: {
+        id: Developer.id,
+        wallet: Developer.wallet,
+        name: Developer.name,
+        avatar: Developer.avatar,
+      },
+    })
+      .from(Review)
+      .leftJoin(Developer, eq(Review.developerId, Developer.id))
+      .where(eq(Review.id, review.id))
+      .limit(1);
+    
+    const createdReview = createdReviewData[0];
+
     return NextResponse.json({
       success: true,
       ratingAverage,
       ratingCount,
       pointsAwarded,
       developerXPAwarded,
+      review: createdReview ? {
+        id: createdReview.review.id,
+        rating: createdReview.review.rating,
+        comment: createdReview.review.comment,
+        createdAt: createdReview.review.createdAt instanceof Date 
+          ? createdReview.review.createdAt.toISOString() 
+          : createdReview.review.createdAt,
+        developer: createdReview.developer ? {
+          id: createdReview.developer.id,
+          wallet: createdReview.developer.wallet,
+          name: createdReview.developer.name,
+          avatar: createdReview.developer.avatar,
+        } : null,
+      } : null,
       message: pointsAwarded > 0 
         ? `You earned ${pointsAwarded} points for this review! 🎉`
         : undefined,
       developerMessage: developerXPAwarded > 0
         ? `Developer earned ${developerXPAwarded} XP - App rating above 3 stars! ⭐`
         : undefined,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

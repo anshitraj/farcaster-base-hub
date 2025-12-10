@@ -855,17 +855,38 @@ export default function AppDetailPage() {
                 <ReviewForm
                   appId={id}
                   onReviewSubmitted={async () => {
-                    // Refresh app data to show updated rating and review count
-                    const res = await fetch(`/api/apps/${id}`, {
+                    // Wait a bit for database to update
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    
+                    // Force refresh app data to show updated rating and review count
+                    // Use timestamp to bypass any cache
+                    const timestamp = Date.now();
+                    const res = await fetch(`/api/apps/${id}?t=${timestamp}&_=${timestamp}`, {
+                      method: 'GET',
                       cache: 'no-store',
                       headers: {
-                        'Cache-Control': 'no-cache',
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0',
                       },
                     });
                     if (res.ok) {
                       const data = await res.json();
+                      console.log('[AppDetail] Refreshed after review:', {
+                        reviewsCount: data.reviews?.length,
+                        ratingCount: data.app?.ratingCount,
+                        reviews: data.reviews,
+                      });
                       setApp(data.app);
-                      setReviews(data.reviews || []);
+                      // Sort reviews by date (newest first) to ensure new review appears at top
+                      const sortedReviews = (data.reviews || []).sort((a: any, b: any) => {
+                        const dateA = new Date(a.createdAt).getTime();
+                        const dateB = new Date(b.createdAt).getTime();
+                        return dateB - dateA;
+                      });
+                      setReviews(sortedReviews);
+                    } else {
+                      console.error('[AppDetail] Failed to refresh after review:', res.status);
                     }
                   }}
                 />

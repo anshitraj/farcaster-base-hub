@@ -76,10 +76,14 @@ export default function RankingPage() {
         // Enhance user data with Base names and avatars if missing
         fetchedUsers = await Promise.all(
           fetchedUsers.map(async (user: any) => {
-            // If user doesn't have a Base name or avatar, try to fetch it
-            if (!user.baseName && user.wallet && !user.wallet.startsWith('farcaster:')) {
+            const isFarcaster = user.wallet?.startsWith('farcaster:');
+            
+            // Fetch Base name and avatar for Base wallets
+            if (!isFarcaster && user.wallet) {
               try {
-                const baseRes = await fetch(`/api/base/profile?wallet=${user.wallet}`);
+                const baseRes = await fetch(`/api/base/profile?wallet=${encodeURIComponent(user.wallet)}`, {
+                  credentials: "include",
+                });
                 if (baseRes.ok) {
                   const baseData = await baseRes.json();
                   if (baseData.baseEthName || (baseData.name && baseData.name.includes('.base.eth'))) {
@@ -88,15 +92,64 @@ export default function RankingPage() {
                       user.name = user.baseName;
                     }
                   }
+                  // Update avatar from Base profile if available
+                  if (baseData.avatar && (!user.avatar || user.avatar.includes('dicebear'))) {
+                    user.avatar = baseData.avatar;
+                  }
                 }
               } catch (e) {
-                // Ignore
+                console.error("Error fetching Base profile:", e);
               }
             }
             
-            // Generate avatar if missing
-            if (!user.avatar) {
-              if (user.wallet.startsWith('farcaster:')) {
+            // Fetch Farcaster avatar if missing
+            if (isFarcaster && (!user.avatar || user.avatar.includes('dicebear'))) {
+              const fidMatch = user.wallet.match(/^farcaster:(\d+)$/);
+              if (fidMatch) {
+                try {
+                  const fid = fidMatch[1];
+                  const fcRes = await fetch(`/api/farcaster/resolve-eth-address?fid=${fid}`, {
+                    credentials: "include",
+                  });
+                  if (fcRes.ok) {
+                    const fcData = await fcRes.json();
+                    // Try to fetch Farcaster user data via Neynar
+                    if (fcData.ethAddress) {
+                      // For now, try to get avatar from developer profile
+                      // The API should have already fetched it, but we can try again
+                    }
+                  }
+                  
+                  // Try direct Neynar API call for avatar
+                  try {
+                    const neynarRes = await fetch(
+                      `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+                      {
+                        headers: {
+                          "apikey": process.env.NEXT_PUBLIC_NEYNAR_API_KEY || "",
+                          "Content-Type": "application/json",
+                        },
+                      }
+                    );
+                    if (neynarRes.ok) {
+                      const neynarData = await neynarRes.json();
+                      const fcUser = neynarData.users?.[0];
+                      if (fcUser?.pfp_url) {
+                        user.avatar = fcUser.pfp_url;
+                      }
+                    }
+                  } catch (neynarError) {
+                    console.error("Error fetching Farcaster avatar:", neynarError);
+                  }
+                } catch (e) {
+                  console.error("Error fetching Farcaster profile:", e);
+                }
+              }
+            }
+            
+            // Fallback: Generate avatar if still missing
+            if (!user.avatar || user.avatar.includes('dicebear')) {
+              if (isFarcaster) {
                 user.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=ffffff&hairColor=77311d`;
               } else {
                 user.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=b6e3f4,c0aede,d1d4f9&hairColor=77311d,4a312c`;

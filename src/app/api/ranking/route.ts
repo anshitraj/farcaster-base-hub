@@ -5,7 +5,7 @@ import { eq, desc } from "drizzle-orm";
 import { calculateStreak } from "@/lib/quest-helpers";
 
 export const dynamic = 'force-dynamic';
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
 
         // Try to get Base name from developer profile or UserProfile
         let baseName: string | null = null;
-        let avatar: string | null = developer?.avatar || null;
+        // Use developer avatar if it exists and is not a generated one
+        let avatar: string | null = (developer?.avatar && !developer.avatar.includes('dicebear')) ? developer.avatar : null;
         let displayName: string | null = developer?.name || null;
 
         if (developer?.name) {
@@ -89,7 +90,83 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Generate avatar if not available
+        // Fetch Base or Farcaster avatar if not available
+        if (!avatar) {
+          const isFarcaster = user.wallet.startsWith('farcaster:');
+          
+          if (isFarcaster) {
+            // Fetch from Farcaster/Neynar API
+            const fidMatch = user.wallet.match(/^farcaster:(\d+)$/);
+            if (fidMatch) {
+              const fid = fidMatch[1];
+              try {
+                const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+                if (NEYNAR_API_KEY) {
+                  const neynarRes = await fetch(
+                    `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+                    {
+                      headers: {
+                        "apikey": NEYNAR_API_KEY,
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+                  
+                  if (neynarRes.ok) {
+                    const neynarData = await neynarRes.json();
+                    const fcUser = neynarData.users?.[0];
+                    if (fcUser?.pfp_url) {
+                      avatar = fcUser.pfp_url;
+                      // Update developer with avatar and name
+                      if (developer) {
+                        await db.update(Developer)
+                          .set({
+                            avatar: avatar,
+                            name: fcUser.display_name || fcUser.username || developer.name,
+                          })
+                          .where(eq(Developer.wallet, user.wallet));
+                      }
+                    }
+                  }
+                }
+              } catch (neynarError) {
+                console.error("Error fetching Farcaster avatar:", neynarError);
+              }
+            }
+          } else {
+            // Fetch from Base profile API
+            try {
+              const baseRes = await fetch(
+                `${request.nextUrl.origin}/api/base/profile?wallet=${encodeURIComponent(user.wallet)}`,
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+              
+              if (baseRes.ok) {
+                const baseData = await baseRes.json();
+                if (baseData.avatar) {
+                  avatar = baseData.avatar;
+                  // Update developer with avatar and name
+                  if (developer) {
+                    await db.update(Developer)
+                      .set({ 
+                        avatar: avatar,
+                        name: baseData.name || baseData.baseEthName || developer.name,
+                      })
+                      .where(eq(Developer.wallet, user.wallet));
+                  }
+                }
+              }
+            } catch (baseError) {
+              console.error("Error fetching Base avatar:", baseError);
+            }
+          }
+        }
+        
+        // Fallback to generated avatar if still no avatar
         if (!avatar) {
           if (user.wallet.startsWith('farcaster:')) {
             avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.wallet}&backgroundColor=ffffff&hairColor=77311d`;

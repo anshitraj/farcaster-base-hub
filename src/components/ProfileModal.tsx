@@ -203,9 +203,17 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       let avatar: string | null = null;
       let isAdmin = false;
       
+      // Use MiniApp user data (from Farcaster/Base app) - this provides the best profile picture and name
       if (miniAppUser) {
-        name = miniAppUser.displayName || miniAppUser.username || null;
-        avatar = miniAppUser.pfpUrl || null;
+        // Prioritize MiniApp user's display name and avatar (these come from Farcaster/Base)
+        if (miniAppUser.displayName) {
+          name = miniAppUser.displayName;
+        } else if (miniAppUser.username) {
+          name = miniAppUser.username;
+        }
+        if (miniAppUser.pfpUrl) {
+          avatar = miniAppUser.pfpUrl;
+        }
       }
       
       try {
@@ -225,13 +233,65 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         // Continue with existing data
       }
       
+      // Fallback: Check admin status from developer API if not set
+      if (!isAdmin && normalizedWallet.startsWith("0x")) {
+        try {
+          const devRes = await fetch(`/api/developers/${normalizedWallet}`, {
+            credentials: "include",
+          });
+          if (devRes.ok) {
+            const devData = await devRes.json();
+            if (devData.developer?.adminRole) {
+              isAdmin = devData.developer.adminRole === "ADMIN" || devData.developer.adminRole === "MODERATOR";
+            }
+          }
+        } catch (e) {
+          // Ignore - continue with existing admin status
+        }
+      }
+      
+      // For Farcaster users, try to get Ethereum address to fetch Base profile
+      let ethAddressForBase: string | null = null;
+      if (isFarcaster && extractedFid) {
+        // Try to get Ethereum address from MiniApp context first (Base App provides this)
+        if (miniAppContext?.user) {
+          const userCtx = miniAppContext.user as any;
+          ethAddressForBase = userCtx.address || userCtx.custodyAddress || userCtx.verifiedAddresses?.[0] || null;
+        }
+        
+        // Also check if MiniApp user has address property
+        if (!ethAddressForBase && miniAppUser && (miniAppUser as any).address) {
+          ethAddressForBase = (miniAppUser as any).address;
+        }
+        
+        // Fallback: Check developer profile for associated Ethereum address
+        if (!ethAddressForBase) {
+          try {
+            const devRes = await fetch(`/api/developers/${normalizedWallet}`, {
+              credentials: "include",
+            });
+            if (devRes.ok) {
+              const devData = await devRes.json();
+              // Some developers might have both Farcaster and Ethereum wallets linked
+              // Check if there's a related Ethereum address in the developer data
+              if (devData.developer?.wallet && devData.developer.wallet.startsWith("0x")) {
+                ethAddressForBase = devData.developer.wallet.toLowerCase();
+              }
+            }
+          } catch (e) {
+            // Ignore - continue without Ethereum address
+          }
+        }
+      }
+      
       if (isFarcaster && extractedFid && !name) {
         name = `FID: ${extractedFid}`;
       }
       
-      // Fetch Base name (base.eth domain)
+      // Fetch Base name (base.eth domain) - for both Base wallets and Farcaster users with Ethereum addresses
       let baseName: string | null = null;
-      if (isBaseWallet || normalizedWallet.startsWith("0x")) {
+      const walletToCheck = ethAddressForBase || normalizedWallet;
+      if (isBaseWallet || normalizedWallet.startsWith("0x") || (ethAddressForBase && ethAddressForBase.startsWith("0x"))) {
         try {
           // Try to get from MiniApp context first (Base App provides username)
           if (miniAppUser?.username) {
@@ -245,7 +305,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           // If not found in MiniApp context, try to resolve from Base profile API
           if (!baseName) {
             try {
-              const baseRes = await fetch(`/api/base/profile?wallet=${normalizedWallet}`);
+              const baseRes = await fetch(`/api/base/profile?wallet=${walletToCheck}`);
               if (baseRes.ok) {
                 const baseData = await baseRes.json();
                 // Check if we have a .base.eth name
@@ -253,6 +313,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   baseName = baseData.baseEthName.toLowerCase();
                 } else if (baseData.name && baseData.name.includes('.base.eth')) {
                   baseName = baseData.name.toLowerCase();
+                }
+                // Also update avatar if Base API provides one
+                if (baseData.avatar && !avatar) {
+                  avatar = baseData.avatar;
                 }
               }
             } catch (e) {
@@ -265,9 +329,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             baseName = name.toLowerCase();
           }
           
-          // Also check developer profile for Base name
+          // Also check developer profile for Base name (check both Farcaster wallet and Ethereum address)
           if (!baseName) {
             try {
+              // First check with Farcaster wallet
               const devRes = await fetch(`/api/developers/${normalizedWallet}`, {
                 credentials: "include",
               });
@@ -275,6 +340,30 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 const devData = await devRes.json();
                 if (devData.developer?.name && devData.developer.name.includes('.base.eth')) {
                   baseName = devData.developer.name.toLowerCase();
+                }
+                // Also check if developer has avatar
+                if (devData.developer?.avatar && !avatar) {
+                  avatar = devData.developer.avatar;
+                }
+              }
+              
+              // If we have Ethereum address, also check with that
+              if (!baseName && ethAddressForBase && ethAddressForBase.startsWith("0x")) {
+                try {
+                  const devResEth = await fetch(`/api/developers/${ethAddressForBase}`, {
+                    credentials: "include",
+                  });
+                  if (devResEth.ok) {
+                    const devDataEth = await devResEth.json();
+                    if (devDataEth.developer?.name && devDataEth.developer.name.includes('.base.eth')) {
+                      baseName = devDataEth.developer.name.toLowerCase();
+                    }
+                    if (devDataEth.developer?.avatar && !avatar) {
+                      avatar = devDataEth.developer.avatar;
+                    }
+                  }
+                } catch (e) {
+                  // Ignore
                 }
               }
             } catch (e) {

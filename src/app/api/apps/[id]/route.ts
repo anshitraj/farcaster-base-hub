@@ -128,20 +128,119 @@ export async function GET(
       .where(eq(Review.miniAppId, app.id))
       .orderBy(desc(Review.createdAt));
 
-    const reviews = reviewsData.map((r) => ({
-      id: r.review.id,
-      rating: r.review.rating,
-      comment: r.review.comment,
-      createdAt: r.review.createdAt,
-      developer: r.developer,
-      developerReply: r.review.developerReply,
-      developerReplyDate: r.review.developerReplyDate,
-      // Include app developer info for reply display
-      appDeveloper: developer ? {
-        name: developer.name,
-        avatar: developer.avatar,
-      } : null,
-    }));
+    // Fetch fresh user data from Base/Farcaster APIs for each reviewer
+    const reviewsWithFreshData = await Promise.all(
+      reviewsData.map(async (r) => {
+        let reviewerName = r.developer?.name || null;
+        let reviewerAvatar = r.developer?.avatar || null;
+        
+        // If we have a wallet, fetch fresh data from Base/Farcaster APIs
+        if (r.developer?.wallet) {
+          const normalizedWallet = r.developer.wallet.toLowerCase();
+          const isFarcaster = normalizedWallet.startsWith("farcaster:");
+          
+          try {
+            if (isFarcaster) {
+              // Fetch from Farcaster/Neynar API
+              const fidMatch = normalizedWallet.match(/^farcaster:(\d+)$/);
+              if (fidMatch) {
+                const fid = fidMatch[1];
+                try {
+                  const neynarRes = await fetch(
+                    `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
+                    {
+                      headers: {
+                        "apikey": process.env.NEYNAR_API_KEY || "",
+                        "Content-Type": "application/json",
+                      },
+                    }
+                  );
+                  
+                  if (neynarRes.ok) {
+                    const neynarData = await neynarRes.json();
+                    const user = neynarData.users?.[0];
+                    if (user) {
+                      reviewerName = user.display_name || user.username || reviewerName;
+                      reviewerAvatar = user.pfp_url || reviewerAvatar;
+                      
+                      // Update developer record with fresh data
+                      if (r.developer?.id) {
+                        await db.update(Developer)
+                          .set({
+                            avatar: reviewerAvatar,
+                            name: reviewerName,
+                          })
+                          .where(eq(Developer.id, r.developer.id));
+                      }
+                    }
+                  }
+                } catch (neynarError) {
+                  console.error("Error fetching Farcaster avatar:", neynarError);
+                }
+              }
+            } else {
+              // Fetch from Base profile API
+              try {
+                const baseRes = await fetch(
+                  `${request.nextUrl.origin}/api/base/profile?wallet=${encodeURIComponent(normalizedWallet)}`,
+                  {
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                  }
+                );
+                
+                if (baseRes.ok) {
+                  const baseData = await baseRes.json();
+                  // Use Base API data - it already checks developer record and returns best available data
+                  if (baseData.name || baseData.baseEthName) {
+                    reviewerName = baseData.name || baseData.baseEthName || reviewerName;
+                  }
+                  if (baseData.avatar) {
+                    reviewerAvatar = baseData.avatar;
+                  }
+                  
+                  // Update developer record with fresh data
+                  if (r.developer?.id && (reviewerName || reviewerAvatar)) {
+                    await db.update(Developer)
+                      .set({
+                        avatar: reviewerAvatar,
+                        name: reviewerName,
+                      })
+                      .where(eq(Developer.id, r.developer.id));
+                  }
+                }
+              } catch (baseError) {
+                console.error("Error fetching Base avatar:", baseError);
+              }
+            }
+          } catch (avatarError) {
+            console.error("Error fetching avatar:", avatarError);
+          }
+        }
+        
+        return {
+          id: r.review.id,
+          rating: r.review.rating,
+          comment: r.review.comment,
+          createdAt: r.review.createdAt,
+          developer: r.developer ? {
+            ...r.developer,
+            name: reviewerName,
+            avatar: reviewerAvatar,
+          } : null,
+          developerReply: r.review.developerReply,
+          developerReplyDate: r.review.developerReplyDate,
+          // Include app developer info for reply display
+          appDeveloper: developer ? {
+            name: developer.name,
+            avatar: developer.avatar,
+          } : null,
+        };
+      })
+    );
+
+    const reviews = reviewsWithFreshData;
 
     // Calculate actual review count from reviews array (more accurate than stored value)
     const actualReviewCount = reviews.length;
@@ -208,8 +307,10 @@ export async function GET(
       })),
     });
 
-    // Add cache headers for better performance
-    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    // Don't cache reviews - they change frequently
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
     return response;
   } catch (error) {
     console.error("Get app error:", error);

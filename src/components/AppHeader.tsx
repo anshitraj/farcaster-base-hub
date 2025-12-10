@@ -368,47 +368,47 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
   return (
     <>
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-2xl border-b border-gray-800/50 shadow-lg">
-        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-2 sm:gap-3 md:gap-4">
+        <div className="px-2 sm:px-3 md:px-6 py-2 sm:py-3 md:py-5 flex items-center gap-1.5 sm:gap-2 md:gap-4">
           {/* Left Side: Menu Button + Logo */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0 min-w-0">
             {/* Mobile Menu Button */}
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={onMenuClick}
-              className="lg:hidden p-2 sm:p-2.5 hover:bg-gray-800 rounded-xl transition-all duration-300"
+              className="lg:hidden p-1.5 sm:p-2 hover:bg-gray-800 rounded-xl transition-all duration-300 flex-shrink-0"
               aria-label="Open menu"
             >
-              <Menu className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
+              <Menu className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-gray-300" />
             </motion.button>
 
             <Link 
               href="/" 
-              className="flex-shrink-0 hover:opacity-80 transition-opacity"
+              className="flex-shrink-0 hover:opacity-80 transition-opacity min-w-0"
             >
               <Image
                 src="/logo.webp"
                 alt="Mini App Store"
                 width={300}
                 height={100}
-                className="h-14 sm:h-12 md:h-14 lg:h-16 w-auto"
+                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto max-w-[140px] sm:max-w-none"
                 priority
                 quality={90}
-                sizes="(max-width: 640px) 200px, (max-width: 1024px) 250px, 300px"
+                sizes="(max-width: 640px) 140px, (max-width: 1024px) 250px, 300px"
               />
             </Link>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0 ml-auto">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0 ml-auto min-w-0">
             {/* List a Project Button - Show on mobile instead of profile */}
-            <Link href="/submit">
+            <Link href="/submit" className="flex-shrink-0">
               <motion.button
                 whileHover={isMobile ? {} : { scale: 1.05 }}
                 whileTap={isMobile ? {} : { scale: 0.95 }}
-                className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] active:bg-[#3A5F9F] transition-all duration-100 text-xs md:text-sm font-semibold touch-manipulation"
+                className="flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 py-1 sm:px-2.5 sm:py-1.5 md:px-4 md:py-2 rounded-lg bg-[#1E3A5F] border border-[#2A5F8F] text-white hover:bg-[#2A5F8F] active:bg-[#3A5F9F] transition-all duration-100 text-[10px] sm:text-xs md:text-sm font-semibold touch-manipulation"
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                <Plus className="w-3 h-3 md:w-4 md:h-4" />
+                <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-4 md:h-4 flex-shrink-0" />
                 <span className="hidden sm:inline">List your mini app</span>
                 <span className="sm:hidden">List</span>
               </motion.button>
@@ -417,20 +417,22 @@ function AppHeaderContent({ onMenuClick }: AppHeaderProps) {
             <motion.button 
               whileHover={isMobile ? {} : { scale: 1.1 }}
               whileTap={isMobile ? {} : { scale: 0.9 }}
-              className="relative p-1.5 sm:p-2 hover:bg-gray-800 active:bg-gray-700 rounded-xl transition-all duration-100 touch-manipulation"
+              className="relative p-1 sm:p-1.5 md:p-2 hover:bg-gray-800 active:bg-gray-700 rounded-xl transition-all duration-100 touch-manipulation flex-shrink-0"
               onClick={() => setNotificationSidebarOpen(true)}
               aria-label="Notifications"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300" />
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-gray-300" />
               {unreadCount !== null && unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] sm:min-w-[18px] sm:h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-white px-0.5 sm:px-1.5 border-2 border-black shadow-lg">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-[12px] sm:min-w-[14px] sm:h-[14px] md:min-w-[18px] md:h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[7px] sm:text-[8px] md:text-[10px] font-bold text-white px-0.5 sm:px-0.5 md:px-1.5 border-2 border-black shadow-lg">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </motion.button>
             {/* Points Display - Show in all contexts including Base/Farcaster */}
-            {loaded && <PointsDisplay />}
+            <div className="flex-shrink-0 min-w-0">
+              {loaded && <PointsDisplay />}
+            </div>
             
             {/* Connect Wallet Button/Dropdown - Desktop only, hide in Mini Apps */}
             {loaded && !isInMiniApp && (

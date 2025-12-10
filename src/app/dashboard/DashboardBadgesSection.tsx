@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import { Award, ExternalLink, Loader2 } from "lucide-react";
+import { Award, ExternalLink, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
@@ -70,7 +70,7 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
     fetchOwnerApps();
   }, [wallet]);
 
-  // Initialize claim states from existing badges
+  // Initialize claim states from existing badges and check blockchain
   useEffect(() => {
     const allApps = [
       ...(apps || []).map((app: any) => ({ ...app, badgeType: "cast_your_app" as const })),
@@ -82,22 +82,83 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
       return;
     }
 
-    const states: BadgeClaimState = {};
-    
-    allApps.forEach((app) => {
-      // Check if badge exists in badges array
-      const existingBadge = badges?.find((b: any) => b.appId === app.id);
-      states[app.id] = {
-        loading: false,
-        claimed: !!existingBadge?.claimed && !!existingBadge?.txHash,
-        txHash: existingBadge?.txHash || null,
-        badgeType: app.badgeType,
-      };
-    });
+    async function checkClaimStatus() {
+      const states: BadgeClaimState = {};
+      
+      // First, initialize from database badges
+      allApps.forEach((app) => {
+        const existingBadge = badges?.find((b: any) => b.appId === app.id);
+        states[app.id] = {
+          loading: false,
+          claimed: !!existingBadge?.claimed && !!existingBadge?.txHash,
+          txHash: existingBadge?.txHash || null,
+          badgeType: app.badgeType,
+        };
+      });
 
-    setClaimStates(states);
-    setCheckingClaims(false);
-  }, [badges, apps, ownerApps]);
+      setClaimStates(states);
+      
+      // Then check blockchain state for all apps
+      if (wallet && allApps.length > 0) {
+        try {
+          const appIds = allApps.map(app => app.id);
+          const response = await fetch("/api/badge/check-claimed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ appIds }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const blockchainStatus = data.claimStatus || {};
+            
+            // Update states with blockchain data
+            allApps.forEach((app) => {
+              const blockchainClaimed = blockchainStatus[app.id] === true;
+              const existingBadge = badges?.find((b: any) => b.appId === app.id);
+              
+              // If blockchain says claimed but DB doesn't have txHash, still show as claimed
+              // This handles the case where badge was claimed in Base App but DB hasn't synced
+              if (blockchainClaimed && !existingBadge?.txHash) {
+                states[app.id] = {
+                  loading: false,
+                  claimed: true,
+                  txHash: null, // Will be fetched later or shown as claimed
+                  badgeType: app.badgeType,
+                };
+              } else if (blockchainClaimed && existingBadge?.txHash) {
+                // Both blockchain and DB confirm
+                states[app.id] = {
+                  loading: false,
+                  claimed: true,
+                  txHash: existingBadge.txHash,
+                  badgeType: app.badgeType,
+                };
+              } else if (!blockchainClaimed && existingBadge?.claimed) {
+                // DB says claimed but blockchain doesn't - trust blockchain
+                states[app.id] = {
+                  loading: false,
+                  claimed: false,
+                  txHash: null,
+                  badgeType: app.badgeType,
+                };
+              }
+            });
+            
+            setClaimStates({ ...states });
+          }
+        } catch (error) {
+          console.error("Error checking blockchain claim status:", error);
+          // Keep database state if blockchain check fails
+        }
+      }
+      
+      setCheckingClaims(false);
+    }
+
+    checkClaimStatus();
+  }, [badges, apps, ownerApps, wallet]);
 
   const handleClaimBadge = async (appId: string, appName: string, badgeType: "cast_your_app" | "sbt") => {
     if (!wallet) {
@@ -208,7 +269,7 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           {allAppsWithBadges.map((app) => {
             const claimState = claimStates[app.id] || { loading: false, claimed: false, txHash: null, badgeType: app.badgeType };
             const existingBadge = badges?.find((b: any) => b.appId === app.id);
@@ -216,50 +277,57 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
             const badgeTitle = isSBT ? `Built ${app.name} on Base` : `${app.name} Builder Badge`;
 
             return (
-              <div key={`app-${app.id}-${app.badgeType}`} className="space-y-4">
+              <div key={`app-${app.id}-${app.badgeType}`} className="space-y-3 md:space-y-4">
                 {/* Normal Badge - CastYourApp SBT or Owner SBT */}
-                <div className="p-4 rounded-lg bg-[#141A24] border border-[#1F2733] hover:border-[#2A2A2A] transition-colors text-center">
-                  <div className="w-32 h-32 mx-auto mb-2 rounded-lg bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden">
+                <div className="p-2 md:p-4 rounded-lg bg-[#141A24] border border-[#1F2733] hover:border-[#2A2A2A] transition-colors text-center">
+                  <div className="w-20 h-20 md:w-32 md:h-32 mx-auto mb-2 rounded-lg bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden">
                     <Image
-                      src="/badges/castapp.webp"
+                      src="/badges/castyourapptransparent.webp"
                       alt={badgeTitle}
                       width={128}
                       height={128}
-                      className="w-32 h-32 object-contain"
-                      sizes="(max-width: 768px) 50vw, 25vw"
+                      className="w-20 h-20 md:w-32 md:h-32 object-contain"
+                      sizes="(max-width: 768px) 80px, 128px"
                       priority={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = "/badges/castapp.webp";
+                        target.src = "/badges/castyourapptransparent.webp";
                       }}
                     />
                   </div>
-                  <p className="text-sm font-medium">{badgeTitle}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{app.name}</p>
+                  <p className="text-xs md:text-sm font-medium line-clamp-2">{badgeTitle}</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1 line-clamp-1">{app.name}</p>
                   
                   {/* Show View Tx if claimed, or Claim button if not */}
-                  {claimState.claimed && claimState.txHash ? (
-                    <a
-                      href={`https://basescan.org/tx/${claimState.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-xs text-base-blue hover:text-base-cyan transition-colors"
-                    >
-                      View Tx
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                  {claimState.claimed ? (
+                    claimState.txHash ? (
+                      <a
+                        href={`https://basescan.org/tx/${claimState.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-[10px] md:text-xs text-base-blue hover:text-base-cyan transition-colors"
+                      >
+                        View Tx
+                        <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                      </a>
+                    ) : (
+                      <div className="mt-2 text-[10px] md:text-xs text-green-500 flex items-center justify-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 md:w-4 md:h-4" />
+                        Claimed
+                      </div>
+                    )
                   ) : (
                     <Button
                       onClick={() => handleClaimBadge(app.id, app.name, app.badgeType)}
                       disabled={claimState.loading || checkingClaims || loadingOwnerApps}
                       size="sm"
-                      className="mt-2 w-full"
+                      className="mt-2 w-full text-[10px] md:text-xs h-7 md:h-9 px-2 md:px-4"
                       variant="outline"
                     >
                       {claimState.loading ? (
                         <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Claiming...
+                          <Loader2 className="w-2.5 h-2.5 md:w-3 md:h-3 mr-1 animate-spin" />
+                          <span className="hidden md:inline">Claiming...</span>
                         </>
                       ) : (
                         "Claim"
@@ -270,17 +338,17 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
 
                 {/* Future Badge - Claim Soon */}
                 <div
-                  className="p-4 rounded-lg bg-[#141A24] border border-[#1F2733] text-center opacity-50 cursor-not-allowed"
+                  className="p-2 md:p-4 rounded-lg bg-[#141A24] border border-[#1F2733] text-center opacity-50 cursor-not-allowed"
                   style={{ opacity: 0.5 }}
                 >
-                  <div className="w-32 h-32 mx-auto mb-2 rounded-lg bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden opacity-60">
+                  <div className="w-20 h-20 md:w-32 md:h-32 mx-auto mb-2 rounded-lg bg-gradient-to-br from-base-blue/20 to-base-cyan/20 flex items-center justify-center overflow-hidden opacity-60">
                     <Image
                       src="/badges/claimsoon.webp"
                       alt={`${app.name} Badge (Claim Soon)`}
                       width={128}
                       height={128}
-                      className="w-32 h-32 object-contain"
-                      sizes="(max-width: 768px) 50vw, 25vw"
+                      className="w-20 h-20 md:w-32 md:h-32 object-contain"
+                      sizes="(max-width: 768px) 80px, 128px"
                       priority={false}
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
@@ -288,10 +356,10 @@ export default function DashboardBadgesSection({ badges, apps, wallet }: Dashboa
                       }}
                     />
                   </div>
-                  <p className="text-sm font-medium">{app.name} Badge</p>
-                  <p className="text-xs text-muted-foreground mt-1">Claim Soon</p>
+                  <p className="text-xs md:text-sm font-medium line-clamp-2">{app.name} Badge</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1">Claim Soon</p>
                   <div className="mt-2">
-                    <span className="text-xs text-muted-foreground/70 italic">Coming Soon</span>
+                    <span className="text-[10px] md:text-xs text-muted-foreground/70 italic">Coming Soon</span>
                   </div>
                 </div>
               </div>
